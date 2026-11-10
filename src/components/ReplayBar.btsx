@@ -1,0 +1,99 @@
+
+module "use client";
+import { useMarketSession, useSessionStore } from "@/lib/session/SessionContext";
+import { formatClock, formatDuration, VENUE_LABEL } from "@/lib/format";
+import { Icon } from "@/lib/icons";
+import { Segmented } from "@/components/ui/Primitives";
+import type { ReplaySpeed } from "@/lib/recording/types";
+import type { PointerEvent, MouseEvent } from "octane";
+module
+  const SPEEDS: {
+    value: ReplaySpeed;
+    label: string;
+  }[] = [
+    { value: 1, label: "1×" },
+    { value: 5, label: "5×" },
+    { value: 20, label: "20×" },
+  ];
+// ─── Replay transport ────────────────────────────────────────────
+// Shown while a recording plays back in place of the live feed.
+
+setup
+  const session = useMarketSession();
+  const replay = useSessionStore((s) => s.replay);
+if !(!replay)
+  scope
+    setup
+      const { meta, position, playing, speed, ended, seeking } = replay;
+      const duration = Math.max(1, meta.endedAt - meta.startedAt);
+      const progress = Math.min(1, Math.max(0, (position - meta.startedAt) / duration));
+      const venues = meta.selectedVenues.map((v) => VENUE_LABEL[v] ?? v).join(", ");
+
+      const seekFromPointer = (event: PointerEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+        void session.replaySeek(meta.startedAt + fraction * duration);
+      };
+    section.replay-bar(aria-label="Replay controls")
+      span.replay-badge Replay
+      button(
+        ~ className="ui-button chip icon-only"
+        ~ type="button"
+        ~ onClick={() => (playing ? session.replayPause() : session.replayPlay())}
+        ~ disabled={seeking}
+        ~ aria-label={playing ? "Pause" : ended ? "Play from start" : "Play"}
+        ~ data-hint={playing ? "Pause" : ended ? "Play from start" : "Play"}
+        ~ )
+        Icon(name={playing ? 'pause' : 'play'})
+
+      button(
+        ~ className="ui-button chip icon-only"
+        ~ type="button"
+        ~ onClick={() => void session.replaySeek(meta.startedAt)}
+        ~ disabled={seeking}
+        ~ aria-label="Restart"
+        ~ data-hint="Restart"
+        ~ )
+        Icon(name='rotate-ccw')
+      Segmented(
+        ~ size="xs"
+        ~ value={speed}
+        ~ onChange={(v) => session.replaySpeed(v)}
+        ~ options={SPEEDS}
+        ~ ariaLabel="Replay speed"
+        ~ )
+      span.replay-time #{formatClock(position)}
+      .replay-track(
+        ~ role="slider"
+        ~ tabIndex={0}
+        ~ aria-label="Replay position"
+        ~ aria-valuemin={0}
+        ~ aria-valuemax={100}
+        ~ aria-valuenow={Math.round(progress * 100)}
+        ~ onClick={seekFromPointer}
+        ~ onKeyDown={(e) => {
+        ~ const step = e.shiftKey ? 60000 : 10000;
+        ~ if (e.key === "ArrowRight")
+        ~ void session.replaySeek(position + step);
+        ~ if (e.key === "ArrowLeft")
+        ~ void session.replaySeek(position - step);
+        ~ }}
+        ~ title="Click to jump. ← / → move 10 s (Shift: 1 min)"
+        ~ )
+        .replay-fill(style={{ width: `${progress * 100}%` }})
+      span(className="replay-time muted") #{formatDuration(position - meta.startedAt)} / #{formatDuration(duration)}
+      span.replay-meta(title={`${meta.symbol} · ${venues} · recorded ${new Date(meta.startedAt).toLocaleString()}`})
+        if seeking
+          | #{"Seeking…"}
+        elseif ended
+          | #{"End of recording"}
+        else
+          | #{`${meta.symbol} · ${meta.selectedVenues.length > 1 ? `${meta.selectedVenues.length} venues` : venues}`}
+      button(
+        ~ className="ui-button chip"
+        ~ type="button"
+        ~ onClick={() => session.exitReplay()}
+        ~ data-hint="Back to the live feed"
+        ~ )
+        Icon(name='close')
+        |  Exit

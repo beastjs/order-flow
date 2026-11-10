@@ -1,0 +1,210 @@
+
+module "use client";
+import { DEFAULT_INDICATORS, useUIStore, type IndicatorSettings } from "@/lib/store/uiStore";
+import { Icon } from "@/lib/icons";
+import { Menu, MenuCheckbox, MenuSection, Segmented } from "@/components/ui/Primitives";
+import { createElement } from "octane";
+import type { OctaneNode } from "octane";
+module
+  const SWATCHES = [null, "#a68bff", "#4f8cff", "#2fd897", "#ff9f43", "#ff5c74", "#f2f3f5"] as const;
+component Swatches
+  props { value, onChange, label, fallback, }: { value: string | null; onChange: (value: string | null) => void; label: string; fallback: string }
+  .menu-row
+    span #{label}
+    .swatches(role="radiogroup" aria-label={label})
+      each color in SWATCHES key color ?? "theme"
+        button(
+          ~ type="button"
+          ~ role="radio"
+          ~ aria-checked={value === color}
+          ~ aria-label={color ?? "Theme default"}
+          ~ title={color ?? "Theme default"}
+          ~ className={`swatch ${value === color ? "is-active" : ""} ${color === null ? "is-theme" : ""}`}
+          ~ style={{ background: color ?? fallback }}
+          ~ onClick={() => onChange(color)}
+          ~ )
+component Row
+  props { label, children }: { label: string; children: OctaneNode }
+  .menu-row
+    span #{label}
+    | #{children}
+// lifted from the toggle helper; ind, set came from the component around it
+// its props type is the one thing the conversion cannot infer — annotate it
+component Toggle
+  props { key, label, hint, ind, set }
+  MenuCheckbox(
+    ~ checked={Boolean(ind[key])}
+    ~ onChange={(v) => set(key, v as never)}
+    ~ label={label}
+    ~ hint={hint}
+    ~ )
+// lifted from the label attribute; changed came from the component around it
+// its props type is the one thing the conversion cannot infer — annotate it
+component Label
+  props { changed }: {changed: number}
+  fragment
+    Icon(name='sliders-h')
+    | Indicators
+    if changed > 0
+      span.chip-count #{changed}
+
+setup
+  const ind = useUIStore((s) => s.indicators);
+  const set = useUIStore((s) => s.setIndicator);
+  const reset = useUIStore((s) => s.resetIndicators);
+  const changed = (Object.keys(DEFAULT_INDICATORS) as (keyof IndicatorSettings)[]).filter((key) => ind[key] !== DEFAULT_INDICATORS[key]).length;
+Menu(buttonClassName="chip" label={createElement(Label, { changed })})
+  .indicators-menu
+    MenuSection(title="VWAP")
+      Toggle(
+        ~ key={"vwap"}
+        ~ label={"Session VWAP"}
+        ~ hint={"Volume-weighted average price"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Toggle(
+        ~ key={"vwapBands"}
+        ~ label={"Deviation bands"}
+        ~ hint={"±1σ and ±2σ around VWAP"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Swatches(
+        ~ label="Colour"
+        ~ value={ind.vwapColor}
+        ~ onChange={(v) => set("vwapColor", v)}
+        ~ fallback="var(--vwap)"
+        ~ )
+    MenuSection(title="Session")
+      Toggle(
+        ~ key={"sessionPoc"}
+        ~ label={"Point of control"}
+        ~ hint={"Highest-volume price of the session"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Toggle(
+        ~ key={"valueArea"}
+        ~ label={"Value area"}
+        ~ hint={"VAH / VAL lines and shading"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Row(label="Value area size")
+        Segmented(
+          ~ size="xs"
+          ~ value={ind.valueAreaPct}
+          ~ onChange={(v) => set("valueAreaPct", v)}
+          ~ options={[{ value: 0.6, label: "60%" }, { value: 0.7, label: "70%" }, { value: 0.8, label: "80%" }]}
+          ~ ariaLabel="Value area size"
+          ~ )
+      Toggle(key={"sessionHighLow"} label={"Session high / low"} ind={ind} set={set})
+      Swatches(
+        ~ label="POC colour"
+        ~ value={ind.pocColor}
+        ~ onChange={(v) => set("pocColor", v)}
+        ~ fallback="var(--poc)"
+        ~ )
+    MenuSection(title="Footprint")
+      Toggle(
+        ~ key={"imbalances"}
+        ~ label={"Imbalance highlights"}
+        ~ hint={"Bold bid/ask when one side dominates"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Row(label="Imbalance ratio")
+        Segmented(
+          ~ size="xs"
+          ~ value={ind.imbalanceRatio}
+          ~ onChange={(v) => set("imbalanceRatio", v)}
+          ~ options={[{ value: 2, label: "2×" }, { value: 2.5, label: "2.5×" }, { value: 3, label: "3×" }, { value: 4, label: "4×" }]}
+          ~ ariaLabel="Imbalance ratio"
+          ~ )
+      Toggle(
+        ~ key={"stackedImbalances"}
+        ~ label={"Stacked imbalances"}
+        ~ hint={"Consecutive imbalanced levels"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Row(label="Min stacked levels")
+        Segmented(
+          ~ size="xs"
+          ~ value={ind.stackedLevels}
+          ~ onChange={(v) => set("stackedLevels", v)}
+          ~ options={[2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))}
+          ~ ariaLabel="Minimum stacked levels"
+          ~ )
+      Toggle(
+        ~ key={"candlePoc"}
+        ~ label={"Candle POC"}
+        ~ hint={"Outline each candle's busiest level"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Toggle(key={"ohlcStrip"} label={"Candle OHLC strip"} ind={ind} set={set})
+      Toggle(
+        ~ key={"summaryRows"}
+        ~ label={"Summary rows"}
+        ~ hint={"Volume, delta, CVD and trades per candle"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Toggle(key={"lastPrice"} label={"Last price line"} ind={ind} set={set})
+    MenuSection(title="Bubbles")
+      Toggle(
+        ~ key={"bigTrades"}
+        ~ label={"Big prints"}
+        ~ hint={"Large executed trades, sized by notional"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Row(label="Minimum size")
+        Segmented(
+          ~ size="xs"
+          ~ value={ind.bigTradeRatio}
+          ~ onChange={(v) => set("bigTradeRatio", v)}
+          ~ options={[5, 10, 20, 50].map((n) => ({ value: n, label: `${n}×` }))}
+          ~ ariaLabel="Minimum big print size versus the average print"
+          ~ )
+      Toggle(
+        ~ key={"liquidations"}
+        ~ label={"Liquidations"}
+        ~ hint={"Forced closes, ringed, sized by notional (perps)"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+    MenuSection(title="Microstructure")
+      Toggle(
+        ~ key={"absorption"}
+        ~ label={"Absorption"}
+        ~ hint={"Heavy aggressive volume at a price that held"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Toggle(
+        ~ key={"icebergs"}
+        ~ label={"Icebergs"}
+        ~ hint={"A level that kept refilling after trading through its size"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+    MenuSection(title="Prior sessions")
+      Toggle(
+        ~ key={"priorDay"}
+        ~ label={"Previous day levels"}
+        ~ hint={"Yesterday's POC, VAH, VAL and VWAP (UTC day)"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+      Toggle(
+        ~ key={"nakedPocs"}
+        ~ label={"Naked POCs"}
+        ~ hint={"Earlier days' POCs that price has not traded back to"}
+        ~ ind={ind}
+        ~ set={set}
+        ~ )
+    .menu-footer
+      button(className="ui-button chip" type="button" onClick={reset} disabled={!changed}) Reset to defaults

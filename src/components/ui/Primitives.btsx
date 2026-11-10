@@ -1,0 +1,177 @@
+module "use client";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, createPortal } from "octane";
+import type { ButtonHTMLAttributes, Ref, HTMLAttributes, SelectHTMLAttributes, OctaneNode, CSSProperties } from "octane";
+module
+  // ─── Popover menu ────────────────────────────────────────────────
+  // The popover renders in a portal on <body> with fixed positioning, so a
+  // panel's overflow can't clip it. It sits under its button, flips above
+  // when there's more room there, and scrolls within the viewport.
+  // ─── Popover menu ────────────────────────────────────────────────
+  // The popover renders in a portal on <body> with fixed positioning, so a
+  // panel's overflow can't clip it. It sits under its button, flips above
+  // when there's more room there, and scrolls within the viewport.
+  const MENU_GAP = 8;
+  const VIEWPORT_MARGIN = 12;
+component Button
+  props { className = "", ref, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    ~ "data-hint"?: string;
+    ~ } & { ref: Ref<HTMLButtonElement> }
+  button(ref={ref} type="button" className={`ui-button ${className}`} {...props})
+component Badge
+  props { className = "", ...props }: HTMLAttributes<HTMLSpanElement>
+  span(className={`ui-badge ${className}`} {...props})
+component Select
+  props { className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement>
+  select(className={`ui-select ${className}`} {...props})
+// ─── Segmented control ───────────────────────────────────────────
+component Segmented
+  props { value, options, onChange, size = "sm", ariaLabel, accent = false, }: { value: string; options: readonly {
+    ~ value: string;
+    ~ label: OctaneNode;
+    ~ title?: string;
+    ~ }[]; onChange: (value: T) => void; size?: "xs" | "sm" | "md"; ariaLabel?: string; accent?: boolean }
+  div(
+    ~ className={`segmented segmented-${size} ${accent ? "segmented-accent" : ""}`}
+    ~ role="radiogroup"
+    ~ aria-label={ariaLabel}
+    ~ )
+    each option in options key String(option.value)
+      button(
+        ~ type="button"
+        ~ role="radio"
+        ~ aria-checked={value === option.value}
+        ~ title={option.title}
+        ~ className={value === option.value ? "is-active" : ""}
+        ~ onClick={() => onChange(option.value)}
+        ~ )
+        | #{option.label}
+// ─── Panel shell ─────────────────────────────────────────────────
+component Panel
+  props { title, subtitle, value, icon, actions, footer, children, className = "", bodyClassName = "", }: { title: string; subtitle?: OctaneNode; value?: OctaneNode; icon?: OctaneNode; actions?: OctaneNode; footer?: OctaneNode; children: OctaneNode; className?: string; bodyClassName?: string }
+  section(className={`panel ${className}`} aria-label={title})
+    header.panel-header
+      .panel-heading
+        if icon
+          span.panel-icon #{icon}
+        .panel-titles
+          h2.panel-title
+            | #{title}
+            if value !== undefined
+              span.panel-value #{value}
+          if subtitle
+            span.panel-subtitle #{subtitle}
+      if actions
+        .panel-actions #{actions}
+    div(className={`panel-body ${bodyClassName}`}) #{children}
+    if footer
+      footer.panel-footer #{footer}
+// ─── Stat chip ───────────────────────────────────────────────────
+component Stat
+  props { label, value, sub, tone, title, className = "", }: { label: string; value: OctaneNode; sub?: OctaneNode; tone?: "buy" | "sell" | "warn" | "accent" | "muted" | "vwap" | "poc"; title?: string; className?: string }
+  div(className={`stat ${className}`} title={title})
+    span.stat-label #{label}
+    span(className={`stat-value ${tone ? `tone-${tone}` : ""}`}) #{value}
+    if sub !== undefined
+      span.stat-sub #{sub}
+component Portal
+  props {children}: {children: unknown}
+  div(ref={popoverRef} className={`menu-popover menu-${align} is-portal`} role="menu" style={pos ?? { position: "fixed", visibility: "hidden" }})
+  | #{children}
+
+component Menu
+  props { label, children, align = "right", buttonClassName = "", hint, }: { label: OctaneNode; children: OctaneNode; align?: "left" | "right"; buttonClassName?: string; hint?: string }
+  setup
+    const [open, setOpen] = useState(false);
+    const [pos, setPos] = useState<CSSProperties | null>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const popoverRef = useRef<HTMLDivElement | null>(null);
+
+    const place = useCallback(() => {
+      const button = buttonRef.current;
+      if (!button)
+        return;
+      const r = button.getBoundingClientRect();
+      const below = window.innerHeight - r.bottom - MENU_GAP - VIEWPORT_MARGIN;
+      const above = r.top - MENU_GAP - VIEWPORT_MARGIN;
+      const natural = popoverRef.current?.scrollHeight ?? 0;
+      const flip = natural > below && above > below;
+      const horizontal: CSSProperties = align === "right"
+        ? { right: Math.max(VIEWPORT_MARGIN, window.innerWidth - r.right) }
+        : { left: Math.max(VIEWPORT_MARGIN, r.left) };
+      setPos({
+        position: "fixed",
+        ...horizontal,
+        ...(flip ? { bottom: window.innerHeight - r.top + MENU_GAP } : { top: r.bottom + MENU_GAP }),
+        maxHeight: Math.max(160, flip ? above : below),
+        maxWidth: `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`,
+      });
+    }, [align]);
+
+    useLayoutEffect(() => {
+      if (open)
+        place();
+    }, [open, place]);
+
+    useEffect(() => {
+      if (!open)
+        return;
+      const close = (event: MouseEvent) => {
+        const target = event.target as Node;
+        if (buttonRef.current?.contains(target) || popoverRef.current?.contains(target))
+          return;
+        setOpen(false);
+      };
+      const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+      // Re-place on resize, and when anything outside the popover scrolls.
+      const reflow = (event: Event) => {
+        if (event.type === "scroll" && popoverRef.current?.contains(event.target as Node))
+          return;
+        place();
+      };
+      window.addEventListener("mousedown", close);
+      window.addEventListener("keydown", escape);
+      window.addEventListener("resize", reflow);
+      window.addEventListener("scroll", reflow, true);
+      return () => {
+        window.removeEventListener("mousedown", close);
+        window.removeEventListener("keydown", escape);
+        window.removeEventListener("resize", reflow);
+        window.removeEventListener("scroll", reflow, true);
+      };
+    }, [open, place]);
+
+
+  .menu
+    Button(
+      ~ ref={buttonRef}
+      ~ className={`${buttonClassName} ${open ? "is-active" : ""}`}
+      ~ aria-haspopup="menu"
+      ~ aria-expanded={open}
+      ~ aria-label={hint}
+      ~ data-hint={open ? undefined : hint}
+      ~ onClick={() => setOpen((value) => !value)}
+      ~ )
+      | #{label}
+    if open
+      div
+      | #{createPortal(Portal(children={children}), document.body)}
+
+component MenuCheckbox
+  props { checked, onChange, label, hint, }: { checked: boolean; onChange: (checked: boolean) => void; label: string; hint?: string }
+  label.menu-item(role="menuitemcheckbox" aria-checked={checked})
+    input(type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)})
+    span.menu-check(aria-hidden)
+    span.menu-item-text
+      span #{label}
+      if hint
+        small #{hint}
+component MenuSection
+  props { title, children }: { title: string; children: OctaneNode }
+  .menu-section
+    .menu-section-title #{title}
+    | #{children}
+component EmptyState
+  props { children }: { children: OctaneNode }
+  .empty-state #{children}
+
+Panel()

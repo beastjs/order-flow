@@ -1,0 +1,45 @@
+
+import { assetFor, baseOf, VENUE_LOGOS } from "@/lib/config/instruments";
+
+component Logo
+  props { symbol, size = 20 }: { symbol: string; size?: number }
+  setup
+    const asset = assetFor(symbol);
+    const base = baseOf(symbol);
+  if asset?.logo
+    img.asset-logo(src={`/coins/${base.toLowerCase()}.svg`} alt="" width={size} height={size})
+  else
+    scope
+      setup const color = asset?.color ?? "var(--bg-active)";
+      span(
+        ~ className="asset-logo asset-monogram"
+        ~ style={{ width: size, height: size, fontSize: Math.max(7, size * 0.38), background: color }}
+        ~ aria-hidden
+        ~ )
+        | #{base.slice(0, base.length > 3 ? 2 : 3)}
+component VenueLogo
+  props { venue, size = 16 }: { venue: string; size?: number }
+  setup const src = VENUE_LOGOS[venue];
+  if venue === "hyperliquid"
+    span(
+      ~ className="asset-logo asset-monogram venue-monogram"
+      ~ style={{ width: size, height: size, fontSize: size * 0.5, background: "#97FCE4", color: "#062a24" }}
+      ~ aria-hidden
+      ~ )
+      | H
+  elseif !src
+    span(
+      ~ className="asset-logo asset-monogram venue-monogram"
+      ~ style={{ width: size, height: size, fontSize: size * 0.5 }}
+      ~ aria-hidden
+      ~ )
+      if venue === "deribit"
+        | #{"D"}
+      elseif venue.startsWith("all")
+        | #{"∑"}
+      else
+        | #{venue.slice(0, 1).toUpperCase()}
+  else
+    img(className="asset-logo venue-logo" src={src} alt="" width={size} height={size})
+
+Logo(symbol='')

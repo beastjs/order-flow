@@ -1,0 +1,81 @@
+
+module "use client";
+import { useEffect, useRef, useState } from "octane";
+import type { MouseEvent } from "octane";
+module
+  interface TooltipState {
+    ~ visible: boolean;
+    ~ x: number;
+    ~ y: number;
+    ~ title: string;
+    ~ lines: string[];
+    ~ }
+  let tooltipListener: ((state: TooltipState) => void) | null = null;
+  export function showTooltip(title: string, content: string, e: MouseEvent | MouseEvent) {
+    tooltipListener?.({
+      visible: true,
+      x: (e as MouseEvent).clientX,
+      y: (e as MouseEvent).clientY,
+      title,
+      lines: content.split("\n"),
+    });
+  }
+  export function hideTooltip() {
+    tooltipListener?.({ visible: false, x: 0, y: 0, title: "", lines: [] });
+  }
+  const WIDTH = 272;
+
+setup
+  const [state, setState] = useState<TooltipState>({ visible: false, x: 0, y: 0, title: "", lines: [] });
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(140);
+
+  useEffect(() => {
+    tooltipListener = setState;
+    return () => {
+      if (tooltipListener === setState)
+        tooltipListener = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state.visible && ref.current)
+      setHeight(ref.current.offsetHeight);
+  }, [state]);
+if !(!state.visible)
+  scope
+    setup
+      const margin = 12;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let left = state.x + 16;
+      let top = state.y + 16;
+
+      if (left + WIDTH > vw - margin)
+        left = state.x - WIDTH - 12;
+
+      if (top + height > vh - margin)
+        top = Math.max(margin, state.y - height - 12);
+
+      const explanationIndex = state.lines.findIndex((line) => line.startsWith("What this means"));
+      const dataLines = (explanationIndex >= 0 ? state.lines.slice(0, explanationIndex) : state.lines);
+      const explanation = explanationIndex >= 0 ? state.lines[explanationIndex].replace(/^What this means:\s*/, "") : null;
+    .tooltip(ref={ref} style={{ left, top, width: WIDTH }} role="tooltip")
+      .tooltip-title #{state.title}
+      .tooltip-rows
+        each line, i in dataLines
+          fragment
+            if !line.trim()
+              .tooltip-gap(key={i})
+            else
+              scope
+                setup const colon = line.indexOf(":");
+                fragment
+                  if colon > 0
+                    .tooltip-row(key={i})
+                      span #{line.slice(0, colon)}
+                      strong #{line.slice(colon + 1).trim()}
+                  else
+                    .tooltip-note(key={i}) #{line}
+      if explanation
+        .tooltip-explain #{explanation}

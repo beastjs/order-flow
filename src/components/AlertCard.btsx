@@ -1,0 +1,47 @@
+module "use client";
+import { ALERT_RULE_LABEL, type AlertRuleId } from "@/lib/engine/alerts";
+import type { LoggedAlert } from "@/lib/store/alertStore";
+import { formatClock } from "@/lib/format";
+import { Icon, type IconName } from "@/lib/icons";
+module
+  const RULE_ICON: Record<AlertRuleId, IconName> = {
+    vwapCross: 'crosshair',
+    valueAreaCross: 'rows',
+    volumeZ: 'bolt',
+    stackedImbalance: 'layers',
+    blockPrint: 'box',
+    cvdDivergence: 'diverge',
+    liquidation: 'fire',
+    absorption: 'fire',
+    iceberg: 'snowflake',
+  };
+// One alert: rule glyph, a meta line (rule · symbol · time), the headline
+// with its key figure, and a detail line. Used by the toasts and the log.
+
+props { alert, variant, onDismiss, timerMs, }: { alert: LoggedAlert; variant: "toast" | "log"; onDismiss?: () => void; timerMs?: number }
+setup const glyph = RULE_ICON[alert.rule];
+div(className={`alert-card alert-${variant} tone-${alert.tone}`} title={alert.title})
+  span.alert-glyph(aria-hidden)
+    Icon(name={glyph})
+  .alert-main
+    .alert-meta
+      span.alert-rule #{ALERT_RULE_LABEL[alert.rule]}
+      span #{alert.symbol}
+      if alert.replay
+        span.alert-replay Replay
+      time.alert-time #{formatClock(alert.time)}
+    .alert-headline
+      strong #{alert.headline}
+      if alert.figure
+        span.alert-figure #{alert.figure}
+    .alert-detail #{alert.body}
+  if onDismiss
+    button.alert-close(
+      ~ type="button"
+      ~ aria-label="Dismiss alert"
+      ~ data-hint="Dismiss"
+      ~ onClick={onDismiss}
+      ~ )
+      Icon(name='close')
+  if timerMs !== undefined
+    span.alert-timer(style={{ animationDuration: `${timerMs}ms` }} aria-hidden)

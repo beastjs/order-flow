@@ -1,0 +1,133 @@
+module "use client";
+import { Icon } from "@/lib/icons";
+import { useEffect, useMemo, useRef, useState } from "octane";
+import type { OctaneNode, KeyboardEvent } from "octane";
+module
+  interface PickerOption<T extends string> {
+    ~ value: T;
+    ~ label: string;
+    ~ sub?: string;
+    ~ icon?: OctaneNode;
+    ~ disabled?: boolean;
+    ~ keywords?: string;
+    ~ }
+
+props { value, options, onChange, ariaLabel, searchable = false, className = "", renderValue, width = 280, }: { value: T; options: PickerOption<T>[]; onChange: (value: T) => void; ariaLabel: string; searchable?: boolean; className?: string; renderValue?: (option: PickerOption<T> | undefined) => OctaneNode; width?: number }
+setup
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement | null>(null);
+  const input = useRef<HTMLInputElement | null>(null);
+  const list = useRef<HTMLDivElement | null>(null);
+  const current = options.find((option) => option.value === value);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q)
+      return options;
+    return options.filter((o) => `${o.label} ${o.sub ?? ""} ${o.keywords ?? ""}`.toLowerCase().includes(q));
+  }, [options, query]);
+
+  useEffect(() => {
+    if (!open)
+      return;
+    const close = (event: MouseEvent) => {
+      if (root.current && !root.current.contains(event.target as Node))
+        setOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    requestAnimationFrame(() => input.current?.focus());
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+
+  useEffect(() => {
+    list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
+  const choose = (option: PickerOption<T> | undefined) => {
+    if (!option || option.disabled)
+      return;
+    onChange(option.value);
+    setOpen(false);
+  };
+
+  const toggle = () => {
+    if (!open) {
+      setQuery("");
+      setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+    }
+    setOpen((v) => !v);
+  };
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (!open)
+      return;
+    if (event.key === "Escape") {
+      setOpen(false);
+      event.preventDefault();
+    }
+    else if (event.key === "ArrowDown") {
+      setActive((i) => Math.min(filtered.length - 1, i + 1));
+      event.preventDefault();
+    }
+    else if (event.key === "ArrowUp") {
+      setActive((i) => Math.max(0, i - 1));
+      event.preventDefault();
+    }
+    else if (event.key === "Enter") {
+      choose(filtered[active]);
+      event.preventDefault();
+    }
+  };
+.picker(ref={root} onKeyDown={onKeyDown})
+  button(
+    ~ type="button"
+    ~ className={`ui-button picker-button ${className} ${open ? "is-open" : ""}`}
+    ~ aria-haspopup="listbox"
+    ~ aria-expanded={open}
+    ~ aria-label={`${ariaLabel}: ${current?.label ?? value}`}
+    ~ onClick={toggle}
+    ~ )
+    if renderValue
+      | #{renderValue(current)}
+    else
+      fragment
+        | #{current?.icon}
+        span.picker-label #{current?.label ?? value}
+    span.picker-chevron
+      Icon(name='chevron-down')
+  if open
+    .picker-popover(style={{ width }} role="dialog" aria-label={ariaLabel})
+      if searchable
+        label.picker-search
+          Icon(name='search')
+          input(
+            ~ ref={input}
+            ~ value={query}
+            ~ placeholder="Search"
+            ~ onInput={(e) => { setQuery(e.currentTarget.value); setActive(0); }}
+            ~ aria-label={`Search ${ariaLabel.toLowerCase()}`}
+            ~ )
+          kbd esc
+      .picker-list(role="listbox" ref={list} aria-label={ariaLabel})
+        if filtered.length === 0
+          .picker-empty No matches
+        each option, index in filtered key option.value
+          button(
+            ~ type="button"
+            ~ data-index={index}
+            ~ role="option"
+            ~ aria-selected={option.value === value}
+            ~ disabled={option.disabled}
+            ~ className={`picker-option ${index === active ? "is-active" : ""} ${option.value === value ? "is-selected" : ""}`}
+            ~ onMouseEnter={() => setActive(index)}
+            ~ onClick={() => choose(option)}
+            ~ )
+            | #{option.icon}
+            span.picker-option-text
+              span #{option.label}
+              if option.sub
+                small #{option.sub}
+            if option.value === value
+              span.picker-check(aria-hidden) ●

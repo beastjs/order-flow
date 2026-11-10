@@ -1,0 +1,45 @@
+module "use client";
+import { Button } from "@/components/ui/Primitives";
+import { useEffect, useState } from "octane";
+module
+  const DISMISSED_KEY = "oft-bug-report-dialog-dismissed";
+  const ISSUE_URL = "https://github.com/zadescoxp/order-flow-screener/issues/new";
+  const X_URL = "https://x.com/intent/post?text=I%20found%20a%20bug%20in%20the%20Order%20Flow%20Terminal";
+
+setup
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (window.localStorage.getItem(DISMISSED_KEY) !== "true")
+      setOpen(true);
+  }, []);
+
+  const dismiss = () => {
+    window.localStorage.setItem(DISMISSED_KEY, "true");
+    setOpen(false);
+  };
+if !(!open)
+  .bug-dialog-backdrop(
+    ~ role="presentation"
+    ~ onMouseDown={(event) => {
+    ~ if (event.target === event.currentTarget)
+    ~ dismiss();
+    ~ }}
+    ~ )
+    section.bug-dialog(role="dialog" aria-modal="true" aria-labelledby="bug-dialog-title")
+      .bug-dialog-icon !
+      .bug-dialog-copy
+        .ui-eyebrow Help improve the terminal
+        h2#bug-dialog-title Want to report a bug?
+        p Tell us what went wrong so we can make the market data experience better.
+        .bug-dialog-actions
+          a(
+            ~ className="ui-button is-active"
+            ~ href={ISSUE_URL}
+            ~ target="_blank"
+            ~ rel="noreferrer"
+            ~ onClick={dismiss}
+            ~ )
+            | Raise an issue
+          a.ui-button(href={X_URL} target="_blank" rel="noreferrer" onClick={dismiss}) Send a DM on X
+        Button(className="bug-dialog-later" onClick={dismiss}) Maybe later
