@@ -1,10 +1,16 @@
 import { type OctaneNode } from 'octane';
 module
-  type SegmentedProps<T> = { value: string; options: readonly {
-    ~ value: T;
-    ~ label: OctaneNode;
-    ~ title?: string;
-    ~ }[]; onChange: (value: T) => void; size?: "xs" | "sm" | "md"; ariaLabel?: string; accent?: boolean }
+  type SegmentedProps<T> = { value: string;
+    ~ options: readonly {
+    ~   value: T;
+    ~   label: OctaneNode;
+    ~   title?: string;
+    ~   }[];
+    ~ onChange: (value: T) => void;
+    ~ size?: "xs" | "sm" | "md";
+    ~ ariaLabel?: string;
+    ~ accent?: boolean
+    ~ }
 props { value, options, onChange, size = "sm", ariaLabel, accent = false, }: SegmentedProps<T extends any>
 div(
   ~ className={`segmented segmented-${size} ${accent ? "segmented-accent" : ""}`}

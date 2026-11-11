@@ -6,14 +6,26 @@ import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas"
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatPriceValue, priceDecimals } from "@/lib/format";
 import Panel from "@/components/ui/Panel.btsx"
-import type { Timeframe } from "@/lib/types/market";
-import { useCallback, useMemo, useRef, useState, createElement } from "octane";
+import type { FootprintCandle, Timeframe } from "@/lib/types/market";
+import { useCallback, useMemo, useRef, useState, createElement, type Dispatch, type SetStateAction } from "octane";
 import type { MouseEvent } from "octane";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
 import Segmented from "./ui/Segmented.btsx";
 import Stat from "./ui/Stat.btsx";
 module
-  type FooterProps = { reg, current, pct, timeframe, atr, decimals, lastPrice, expansion, parkinson, completed }
+  type Regime = { label: string; tone: "muted" | "accent" | "warn" | "sell" }
+  type FooterProps = {
+    reg: Regime
+    current: number | null
+    pct: number
+    timeframe: Timeframe
+    atr: number | null
+    decimals: number
+    lastPrice: number
+    expansion: number | null
+    parkinson: number | null
+    completed: FootprintCandle[]
+  }
   // ─── Realized Volatility ─────────────────────────────────────────
   // Rolling close-to-close realized volatility from log returns of
   // fixed time bars, annualized:  RV = √(mean r²) · √(bars per year).
@@ -28,10 +40,7 @@ module
   const TIMEFRAME_SECONDS: Record<Timeframe, number> = {
     "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400,
   };
-  function regime(percentile: number): {
-    label: string;
-    tone: "muted" | "accent" | "warn" | "sell";
-  } {
+  function regime(percentile: number): Regime {
     if (percentile >= 90)
       return { label: "Extreme", tone: "sell" };
     if (percentile >= 70)
@@ -43,7 +52,7 @@ module
 // lifted from the icon attribute
 // its props type is the one thing the conversion cannot infer — annotate it
 component Value
-  props { reg, current }: {reg: any, current: number}
+  props { reg, current }: {reg: Regime, current: number | null}
   span(className={`tone-${reg.tone}`})
     if current === null
       | #{"—"}
@@ -52,7 +61,7 @@ component Value
 // lifted from the actions attribute; resolution, setResolution, setWindow came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { resolution, setResolution, setWindow }: { resolution: string, setResolution: (v: string) => void, setWindow: VoidFunction }
+  props { resolution, setResolution, setWindow }: { resolution: Resolution, setResolution: Dispatch<SetStateAction<Resolution>>, setWindow: Dispatch<SetStateAction<Window>> }
   fragment
     Segmented(
       ~ size="xs"
