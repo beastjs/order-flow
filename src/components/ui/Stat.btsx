@@ -1,0 +1,11 @@
+import type { OctaneNode } from "octane";
+
+module
+  type StatProps = { label: string; value: OctaneNode; sub?: OctaneNode; tone?: "buy" | "sell" | "warn" | "accent" | "muted" | "vwap" | "poc"; title?: string; className?: string }
+props { label, value, sub, tone, title, className = "", }: StatProps
+
+div(className={`stat ${className}`} title={title})
+  span.stat-label #{label}
+  span(className={`stat-value ${tone ? `tone-${tone}` : ""}`}) #{value}
+  if sub !== undefined
+    span.stat-sub #{sub}

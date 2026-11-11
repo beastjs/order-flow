@@ -1,0 +1,5 @@
+import { ButtonHTMLAttributes } from 'octane';
+props { className = "", ref, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
+  ~ "data-hint"?: string;
+  ~ } & { ref: Ref<HTMLButtonElement> }
+button(ref={ref} type="button" className={`ui-button ${className}`} {...props})

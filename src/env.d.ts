@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
-declare module '*.btsx' {
-  import type { ComponentBody } from 'octane'
+import { JSX } from 'octane/strong/jsx-runtime'
 
-  const component: ComponentBody
+declare module '*.btsx' {
+  const component: JSX.Element
   export default component
 }

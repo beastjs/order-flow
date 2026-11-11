@@ -1,16 +1,19 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { resampleBars, rollingVolumeZScores, type VolumeZPoint } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, type Palette } from "@/hooks/useCanvas";
-import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
+import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis} from "@/lib/chartUtils";
 import { formatClock, formatCompact } from "@/lib/format";
-import { Icon } from "@/lib/icons";
-import { Panel, Segmented, Stat } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
+import Panel from "@/components/ui/Panel.btsx";
 import { useCallback, useMemo, useRef, useState, createElement } from "octane";
-import type { MouseEvent } from "octane";
+import type { MouseEvent, Dispatch, SetStateAction } from "octane";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
+import Segmented from "./ui/Segmented.btsx";
+import Stat from "./ui/Stat.btsx";
+import { zTone } from "@/lib/panel/zTone";
 module
+  type ActionProps = { view: View, setView: Dispatch<SetStateAction<View>>, resolution: Resolution, setResolution: Dispatch<SetStateAction<Resolution>>, setWindow: Dispatch<SetStateAction<Window>> }
   // ─── Volume Z-Score ──────────────────────────────────────────────
   // How unusual is the volume traded in each time bucket compared with
   // the preceding N buckets?   z = (Vₜ − μ) / σ   over bars t−N … t−1.
@@ -24,17 +27,7 @@ module
   type Window = (typeof WINDOWS)[number]["value"];
   type View = "z" | "volume";
   const BAR_SLOT_MIN = 5;
-  export function zTone(z: number | null): "sell" | "warn" | "accent" | "muted" {
-    if (z === null)
-      return "muted";
-    if (z >= 3)
-      return "sell";
-    if (z >= 2)
-      return "warn";
-    if (z >= 1)
-      return "accent";
-    return "muted";
-  }
+
   function zColor(z: number, p: Palette): string {
     if (z >= 3)
       return p.sell;
@@ -50,7 +43,7 @@ module
 // lifted from the value attribute; lastZ came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Value
-  props { lastZ }
+  props { lastZ }: {lastZ: number | null}
   span(className={`tone-${zTone(lastZ)}`})
     if lastZ === null
       | #{"—"}
@@ -59,7 +52,7 @@ component Value
 // lifted from the actions attribute; view, setView, resolution, setResolution, setWindow came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { view, setView, resolution, setResolution, setWindow }
+  props { view, setView, resolution, setResolution, setWindow }: ActionProps
   fragment
     Segmented(
       ~ size="xs"
@@ -85,7 +78,7 @@ component Actions
 // lifted from the footer attribute; unit, last, spikes, maxZ came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer
-  props { unit, last, spikes, maxZ }
+  props { unit, last, spikes, maxZ }: { unit: 'ticks' | 'vol', last: VolumeZPoint, spikes: number, maxZ: number }
   .study-stats
     Stat(label={`μ ${unit}/bar`} value={formatCompact(last?.mean ?? 0, 2)})
     Stat(label="σ" value={formatCompact(last?.std ?? 0, 2)})

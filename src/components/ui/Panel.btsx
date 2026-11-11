@@ -1,0 +1,23 @@
+
+import type { OctaneNode } from "octane";
+import { Icon, type IconName } from "@/lib/icons";
+module
+  type PanelProps = { title: string; icon?: IconName; subtitle?: OctaneNode; value?: OctaneNode; actions?: OctaneNode; footer?: OctaneNode; children: OctaneNode; className?: string; bodyClassName?: string }
+props { title, subtitle, value, icon, actions, footer, children, className = "", bodyClassName = "", }: PanelProps
+section(className={`panel ${className}`} aria-label={title})
+  header.panel-header
+    .panel-heading
+      if icon
+        Icon(name={icon})
+      .panel-titles
+        h2.panel-title
+          | #{title}
+          if value !== undefined
+            span.panel-value #{value}
+        if subtitle
+          span.panel-subtitle #{subtitle}
+    if actions
+      .panel-actions #{actions}
+  div(className={`panel-body ${bodyClassName}`}) #{children}
+  if footer
+    footer.panel-footer #{footer}

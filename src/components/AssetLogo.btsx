@@ -1,6 +1,7 @@
-
 import { assetFor, baseOf, VENUE_LOGOS } from "@/lib/config/instruments";
 
+module
+  export {Logo, VenueLogo}
 component Logo
   props { symbol, size = 20 }: { symbol: string; size?: number }
   setup
@@ -42,4 +43,4 @@ component VenueLogo
   else
     img(className="asset-logo venue-logo" src={src} alt="" width={size} height={size})
 
-Logo(symbol='')
+div

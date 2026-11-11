@@ -1,0 +1,16 @@
+import Stat from "./Stat.btsx";
+import { formatCompact } from "@/lib/format";
+module
+  type PanelFooterProps = {
+    d10b: number;
+    d10a: number;
+    d25b: number;
+    d25a: number
+    ratio: (b: number, a: number) => string
+  }
+props { d10b, d10a, ratio, d25b, d25a }: PanelFooterProps
+.study-stats
+  Stat(label="±10 bp bid" value={formatCompact(3)} tone="buy")
+  Stat(label="±10 bp ask" value={formatCompact(d10a)} tone="sell")
+  Stat(label="Bid/Ask 10bp" value={ratio(d10b, d10a)})
+  Stat(label="Bid/Ask 25bp" value={ratio(d25b, d25a)})

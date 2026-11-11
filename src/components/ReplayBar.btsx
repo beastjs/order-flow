@@ -1,9 +1,9 @@
 
 module "use client";
-import { useMarketSession, useSessionStore } from "@/lib/session/SessionContext";
+import { useMarketSession, useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { formatClock, formatDuration, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
-import { Segmented } from "@/components/ui/Primitives";
+import Segmented from "@/components/ui/Segmented.btsx";
 import type { ReplaySpeed } from "@/lib/recording/types";
 import type { PointerEvent, MouseEvent } from "octane";
 module
@@ -21,6 +21,13 @@ module
 setup
   const session = useMarketSession();
   const replay = useSessionStore((s) => s.replay);
+  const handleKeyDown = (position: number ) => (e: KeyboardEvent) =>  {
+    ~ const step = e.shiftKey ? 60000 : 10000;
+    ~ if (e.key === "ArrowRight")
+    ~ void session.replaySeek(position + step);
+    ~ if (e.key === "ArrowLeft")
+    ~ void session.replaySeek(position - step);
+    ~ }
 if !(!replay)
   scope
     setup
@@ -58,7 +65,7 @@ if !(!replay)
       Segmented(
         ~ size="xs"
         ~ value={speed}
-        ~ onChange={(v) => session.replaySpeed(v)}
+        ~ onChange={(v: ReplaySpeed) => session.replaySpeed(v)}
         ~ options={SPEEDS}
         ~ ariaLabel="Replay speed"
         ~ )
@@ -71,13 +78,7 @@ if !(!replay)
         ~ aria-valuemax={100}
         ~ aria-valuenow={Math.round(progress * 100)}
         ~ onClick={seekFromPointer}
-        ~ onKeyDown={(e) => {
-        ~ const step = e.shiftKey ? 60000 : 10000;
-        ~ if (e.key === "ArrowRight")
-        ~ void session.replaySeek(position + step);
-        ~ if (e.key === "ArrowLeft")
-        ~ void session.replaySeek(position - step);
-        ~ }}
+        ~ onKeyDown={handleKeyDown(position)}
         ~ title="Click to jump. ← / → move 10 s (Shift: 1 min)"
         ~ )
         .replay-fill(style={{ width: `${progress * 100}%` }})

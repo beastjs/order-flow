@@ -1,13 +1,12 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { formatClock, formatCompact } from "@/lib/format";
-import { Icon } from "@/lib/icons";
-import { Panel } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
+import Panel from "@/components/ui/Panel.btsx";
 import type { OBISnapshot } from "@/lib/types/market";
-import { useCallback, useMemo, useRef, createElement } from "octane";
+import { useCallback, useMemo, useRef, createElement, MouseEvent } from "octane";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
 module
   // ─── Order Book Imbalance ────────────────────────────────────────
   // OBI = (bid − ask) / (bid + ask) within a common depth band.
@@ -26,7 +25,7 @@ module
 // lifted from the icon attribute
 // its props type is the one thing the conversion cannot infer — annotate it
 component Value
-  props { tone, current }
+  props { tone, current }: {tone: string; current: number}
   span(className={`tone-${tone}`})
     if current >= 0
       | #{"+"}
@@ -98,6 +97,20 @@ setup
   const { containerRef, canvasRef } = useCanvas(draw);
   const tone = obiTone(current);
   const bidShare = (current + 1) / 2;
+  const handleMouseMove = (e: MouseEvent) => {
+      ~ const rect = containerRef.current!.getBoundingClientRect();
+      ~ const { points, slot } = hoverRef.current;
+      ~ const snap = points[Math.round((e.clientX - rect.left) / (slot || 1))];
+      ~ if (!snap)
+      ~ return hideTooltip();
+      ~ showTooltip(`OBI ${snap.value >= 0 ? "+" : ""}${snap.value.toFixed(3)}`, [
+      ~ `Time: ${formatClock(snap.timestamp)}`,
+      ~ `Bid depth: ${formatCompact(snap.bidVolume, 2)}`,
+      ~ `Ask depth: ${formatCompact(snap.askVolume, 2)}`,
+      ~ "",
+      ~ "What this means: +1 means all resting size in the band is on the bid, −1 means all on the ask. The white line is a smoothed reading.",
+      ~ ].join("\n"), e);
+      ~ }
 Panel(
   ~ title="Book Imbalance"
   ~ icon='gauge'
@@ -119,20 +132,7 @@ Panel(
   div(
     ~ className="canvas-host obi-history"
     ~ ref={containerRef}
-    ~ onMouseMove={(e) => {
-    ~ const rect = containerRef.current!.getBoundingClientRect();
-    ~ const { points, slot } = hoverRef.current;
-    ~ const snap = points[Math.round((e.clientX - rect.left) / (slot || 1))];
-    ~ if (!snap)
-    ~ return hideTooltip();
-    ~ showTooltip(`OBI ${snap.value >= 0 ? "+" : ""}${snap.value.toFixed(3)}`, [
-    ~ `Time: ${formatClock(snap.timestamp)}`,
-    ~ `Bid depth: ${formatCompact(snap.bidVolume, 2)}`,
-    ~ `Ask depth: ${formatCompact(snap.askVolume, 2)}`,
-    ~ "",
-    ~ "What this means: +1 means all resting size in the band is on the bid, −1 means all on the ask. The white line is a smoothed reading.",
-    ~ ].join("\n"), e);
-    ~ }}
+    ~ onMouseMove={handleMouseMove}
     ~ onMouseLeave={hideTooltip}
     ~ )
     canvas(ref={canvasRef})

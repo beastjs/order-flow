@@ -2,11 +2,13 @@
 module "use client";
 import { DEFAULT_INDICATORS, useUIStore, type IndicatorSettings } from "@/lib/store/uiStore";
 import { Icon } from "@/lib/icons";
-import { Menu, MenuCheckbox, MenuSection, Segmented } from "@/components/ui/Primitives";
 import { createElement } from "octane";
 import type { OctaneNode } from "octane";
+import Menu, { MenuCheckbox, MenuSection } from "./ui/Menu.btsx";
+import Segmented from "./ui/Segmented.btsx";
 module
   const SWATCHES = [null, "#a68bff", "#4f8cff", "#2fd897", "#ff9f43", "#ff5c74", "#f2f3f5"] as const;
+  type ToggleProps = { key: keyof IndicatorSettings; label: string, hint?: string, ind: IndicatorSettings, set: any }
 component Swatches
   props { value, onChange, label, fallback, }: { value: string | null; onChange: (value: string | null) => void; label: string; fallback: string }
   .menu-row
@@ -23,6 +25,7 @@ component Swatches
           ~ style={{ background: color ?? fallback }}
           ~ onClick={() => onChange(color)}
           ~ )
+
 component Row
   props { label, children }: { label: string; children: OctaneNode }
   .menu-row
@@ -31,7 +34,7 @@ component Row
 // lifted from the toggle helper; ind, set came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Toggle
-  props { key, label, hint, ind, set }
+  props { key, label, hint, ind, set }: ToggleProps
   MenuCheckbox(
     ~ checked={Boolean(ind[key])}
     ~ onChange={(v) => set(key, v as never)}
@@ -95,11 +98,11 @@ Menu(buttonClassName="chip" label={createElement(Label, { changed })})
         Segmented(
           ~ size="xs"
           ~ value={ind.valueAreaPct}
-          ~ onChange={(v) => set("valueAreaPct", v)}
+          ~ onChange={(v: typeof ind.valueAreaPct) => set("valueAreaPct", v)}
           ~ options={[{ value: 0.6, label: "60%" }, { value: 0.7, label: "70%" }, { value: 0.8, label: "80%" }]}
           ~ ariaLabel="Value area size"
           ~ )
-      Toggle(key={"sessionHighLow"} label={"Session high / low"} ind={ind} set={set})
+      Toggle(key={"sessionHighLow"} label={"Session high / low"} ind={ind} set={set} hint='?')
       Swatches(
         ~ label="POC colour"
         ~ value={ind.pocColor}
@@ -118,7 +121,7 @@ Menu(buttonClassName="chip" label={createElement(Label, { changed })})
         Segmented(
           ~ size="xs"
           ~ value={ind.imbalanceRatio}
-          ~ onChange={(v) => set("imbalanceRatio", v)}
+          ~ onChange={(v: typeof ind.imbalanceRatio) => set("imbalanceRatio", v)}
           ~ options={[{ value: 2, label: "2×" }, { value: 2.5, label: "2.5×" }, { value: 3, label: "3×" }, { value: 4, label: "4×" }]}
           ~ ariaLabel="Imbalance ratio"
           ~ )
@@ -133,7 +136,7 @@ Menu(buttonClassName="chip" label={createElement(Label, { changed })})
         Segmented(
           ~ size="xs"
           ~ value={ind.stackedLevels}
-          ~ onChange={(v) => set("stackedLevels", v)}
+          ~ onChange={(v: typeof ind.stackedLevels) => set("stackedLevels", v)}
           ~ options={[2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))}
           ~ ariaLabel="Minimum stacked levels"
           ~ )
@@ -165,7 +168,7 @@ Menu(buttonClassName="chip" label={createElement(Label, { changed })})
         Segmented(
           ~ size="xs"
           ~ value={ind.bigTradeRatio}
-          ~ onChange={(v) => set("bigTradeRatio", v)}
+          ~ onChange={(v: typeof ind.bigTradeRatio) => set("bigTradeRatio", v)}
           ~ options={[5, 10, 20, 50].map((n) => ({ value: n, label: `${n}×` }))}
           ~ ariaLabel="Minimum big print size versus the average print"
           ~ )

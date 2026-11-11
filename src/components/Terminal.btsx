@@ -3,31 +3,31 @@ module "use client";
 import { useMarketData } from "@/hooks/useMarketData";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useAlertStore } from "@/lib/store/alertStore";
-import AlertToasts from "@/components/AlertToasts";
-import ReplayBar from "@/components/ReplayBar";
-import { MarketSessionProvider, useSessionStore } from "@/lib/session/SessionContext";
+import AlertToasts from "@/components/AlertToasts.btsx";
+import ReplayBar from "@/components/ReplayBar.btsx";
+import SessionContextProvider, { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { useUIStore } from "@/lib/store/uiStore";
 import { applyTheme } from "@/lib/theme";
-import TopBar from "@/components/TopBar";
-import MarketStatsBar from "@/components/MarketStatsBar";
-import FootprintChart from "@/components/FootprintChart";
-import OrderBookPanel from "@/components/OrderBook";
-import OBIPanel from "@/components/OBIPanel";
-import TimeAndSales from "@/components/TimeAndSales";
-import DepthOfMarket from "@/components/DepthOfMarket";
-import CVDPanel from "@/components/CVDPanel";
-import VolumeZScorePanel from "@/components/VolumeZScorePanel";
-import VolatilityPanel from "@/components/VolatilityPanel";
-import LiquidationsPanel from "@/components/LiquidationsPanel";
-import OpenInterestPanel from "@/components/OpenInterestPanel";
-import VenuesPanel from "@/components/VenuesPanel";
-import GlobalTooltip from "@/components/GlobalTooltip";
-import HoverHint from "@/components/HoverHint";
-import StatusBar from "@/components/StatusBar";
-import BugReportDialog from "@/components/BugReportDialog";
+import MarketStatsBar from "@/components/MarketStatsBar.btsx";
+import FootprintChart from "@/components/FootprintChart.btsx";
+import OrderBookPanel from "@/components/OrderBook.btsx";
+import OBIPanel from "@/components/OBIPanel.btsx";
+import TimeAndSales from "@/components/TimeAndSales.btsx";
+import DepthOfMarket from "@/components/DepthOfMarket.btsx";
+import CVDPanel from "@/components/CVDPanel.btsx";
+import VolumeZScorePanel from "@/components/VolumeZScorePanel.btsx";
+import VolatilityPanel from "@/components/VolatilityPanel.btsx";
+import LiquidationsPanel from "@/components/LiquidationsPanel.btsx";
+import OpenInterestPanel from "@/components/OpenInterestPanel.btsx";
+import VenuesPanel from "@/components/VenuesPanel.btsx";
+import GlobalTooltip from "@/components/GlobalTooltip.btsx";
+import HoverHint from "@/components/HoverHint.btsx";
+import StatusBar from "@/components/StatusBar.btsx";
+import BugReportDialog from "@/components/BugReportDialog.btsx";
 import type { PanelVisibility } from "@/lib/types/market";
 import { useEffect, useLayoutEffect, useState, useRef } from "octane";
 import type { ComponentType } from "octane";
+import Topbar from "./Topbar.btsx";
 
 module
 
@@ -66,7 +66,7 @@ component SessionTerminal
     const [dockHeight, setDockHeight] = useState(236);
     const [obiHeight, setObiHeight] = useState(160);
     const [bookShare, setBookShare] = useState(0.56);
-    const sidebarRef = useRef<HTMLElement>(null);
+    const sidebarRef = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
       void useUIStore.persist.rehydrate();
@@ -89,7 +89,7 @@ component SessionTerminal
     GlobalTooltip
     HoverHint
     BugReportDialog
-    TopBar
+    Topbar
     ReplayBar
     MarketStatsBar
     .workspace
@@ -169,5 +169,5 @@ component ResizeHandle
     ~ }}
     ~ )
 
-MarketSessionProvider
+SessionContextProvider
   SessionTerminal

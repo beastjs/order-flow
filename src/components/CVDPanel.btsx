@@ -1,16 +1,18 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { resampleBars } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatCompact, formatPriceValue, formatSigned, priceDecimals } from "@/lib/format";
 import { Icon } from "@/lib/icons";
-import { Panel, Segmented, Stat } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
 import type { FlowBar } from "@/lib/types/market";
 import { useCallback, useMemo, useRef, useState, createElement } from "octane";
 import type { MouseEvent } from "octane";
+import Segmented from "./ui/Segmented.btsx";
+import Stat from "./ui/Stat.btsx";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
+import Panel from "./ui/Panel.btsx";
 module
   // ─── Cumulative Volume Delta ─────────────────────────────────────
   // Running sum of (aggressive buy − aggressive sell) volume since the
@@ -28,8 +30,6 @@ module
       divergence: any
     }
 // lifted from the icon attribute
-component Icon2
-  Icon(name='delta')
 // lifted from the value attribute; last came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Value
@@ -200,7 +200,7 @@ setup
   const divergence = Math.sign(slope) !== 0 && Math.sign(priceMove) !== 0 && Math.sign(slope) !== Math.sign(priceMove);
 Panel(
   ~ title="Cumulative Delta"
-  ~ icon={createElement(Icon2, {})}
+  ~ icon='delta'
   ~ subtitle="aggressive buy − sell, session"
   ~ value={createElement(Value, { last })}
   ~ actions={createElement(Actions, { showPrice, setShowPrice, resolution, setResolution })}

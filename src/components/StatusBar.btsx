@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { formatDuration, VENUE_LABEL } from "@/lib/format";
 import { useEffect, useState } from "octane";
 module

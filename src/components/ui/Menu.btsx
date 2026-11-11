@@ -1,0 +1,105 @@
+import { CSSProperties, OctaneNode } from "octane";
+import { createElement, createPortal, useCallback, useEffect, useLayoutEffect, useRef, useState } from "octane";
+import Button from "./button.btsx";
+import Portal from "./Portal.btsx";
+module
+  const MENU_GAP = 8;
+  const VIEWPORT_MARGIN = 12;
+  type MenuProps = { label: OctaneNode; children: OctaneNode; align?: "left" | "right"; buttonClassName?: string; hint?: string }
+  export {MenuCheckbox, MenuSection, EmptyState}
+
+component MenuCheckbox
+  props { checked, onChange, label, hint, }: { checked: boolean; onChange: (checked: boolean) => void; label: string; hint?: string }
+  label.menu-item(role="menuitemcheckbox" aria-checked={checked})
+    input(type="checkbox" checked={checked} onChange={(e) => onChange(e.currentTarget.checked)})
+    span.menu-check(aria-hidden)
+    span.menu-item-text
+      span #{label}
+      if hint
+        small #{hint}
+component MenuSection
+  props { title, children }: { title: string; children: OctaneNode }
+  .menu-section
+    .menu-section-title #{title}
+    | #{children}
+component EmptyState
+  props { children }: { children: OctaneNode }
+  .empty-state #{children}
+
+
+
+props { label, children, align = "right", buttonClassName = "", hint, }: MenuProps
+setup
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<CSSProperties | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  const place = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button)
+      return;
+    const r = button.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - MENU_GAP - VIEWPORT_MARGIN;
+    const above = r.top - MENU_GAP - VIEWPORT_MARGIN;
+    const natural = popoverRef.current?.scrollHeight ?? 0;
+    const flip = natural > below && above > below;
+    const horizontal: CSSProperties = align === "right"
+      ? { right: Math.max(VIEWPORT_MARGIN, window.innerWidth - r.right) }
+      : { left: Math.max(VIEWPORT_MARGIN, r.left) };
+    setPos({
+      position: "fixed",
+      ...horizontal,
+      ...(flip ? { bottom: window.innerHeight - r.top + MENU_GAP } : { top: r.bottom + MENU_GAP }),
+      maxHeight: Math.max(160, flip ? above : below),
+      maxWidth: `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`,
+    });
+  }, [align]);
+
+  useLayoutEffect(() => {
+    if (open)
+      place();
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open)
+      return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target) || popoverRef.current?.contains(target))
+        return;
+      setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    // Re-place on resize, and when anything outside the popover scrolls.
+    const reflow = (event: Event) => {
+      if (event.type === "scroll" && popoverRef.current?.contains(event.target as Node))
+        return;
+      place();
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", escape);
+    window.addEventListener("resize", reflow);
+    window.addEventListener("scroll", reflow, true);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", reflow);
+      window.removeEventListener("scroll", reflow, true);
+    };
+  }, [open, place]);
+
+
+.menu
+  Button(
+    ~ ref={buttonRef}
+    ~ className={`${buttonClassName} ${open ? "is-active" : ""}`}
+    ~ aria-haspopup="menu"
+    ~ aria-expanded={open}
+    ~ aria-label={hint}
+    ~ data-hint={open ? undefined : hint}
+    ~ onClick={() => setOpen((value) => !value)}
+    ~ )
+    | #{label}
+  if open
+    | #{createPortal(createElement(Portal, { children, pos: 'relative', align: 'left' }), document.body)}

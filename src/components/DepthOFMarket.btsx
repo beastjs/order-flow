@@ -1,15 +1,16 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { STUDY_AXIS_W, STUDY_TIME_H, drawEmpty, drawValueAxis, niceStep } from "@/lib/chartUtils";
 import { formatCompact, formatPriceValue, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
-import { Panel, Stat } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
+import Panel from "@/components/ui/Panel.btsx";
 import type { OrderBookLevel } from "@/lib/types/market";
 import { useCallback, useRef, createElement } from "octane";
 import type { MouseEvent } from "octane";
+import PanelFooter from "./ui/PanelFooter.btsx";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
 module
   // ─── Depth of Market ─────────────────────────────────────────────
   // Cumulative resting liquidity on each side of the mid, with depth
@@ -27,13 +28,7 @@ module
     return levels.reduce((sum, l) => (Math.abs(l.price - mid) <= limit ? sum + l.size : sum), 0);
   }
 // its props type is the one thing the conversion cannot infer — annotate it
-component Footer
-  props { d10b, d10a, ratio, d25b, d25a }
-  .study-stats
-    Stat(label="±10 bp bid" value={formatCompact(d10b)} tone="buy")
-    Stat(label="±10 bp ask" value={formatCompact(d10a)} tone="sell")
-    Stat(label="Bid/Ask 10bp" value={ratio(d10b, d10a)})
-    Stat(label="Bid/Ask 25bp" value={ratio(d25b, d25a)})
+
 
 setup
   const orderBook = useSessionStore((s) => s.orderBook);
@@ -173,7 +168,7 @@ Panel(
   ~ title="Market Depth"
   ~ icon={'delta'}
   ~ subtitle={source}
-  ~ footer={createElement(Footer, { d10b, d10a, ratio, d25b, d25a })}
+  ~ footer={createElement(PanelFooter, { d10b, d10a, ratio, d25b, d25a })}
   ~ )
   .canvas-host(ref={containerRef} onMouseMove={handleMove} onMouseLeave={hideTooltip})
     canvas(ref={canvasRef})

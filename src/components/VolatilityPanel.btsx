@@ -1,17 +1,19 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { averageTrueRange, parkinsonVolatility, percentileRank, resampleBars, rollingRealizedVolatility, secondsPerYear, type VolatilityPoint } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatPriceValue, priceDecimals } from "@/lib/format";
-import { Icon } from "@/lib/icons";
-import { Panel, Segmented, Stat } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
+import Panel from "@/components/ui/Panel.btsx"
 import type { Timeframe } from "@/lib/types/market";
 import { useCallback, useMemo, useRef, useState, createElement } from "octane";
 import type { MouseEvent } from "octane";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
+import Segmented from "./ui/Segmented.btsx";
+import Stat from "./ui/Stat.btsx";
 module
+  type FooterProps = { reg, current, pct, timeframe, atr, decimals, lastPrice, expansion, parkinson, completed }
   // ─── Realized Volatility ─────────────────────────────────────────
   // Rolling close-to-close realized volatility from log returns of
   // fixed time bars, annualized:  RV = √(mean r²) · √(bars per year).
@@ -41,7 +43,7 @@ module
 // lifted from the icon attribute
 // its props type is the one thing the conversion cannot infer — annotate it
 component Value
-  props { reg, current }
+  props { reg, current }: {reg: any, current: number}
   span(className={`tone-${reg.tone}`})
     if current === null
       | #{"—"}
@@ -50,7 +52,7 @@ component Value
 // lifted from the actions attribute; resolution, setResolution, setWindow came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { resolution, setResolution, setWindow }
+  props { resolution, setResolution, setWindow }: { resolution: string, setResolution: (v: string) => void, setWindow: VoidFunction }
   fragment
     Segmented(
       ~ size="xs"
@@ -69,7 +71,7 @@ component Actions
 // lifted from the footer attribute; reg, current, pct, timeframe, atr, decimals, lastPrice, expansion, parkinson, completed came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer
-  props { reg, current, pct, timeframe, atr, decimals, lastPrice, expansion, parkinson, completed }
+  props { reg, current, pct, timeframe, atr, decimals, lastPrice, expansion, parkinson, completed }: FooterProps
   .study-stats
     Stat(
       ~ label="Regime"

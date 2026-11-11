@@ -1,24 +1,27 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { useUIStore, type FootprintMode, type IndicatorSettings } from "@/lib/store/uiStore";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { formatClock, formatCompact, formatHM, formatPriceValue, formatSigned, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
-import { Button, Panel, Segmented } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
-import IndicatorsMenu from "./IndicatorsMenu";
+import Panel from "@/components/ui/Panel.btsx";
 import { ARRIVAL_SLACK_MS } from "@/lib/engine/derivatives";
 import { imbalanceOf, stackedRuns } from "@/lib/engine/imbalance";
 import { DEPTH_CAPACITY } from "@/lib/engine/depthHistory";
 import { LiquidityHeatmapRenderer } from "@/lib/render/liquidityHeatmap";
 import type { MicroEvent } from "@/lib/engine/microstructure";
-import { useMarketSession } from "@/lib/session/SessionContext";
-import { usePriorSessions } from "@/hooks/usePriorSessions";
-import type { BigTrade, FootprintCandle, NormalizedLiquidation, VolumeProfile } from "@/lib/types/market";
+import { useMarketSession } from "@/lib/session/SessionContextProvider.btsx";
+import { usePriorSessions, type PriorSessions } from "@/hooks/usePriorSessions";
+import type { BigTrade, FootprintCandle, NormalizedLiquidation, VolumeProfile, MarketType, HeatmapSettings, PanelVisibility } from "@/lib/types/market";
 import { useCallback, useEffect, useMemo, useRef, createElement, useState } from "octane";
-import type { MouseEvent } from "octane";
+import type { MouseEvent, Dispatch, SetStateAction } from "octane";
+import Segmented from "./ui/Segmented.btsx";
+import IndicatorsMenu from "./IndicatorsMenu.btsx";
+import Button from "./ui/button.btsx";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
 module
+  type ActionProps = { mode: FootprintMode, setMode: (mode: FootprintMode) => void, showProfile: boolean, setPanelVisible: (panel: keyof PanelVisibility, visible: boolean) => void, showHeatmap: boolean, setHeatmapVisible: (mode: keyof HeatmapSettings, visible: boolean) => void, showLiquidity: boolean, resetView: VoidFunction }
   type Bubble = {
     ~ x: number;
     ~ y: number;
@@ -313,14 +316,11 @@ module
     ctx.fillStyle = p.textSecondary;
     ctx.fillText(formatCompact(profile.totalVolume), 8, y + 48);
   }
-// lifted from the icon attribute
-component Icon2
-  Icon(name='delta')
 
 // lifted from the actions attribute; mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView }
+  props { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView }: ActionProps
   fragment
     Segmented(
       ~ size="xs"
@@ -358,7 +358,7 @@ component Actions
 // lifted from the footer attribute; ind, showLiquidity, prior, marketType came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer
-  props { ind, showLiquidity, prior, marketType }
+  props { ind, showLiquidity, prior, marketType }: { ind: IndicatorSettings, showLiquidity: boolean, prior: PriorSessions, marketType: MarketType }
   .footprint-legend
     if ind.vwap
       span
@@ -1192,7 +1192,7 @@ setup
   const venueLabel = marketType === "forex" ? "FX" : VENUE_LABEL[venue] ?? venue;
 Panel(
   ~ title="Footprint"
-  ~ icon={createElement(Icon2, {})}
+  ~ icon='delta'
   ~ subtitle={`${symbol} · ${tf} · ${venueLabel}`}
   ~ className="footprint-panel"
   ~ actions={createElement(Actions, { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView })}

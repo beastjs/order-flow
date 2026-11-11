@@ -1,12 +1,13 @@
 
-module const maxShare = Math.max(0.01, ..."use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+module "use client";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { useMarketNow } from "@/hooks/useMarketNow";
-import { venueSummary } from "@/lib/engine/venues";
+import { venueSummary, type VenueStat, type VenueSummary } from "@/lib/engine/venues";
 import { formatCompact, formatPriceValue, formatSigned, priceDecimals, VENUE_LABEL } from "@/lib/format";
-import { VenueLogo } from "@/components/AssetLogo";
-import { Icon } from "@/components/ui/Icons";
-import { Panel, Stat } from "@/components/ui/Primitives";
+import { VenueLogo } from "@/components/AssetLogo.btsx";
+import { Icon } from "@/lib/icons";
+import Panel from "@/components/ui/Panel.btsx";
+import Stat from "@/components/ui/Stat.btsx";
 import { useMemo, createElement } from "octane";
 module
   // ─── Cross-venue ─────────────────────────────────────────────────
@@ -20,12 +21,9 @@ module
     return ms > 0 ? `leads ${ms} ms` : `lags ${-ms} ms`;
   }
 // lifted from the icon attribute
-component Icon2
-  Icon.Network
-// lifted from the footer attribute; leader, summary came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer
-  props { leader, summary }
+  props { leader, summary }: {leader: VenueStat | null, summary: VenueSummary}
   .study-stats
     Stat(
       ~ label="Leader"
@@ -52,7 +50,7 @@ setup
   const leader = summary.leader;
 Panel(
   ~ title="Venues"
-  ~ icon={createElement(Icon2, {})}
+  ~ icon='globe'
   ~ subtitle={selected.length > 1 ? "price, flow and lead / lag by venue" : "needs two or more venues"}
   ~ value={leader ? <span className="tone-accent">{VENUE_LABEL[leader.venue] ?? leader.venue} leads</span> : undefined}
   ~ className="venues-panel"

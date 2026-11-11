@@ -1,13 +1,15 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { formatCompact, formatPriceValue, inferDecimals, priceDecimals, VENUE_LABEL } from "@/lib/format";
-import { Icon } from "@/lib/icons";
-import { Panel, Segmented } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
-import type { OrderBookLevel } from "@/lib/types/market";
-import { useMemo, useState, createElement } from "octane";
+import Panel from "@/components/ui/Panel.btsx";
+import type { OrderBookLevel, Venue } from "@/lib/types/market";
+import { useMemo, useState, createElement, type Dispatch, type SetStateAction } from "octane";
+import Segmented from "./ui/Segmented.btsx";
+import { hideTooltip, showTooltip } from './GlobalTooltip.btsx';
+import { type OrderBookMode } from '@/lib/store/terminalStore';
 module
+  type ActionProps = { multiVenue: boolean, mode: OrderBookMode, setMode: (m: OrderBookMode) => void , selectedVenues: Venue[], group: Group, setGroup: Dispatch<SetStateAction<Group>>, groupOptions: GroupOption[] }
   // ─── Order Book Ladder ───────────────────────────────────────────
   // Price ladder with per-level size bars, cumulative depth shading,
   // liquidity-wall highlighting and a top-of-book imbalance meter.
@@ -23,6 +25,11 @@ module
     ~ size: number;
     ~ cum: number;
     ~ }
+  interface GroupOption {
+    ~ value: 0 | 1 | 5 | 25;
+    ~ label: string;
+    ~ title: string;
+    ~}
   function groupLevels(levels: OrderBookLevel[], step: number, side: "bid" | "ask", decimals: number): Row[] {
     const map = new Map<number, number>();
     for (const level of levels) {
@@ -40,13 +47,13 @@ module
 // lifted from the icon attribute
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { multiVenue, mode, setMode, selectedVenues, group, setGroup, groupOptions }
+  props { multiVenue, mode, setMode, selectedVenues, group, setGroup, groupOptions }: ActionProps
   fragment
     if multiVenue
       Segmented(
         ~ size="xs"
         ~ value={mode === "single" ? "single" : "aggregated"}
-        ~ onChange={(value) => setMode(value)}
+        ~ onChange={(value: typeof mode) => setMode(value)}
         ~ options={[
         ~ { value: "aggregated", label: "Consolidated" },
         ~ { value: "single", label: VENUE_LABEL[selectedVenues[0]]?.split(" ")[0] ?? "Primary" },
@@ -120,7 +127,7 @@ setup
     return { asks, bids, median, wallSize, maxSize, maxCum, spread, mid, bidTotal, askTotal, micro };
   }, [book, step, decimals]);
 
-  const groupOptions = GROUPS.map((g) => ({
+  const groupOptions: GroupOption[] = GROUPS.map((g) => ({
     value: g,
     label: g === 0 ? "Raw" : formatPriceValue(tickSize * g, priceDecimals(tickSize * g)),
     title: g === 0 ? "Exchange price levels" : `Group levels into ${tickSize * g} buckets`,

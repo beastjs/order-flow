@@ -1,0 +1,9 @@
+import { useRef } from "octane/server";
+module
+  type PortalProps = {children: unknown, align: 'left' | 'right', pos?: 'absolute' | 'relative' }
+props {children, align, pos}: PortalProps
+setup
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+
+div(ref={popoverRef} className={`menu-popover menu-${align} is-portal`} role="menu" style={pos ?? { position: "fixed", visibility: "hidden" }})
+| #{children}

@@ -1,16 +1,18 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
-import { OI_REGIME_HINT, OI_REGIME_LABEL, oiWindowChange, type OIRegime } from "@/lib/engine/derivatives";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { OI_REGIME_HINT, OI_REGIME_LABEL, oiWindowChange, type OIRegime, type OIWindowChange } from "@/lib/engine/derivatives";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatCompact, formatPercent, formatPriceValue, formatSigned, priceDecimals } from "@/lib/format";
-import { Icon } from "@/lib/icons";
-import { Panel, Segmented, Stat } from "@/components/ui/Primitives";
-import { showTooltip, hideTooltip } from "./GlobalTooltip";
 import type { OpenInterestPoint } from "@/lib/types/market";
-import { useCallback, useMemo, useRef, useState, createElement } from "octane";
+import { useCallback, useMemo, useRef, useState, createElement, type Dispatch, type SetStateAction } from "octane";
 import type { MouseEvent } from "octane";
+import Panel from "./ui/Panel.btsx";
+import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
+import Segmented from "./ui/Segmented.btsx";
+import Stat from "./ui/Stat.btsx";
+import { regimeTone } from "@/lib/panel/regimeTone";
 module
   // ─── Open Interest ───────────────────────────────────────────────
   // Summed open interest across the selected perpetual venues, sampled
@@ -22,15 +24,7 @@ module
     { value: 900, label: "15m" },
   ] as const;
   type OIWindow = (typeof OI_WINDOWS)[number]["value"];
-  export function regimeTone(regime: OIRegime | undefined): "buy" | "sell" | "warn" | "muted" {
-    if (regime === "new-longs")
-      return "buy";
-    if (regime === "new-shorts")
-      return "sell";
-    if (regime === "short-covering" || regime === "long-unwind")
-      return "warn";
-    return "muted";
-  }
+
   /** Thin the series so it fits roughly one point per two pixels. */
   function downsample(points: OpenInterestPoint[], max: number): OpenInterestPoint[] {
     if (points.length <= max)
@@ -44,7 +38,7 @@ module
 // lifted from the icon attribute
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { showPrice, setShowPrice, windowSec, setWindowSec }
+  props { showPrice, setShowPrice, windowSec, setWindowSec } : { showPrice: boolean, setShowPrice: Dispatch<SetStateAction<boolean>>, windowSec: OIWindow, setWindowSec: Dispatch<SetStateAction<OIWindow>> }
   fragment
     button(
       ~ type="button"
@@ -62,7 +56,7 @@ component Actions
 // lifted from the footer attribute; windowSec, change, base, regime came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer
-  props { windowSec, change, base, regime }
+  props { windowSec, change, base, regime }: { windowSec: number, change: OIWindowChange | null, base: string, regime: OIRegime | undefined }
   .study-stats
     Stat(
       ~ label={`OI Δ ${OI_WINDOWS.find((w) => w.value === windowSec)?.label}`}
@@ -78,7 +72,7 @@ component Footer
     Stat(
       ~ label="Regime"
       ~ value={regime ? OI_REGIME_LABEL[regime] : "—"}
-      ~ tone={regimeTone(regime)}
+      ~ tone={regimeTone (regime)}
       ~ title={regime ? OI_REGIME_HINT[regime] : "Needs a full window of open-interest history"}
       ~ )
 
@@ -192,7 +186,7 @@ Panel(
   ~ title="Open Interest"
   ~ icon={'layers'}
   ~ subtitle={reporting > 1 ? `summed over ${reporting} venues` : "open contracts"}
-  ~ value={derivatives?.openInterestValue ? (<span className="tone-accent">${formatCompact(derivatives.openInterestValue, 2)}</span>) : ("—")}
+  ~ value={derivatives?.openInterestValue ? formatCompact(derivatives.openInterestValue, 2) : "—"}
   ~ actions={createElement(Actions, { showPrice, setShowPrice, windowSec, setWindowSec })}
   ~ footer={createElement(Footer, { windowSec, change, base, regime })}
   ~ )

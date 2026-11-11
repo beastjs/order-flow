@@ -1,14 +1,15 @@
 
-module "use client";
+module "use client"createElement, ;
 import { useAlertStore } from "@/lib/store/alertStore";
 import { notificationState, requestNotifications, unlockAudio, type NotificationState } from "@/lib/alerts/delivery";
 import type { AlertRuleId } from "@/lib/engine/alerts";
-import { AlertCard } from "@/components/AlertCard";
+import AlertCard from "@/components/AlertCard.btsx";
 import { Icon } from "@/lib/icons";
-import { Menu, MenuCheckbox, MenuSection, Segmented } from "@/components/ui/Primitives";
-import { useSessionStore } from "@/lib/session/SessionContext";
-import { useEffect, useState, createElement } from "octane";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useEffect, useState } from "octane";
 import type { OctaneNode } from "octane";
+import Segmented from "./ui/Segmented.btsx";
+import Menu, { MenuCheckbox, MenuSection } from "./ui/Menu.btsx";
 module
   const RULES: {
     id: AlertRuleId;
@@ -82,7 +83,7 @@ component AlertsMenuBody
               Segmented(
                 ~ size="xs"
                 ~ value={settings.volumeZThreshold}
-                ~ onChange={(v) => setSetting("volumeZThreshold", v)}
+                ~ onChange={(v: number) => setSetting("volumeZThreshold", v)}
                 ~ options={[2, 3, 4].map((n) => ({ value: n, label: `${n}σ` }))}
                 ~ ariaLabel="Volume z threshold"
                 ~ )
@@ -91,7 +92,7 @@ component AlertsMenuBody
               Segmented(
                 ~ size="xs"
                 ~ value={settings.blockPrintRatio}
-                ~ onChange={(v) => setSetting("blockPrintRatio", v)}
+                ~ onChange={(v: number) => setSetting("blockPrintRatio", v)}
                 ~ options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n}×` }))}
                 ~ ariaLabel="Block print size"
                 ~ )
@@ -100,7 +101,7 @@ component AlertsMenuBody
               Segmented(
                 ~ size="xs"
                 ~ value={settings.liquidationNotional}
-                ~ onChange={(v) => setSetting("liquidationNotional", v)}
+                ~ onChange={(v: number) => setSetting("liquidationNotional", v)}
                 ~ options={[{ value: 100000, label: "$100K" }, { value: 250000, label: "$250K" }, { value: 1000000, label: "$1M" }]}
                 ~ ariaLabel="Minimum liquidation notional"
                 ~ )
@@ -108,7 +109,7 @@ component AlertsMenuBody
         Segmented(
           ~ size="xs"
           ~ value={settings.cooldownSec}
-          ~ onChange={(v) => setSetting("cooldownSec", v)}
+          ~ onChange={(v: number) => setSetting("cooldownSec", v)}
           ~ options={[10, 30, 60, 300].map((n) => ({ value: n, label: n < 60 ? `${n}s` : `${n / 60}m` }))}
           ~ ariaLabel="Cooldown between repeats of the same alert"
           ~ )

@@ -1,12 +1,12 @@
 module "use client";
-import { useMarketSession, useSessionStore } from "@/lib/session/SessionContext";
+import { useMarketSession, useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { candlesCsv, exportFilename, footprintLevelsCsv, liquidationsCsv, openInterestCsv, profileCsv, tapeCsv } from "@/lib/export/csv";
 import { canvasPng, downloadBlob, downloadText, workspacePng } from "@/lib/export/download";
 import { TAPE_LOG_SIZE } from "@/lib/managers/marketDataManager";
 import { formatCompact, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
-import { Menu, MenuSection } from "@/components/ui/Primitives";
 import { useState, createElement } from "octane";
+import Menu, { MenuSection } from "./ui/Menu.btsx";
 // ─── Export menu ─────────────────────────────────────────────────
 // CSV of the session's footprint, profile, tape and derivatives series,
 // and PNG snapshots of the charts.

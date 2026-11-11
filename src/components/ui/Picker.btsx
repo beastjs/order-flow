@@ -1,18 +1,27 @@
-module "use client";
 import { Icon } from "@/lib/icons";
-import { useEffect, useMemo, useRef, useState } from "octane";
+import { useEffect, useMemo, useRef, useState, type ClassValue } from "octane";
 import type { OctaneNode, KeyboardEvent } from "octane";
 module
-  interface PickerOption<T extends string> {
-    ~ value: T;
-    ~ label: string;
-    ~ sub?: string;
-    ~ icon?: OctaneNode;
-    ~ disabled?: boolean;
-    ~ keywords?: string;
-    ~ }
+  export interface PickerOption<T extends string> {
+    value: T;
+    label: string;
+    sub?: string;
+    icon?: OctaneNode;
+    disabled?: boolean;
+    keywords?: string;
+  }
+  type PickerProps<T extends string> = {
+    value: T
+    options?: PickerOption<T>[]
+    onChange?: (event: EventTarget) => void
+    label?: string
+    searchable?: boolean
+    className?: ClassValue
+    renderValue?: number
+    width?: number
+  }
 
-props { value, options, onChange, ariaLabel, searchable = false, className = "", renderValue, width = 280, }: { value: T; options: PickerOption<T>[]; onChange: (value: T) => void; ariaLabel: string; searchable?: boolean; className?: string; renderValue?: (option: PickerOption<T> | undefined) => OctaneNode; width?: number }
+props { value, options, onChange, label, searchable = false, className = "", renderValue, width = 280 }: PickerProps<T>
 setup
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -20,13 +29,13 @@ setup
   const root = useRef<HTMLDivElement | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
   const list = useRef<HTMLDivElement | null>(null);
-  const current = options.find((option) => option.value === value);
+  const current = options?.find((option) => option.value === value);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q)
       return options;
-    return options.filter((o) => `${o.label} ${o.sub ?? ""} ${o.keywords ?? ""}`.toLowerCase().includes(q));
+    return options?.filter((o) => `${o.label} ${o.sub ?? ""} ${o.keywords ?? ""}`.toLowerCase().includes(q));
   }, [options, query]);
 
   useEffect(() => {
@@ -45,7 +54,7 @@ setup
     list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  const choose = (option: PickerOption<T> | undefined) => {
+  const choose = (option: PickerOption<T extends string> | undefined) => {
     if (!option || option.disabled)
       return;
     onChange(option.value);
@@ -55,7 +64,7 @@ setup
   const toggle = () => {
     if (!open) {
       setQuery("");
-      setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+      setActive(Math.max(0, options.findIndex((o) => o.value === props.value)));
     }
     setOpen((v) => !v);
   };
@@ -80,7 +89,8 @@ setup
       event.preventDefault();
     }
   };
-.picker(ref={root} onKeyDown={onKeyDown})
+
+div.picker(ref={root} onKeyDown={onKeyDown})
   button(
     ~ type="button"
     ~ className={`ui-button picker-button ${className} ${open ? "is-open" : ""}`}

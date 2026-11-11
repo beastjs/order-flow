@@ -1,12 +1,13 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContext";
+import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
 import { formatClock, formatCompact, formatPriceValue, priceDecimals, VENUE_SHORT } from "@/lib/format";
 import { Icon } from "@/lib/icons";
-import { Panel, Segmented } from "@/components/ui/Primitives";
+import Panel from "@/components/ui/Panel.btsx";
 import type { NormalizedLiquidation, NormalizedTrade } from "@/lib/types/market";
 import { useMemo, useState, createElement } from "octane";
-import type { CSSProperties } from "octane";
+import type { CSSProperties, Dispatch, SetStateAction } from "octane";
+import Segmented from "./ui/Segmented.btsx";
 module
   // ─── Time & Sales ────────────────────────────────────────────────
   // Executed prints, newest first. Size is compared to the session's
@@ -33,7 +34,7 @@ module
 // lifted from the icon attribute
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
-  props { activeFilter, setFilter, isPerp }
+  props { activeFilter, setFilter, isPerp } : {activeFilter: Filter, setFilter: Dispatch<SetStateAction<Filter>>, isPerp: boolean}
   Segmented(
     ~ size="xs"
     ~ value={activeFilter}
@@ -44,7 +45,7 @@ component Actions
 // lifted from the footer attribute; buyShare came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer
-  props { buyShare }
+  props { buyShare }: {buyShare: number}
   .book-imbalance(title="Aggressor split over the last 200 prints")
     span.tone-buy Buy #{(buyShare * 100).toFixed(0)}%
     .imbalance-track

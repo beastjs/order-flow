@@ -1,0 +1,43 @@
+module "use client";
+import { useStore } from "@octanejs/zustand";
+import { MarketSession, type SessionStore } from "./MarketSession";
+import { createContext, useContext, useEffect, useState } from "octane";
+import type { OctaneNode } from "octane";
+module
+  type ProviderProps = { children: OctaneNode }
+  const SessionContext = createContext<MarketSession | null>(null);
+  export function useMarketSession(): MarketSession {
+    const session = useContext(SessionContext);
+    if (!session)
+      throw new Error("useMarketSession must be used inside MarketSessionProvider");
+    return session;
+  }
+  export function useSessionStore<T>(selector: (state: ReturnType<SessionStore["getState"]>) => T): T {
+    return useStore(useMarketSession().store, selector);
+  }
+  export function useSessionStoreApi(): SessionStore {
+    return useMarketSession().store;
+  }
+
+props { children }: ProviderProps
+setup
+  const [session] = useState(() => new MarketSession());
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      // A hidden tab normally pauses the feed; recording, replay and browser
+      // notifications need it to keep running.
+      if (document.hidden) {
+        if (!session.keepAliveWhenHidden())
+          session.pause();
+      }
+      else
+        session.resume();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      session.dispose();
+    };
+  }, [session]);
+SessionContext(value={session}) #{children}

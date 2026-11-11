@@ -1,7 +1,7 @@
 
 module "use client";
 import { useAlertStore } from "@/lib/store/alertStore";
-import { AlertCard } from "./AlertCard";
+import AlertCard from "./AlertCard.btsx";
 import { useEffect, useState } from "octane";
 module
   const TOAST_MS = 8000;
