@@ -1,6 +1,6 @@
 "use client";
 
-import { createTerminalStore, type TerminalStore } from "@/lib/store/terminalStore";
+import { createTerminalStore, type TerminalSettings, type TerminalStore } from "@/lib/store/terminalStore";
 import { MarketDataManager } from "@/lib/managers/marketDataManager";
 import { SessionRecorder } from "@/lib/recording/recorder";
 import { ReplayPlayer } from "@/lib/recording/player";
@@ -18,15 +18,21 @@ type MarketSettings = {
 };
 
 export class MarketSession {
-  readonly store = createTerminalStore();
-  readonly manager = new MarketDataManager(this.store);
+  readonly store: ReturnType<typeof createTerminalStore>;
+  readonly manager: MarketDataManager;
   private recorder: SessionRecorder | null = null;
   private player: ReplayPlayer | null = null;
   private liveSettings: MarketSettings | null = null;
   /** Last reason a recording ended on its own (shown in the recordings menu). */
   recordingNotice: string | null = null;
 
-  constructor(private readonly storageFactory: () => RecordingStorage | null = recordingStorage) {}
+  constructor(
+    private readonly storageFactory: () => RecordingStorage | null = recordingStorage,
+    initialSettings: Partial<TerminalSettings> = {}
+  ) {
+    this.store = createTerminalStore(initialSettings);
+    this.manager = new MarketDataManager(this.store);
+  }
 
   pause(): void {
     this.manager.pause();
@@ -144,5 +150,5 @@ export class MarketSession {
   }
 }
 
-export type SessionStore = typeof MarketSession.prototype.store;
+export type SessionStore = MarketSession["store"];
 export type SessionState = TerminalStore;

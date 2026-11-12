@@ -1,11 +1,11 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
-import type { PanelVisibility, Timeframe, TimeValue, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
+import { useMarketUrlState } from "@/hooks/useMarketUrlState";
+import type { PanelVisibility, TimeValue, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
 import { FOREX_SYMBOLS } from "@/lib/config/venues";
 import { THEME_OPTIONS, type Theme } from "@/lib/theme";
 import { venueSupports } from "@/lib/adapters/capabilities";
-import { CRYPTO_ASSETS, CRYPTO_SYMBOLS } from "@/lib/config/instruments";
+import { CRYPTO_ASSETS } from "@/lib/config/instruments";
 import AssetLogo, {Logo, VenueLogo} from "@/components/AssetLogo.btsx";
 import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
 import { useUIStore } from "@/lib/store/uiStore";
@@ -76,24 +76,14 @@ component Label
     span.hide-compact Panels
 
 setup
-  const symbol = useSessionStore((s) => s.symbol);
-  const venue = useSessionStore((s) => s.venue);
-  const marketType = useSessionStore((s) => s.marketType);
-  const timeframe = useSessionStore((s) => s.timeframe);
-  const setSymbol = useSessionStore((s) => s.setSymbol);
-  const setVenue = useSessionStore((s) => s.setVenue);
-  const setSelectedVenues = useSessionStore((s) => s.setSelectedVenues);
-  const setMarketType = useSessionStore((s) => s.setMarketType);
-  const setTimeframe = useSessionStore((s) => s.setTimeframe);
+  const {
+    marketType, symbol, venue, timeframe, toolProfile, replaying,
+    chooseMarketType, chooseSymbol, chooseVenue, chooseTimeframe, chooseToolProfile,
+  } = useMarketUrlState();
   const theme = useUIStore((s) => s.theme);
   const setTheme = useUIStore((s) => s.setTheme);
   const panels = useUIStore((s) => s.panels);
-  const toolProfile = useUIStore((s) => s.toolProfile);
-  const setToolProfile = useUIStore((s) => s.setToolProfile);
   const setPanelVisible = useUIStore((s) => s.setPanelVisible);
-
-  // During a replay the market is fixed by the recording.
-  const replaying = useSessionStore((s) => s.replay !== null);
 
   const isForex = marketType === "forex";
 
@@ -112,27 +102,13 @@ setup
 
   const venueOptions = marketType === "perpetual" || marketType === "spot" ? VENUES[marketType] : [];
   const aggregateValue: VenueSelection = marketType === "perpetual" ? "all-perps" : "all-spot";
-  const aggregateFor = (sym: string) => venueOptions.filter((v) => venueSupports(v.value, sym, marketType)).map((v) => v.value);
-
-  const chooseSymbol = (next: string) => {
-    setSymbol(next);
-    if (isForex)
-      return;
-    if (venue === aggregateValue)
-      setSelectedVenues(aggregateFor(next));
-    else if (!venueSupports(venue as Venue, next, marketType)) {
-      // The current exchange doesn't list this coin: fall back to the first one that does.
-      const fallback = venueOptions.find((v) => venueSupports(v.value, next, marketType));
-      if (fallback)
-        setVenue(fallback.value);
-    }
-  };
+  const listedCount = venueOptions.filter((v) => venueSupports(v.value, symbol, marketType)).length;
 
   const venuePickerOptions: PickerOption<VenueSelection>[] = [
     {
       value: aggregateValue,
       label: marketType === "perpetual" ? "All perps" : "All spot",
-      sub: `Aggregated · ${aggregateFor(symbol).length} venues`,
+      sub: `Aggregated · ${listedCount} venues`,
       icon: <VenueLogo venue={aggregateValue} size={20}/>,
     },
     ...venueOptions.map((v) => ({
@@ -143,25 +119,6 @@ setup
       icon: <VenueLogo venue={v.value} size={20}/>,
     })),
   ];
-
-  const chooseVenue = (next: VenueSelection) => {
-    setVenue(next);
-    if (next === aggregateValue) {
-      setSelectedVenues(aggregateFor(symbol));
-    }
-  };
-  const handleChangeMarketType = (next: typeof marketType) => {
-    if (next === marketType){
-      return;
-    }
-    setMarketType(next);
-    if (next === "forex"){
-      setSymbol("EUR/USD");
-    }
-    if (isForex || !CRYPTO_SYMBOLS.includes(symbol)){
-      setSymbol("BTCUSDT");
-    }
-   }
 header.topbar
   a(className="brand" href="/" aria-label="hyperflow home")
     Wordmark(size={28})
@@ -172,7 +129,7 @@ header.topbar
     .topbar-group
       Segmented(
         ~ value={marketType}
-        ~ onChange={handleChangeMarketType}
+        ~ onChange={chooseMarketType}
         ~ options={[
         ~ { value: "perpetual", label: "Perp", title: "Crypto perpetual futures" },
         ~ { value: "spot", label: "Spot", title: "Crypto spot" },
@@ -202,7 +159,7 @@ header.topbar
       Segmented(
         ~ accent
         ~ value={timeframe}
-        ~ onChange={setTimeframe}
+        ~ onChange={chooseTimeframe}
         ~ options={TIMEFRAMES}
         ~ ariaLabel="Candle interval"
         ~ )
@@ -214,7 +171,7 @@ header.topbar
   .topbar-group
     Segmented(
       ~ value={toolProfile}
-      ~ onChange={setToolProfile}
+      ~ onChange={chooseToolProfile}
       ~ options={PROFILES}
       ~ ariaLabel="Workspace"
       ~ )

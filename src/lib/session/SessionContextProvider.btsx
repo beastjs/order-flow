@@ -1,6 +1,7 @@
 module "use client";
 import { MarketSession } from "./MarketSession";
 import { SessionContext } from "./sessionContext";
+import { loadInitialMarket } from "@/lib/url/marketParams";
 import { useEffect, useState } from "octane";
 import type { OctaneNode } from "octane";
 module
@@ -8,7 +9,8 @@ module
 
 props { children }: ProviderProps
 setup
-  const [session] = useState(() => new MarketSession());
+  // The linked market is in the store before the first feed subscription.
+  const [session] = useState(() => new MarketSession(undefined, loadInitialMarket(location.search)));
 
   useEffect(() => {
     const onVisibilityChange = () => {

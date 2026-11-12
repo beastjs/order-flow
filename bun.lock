@@ -7,6 +7,7 @@
       "dependencies": {
         "@nktkas/hyperliquid": "^0.33.3",
         "@octanejs/base-ui": "0.1.55",
+        "@octanejs/nuqs": "^0.1.56",
         "@octanejs/tanstack-router": "^0.3.2",
         "@octanejs/zustand": "^0.1.69",
         "@rsbuild/plugin-node-polyfill": "^1.4.6",
@@ -162,6 +163,8 @@
 
     "@octanejs/motion": ["@octanejs/motion@0.1.67", "", { "dependencies": { "motion": "^12.42.2", "motion-dom": "^12.0.0" }, "peerDependencies": { "octane": "^0.16.0" } }, "sha512-Idu3ko//H8WUwtTaZvPrbc2kUZX++p0kwkXLyqWnw+WjapxmlqOGGoX6mlOXII58bw+TIB1vMuttkIKkpA4tdQ=="],
 
+    "@octanejs/nuqs": ["@octanejs/nuqs@0.1.56", "", { "dependencies": { "@standard-schema/spec": "1.1.0" }, "peerDependencies": { "octane": "^0.16.0" } }, "sha512-fCSHoiuj++t0jvZuCZa9ROE2IgtbwAQvyeHmiGQR3eS4fAiw7/EYAHR4r5nFjcDW21Ea17h7qU/oUqV95liBcg=="],
+
     "@octanejs/rsbuild-plugin": ["@octanejs/rsbuild-plugin@0.1.69", "", { "dependencies": { "@octanejs/app-core": "0.2.0", "@octanejs/rspack-plugin": "0.2.8" }, "peerDependencies": { "@rsbuild/core": "^2.0.0", "octane": "^0.16.0" }, "bin": { "octane-rsbuild-preview": "src/bin/preview.js" } }, "sha512-yibPbnSLWPI0OuCw6ylfLJtYZ3X1QTaBJEhdeeCHBJFKXmlnSRlRNncHqS1vkILTvCxFGlRHK2aSuJt63KXuZQ=="],
 
     "@octanejs/rspack-plugin": ["@octanejs/rspack-plugin@0.2.8", "", { "dependencies": { "@jridgewell/remapping": "^2.3.5" }, "peerDependencies": { "@rspack/core": "^2.0.0", "octane": "^0.16.0" } }, "sha512-PlqrHgczz7T36VvkO65SclBxHKh8KklTfp1BMa4USSqWr6TeVJotcvNSp4R4OgwQIxF62isxM81RDVLv5Ku1YQ=="],
@@ -309,6 +312,8 @@
     "@scure/bip32": ["@scure/bip32@1.7.0", "", { "dependencies": { "@noble/curves": "~1.9.0", "@noble/hashes": "~1.8.0", "@scure/base": "~1.2.5" } }, "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw=="],
 
     "@scure/bip39": ["@scure/bip39@1.6.0", "", { "dependencies": { "@noble/hashes": "~1.8.0", "@scure/base": "~1.2.5" } }, "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A=="],
+
+    "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
     "@sveltejs/acorn-typescript": ["@sveltejs/acorn-typescript@1.0.13", "", { "peerDependencies": { "acorn": "^8.9.0" } }, "sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ=="],
 

@@ -87,6 +87,8 @@ export interface TerminalActions {
   setSelectedVenues: (venues: Venue[]) => void;
   setMarketType: (m: MarketType) => void;
   setTimeframe: (t: Timeframe) => void;
+  /** Apply a resolved market selection in one update (one data reset). */
+  setMarket: (market: MarketUpdate) => void;
   setTickSize: (ts: number) => void;
   setImbalanceThreshold: (t: number) => void;
   setOrderBookMode: (m: OrderBookMode) => void;
@@ -97,6 +99,14 @@ export interface TerminalActions {
   applyMarketDataBatch: (batch: MarketDataBatch) => void;
   setCrosshair: (time: number | null, price: number | null) => void;
   resetMarketData: () => void;
+}
+
+export interface MarketUpdate {
+  marketType: MarketType;
+  symbol: string;
+  venue: VenueSelection;
+  selectedVenues: Venue[];
+  timeframe?: Timeframe;
 }
 
 /** Recording / replay state; deliberately not part of the market-data reset. */
@@ -179,11 +189,15 @@ const INITIAL_MARKET: MarketDataState = {
 // ----------------------------------------------------------
 // Create the store
 // ----------------------------------------------------------
-export const createTerminalStore = () => {
+const isAggregate = (venue: VenueSelection) => venue === "all-perps" || venue === "all-spot";
+
+export const createTerminalStore = (initial: Partial<TerminalSettings> = {}) => {
   const recentTradeBuffer = new RingBuffer<NormalizedTrade>(500);
   return create<TerminalStore>()(
     subscribeWithSelector((set) => ({
       ...INITIAL_SETTINGS,
+      ...initial,
+      ...(initial.venue && isAggregate(initial.venue) ? { orderBookMode: "aggregated" as const } : {}),
       ...INITIAL_MARKET,
       recording: null,
       replay: null,
@@ -226,6 +240,33 @@ export const createTerminalStore = () => {
         }),
 
       setTimeframe: (timeframe) => set({ timeframe, ...INITIAL_MARKET }),
+
+      setMarket: (market) =>
+        set((s) => {
+          const timeframe = market.timeframe ?? s.timeframe;
+          const sameVenues =
+            market.selectedVenues.length === s.selectedVenues.length &&
+            market.selectedVenues.every((venue, index) => venue === s.selectedVenues[index]);
+          if (
+            market.marketType === s.marketType &&
+            market.symbol === s.symbol &&
+            market.venue === s.venue &&
+            timeframe === s.timeframe &&
+            sameVenues
+          ) {
+            return s;
+          }
+          return {
+            marketType: market.marketType,
+            symbol: market.symbol,
+            venue: market.venue,
+            selectedVenues: sameVenues ? s.selectedVenues : market.selectedVenues,
+            timeframe,
+            // Picking a venue picks the matching book; other changes keep the user's choice.
+            orderBookMode: market.venue === s.venue ? s.orderBookMode : isAggregate(market.venue) ? "aggregated" : "single",
+            ...INITIAL_MARKET,
+          };
+        }),
 
       setTickSize: (tickSize) => set({ tickSize }),
 
