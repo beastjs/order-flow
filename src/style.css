@@ -598,14 +598,14 @@ input {
   gap: 2px;
 }
 .hero-stats .stat-label {
-  font-size: 11px;
+  font-size: 12px;
   min-width: 80px;
 }
 .hero-stats .stat-value {
   font-size: 14px;
 }
 .hero-stats .stat-sub {
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 @container (max-width: 1320px) {
   .hero-stats .stat-p3 {
@@ -846,8 +846,9 @@ input {
 }
 .stat-label {
   color: var(--text-muted);
-  font-size: 11.5px;
-  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 450;
   white-space: nowrap;
 }
 .stat-value {
@@ -862,7 +863,7 @@ input {
 .stat-sub {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -1765,7 +1766,7 @@ body.is-resizing-row,
 }
 
 @media (max-width: 1680px) {
-  .contribute-label {
+  .connect-label {
     display: none;
   }
   .contribute-button {

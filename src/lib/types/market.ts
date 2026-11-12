@@ -15,7 +15,7 @@ export type Venue =
   | 'deribit'
   | 'coinbase-spot'
   | 'finnhub-forex'
-export type VenueSelection = Venue | 'all-perps' | 'all-spot'
+export type VenueSelection = Venue | 'all'
 
 export type MarketType = 'spot' | 'perpetual' | 'forex'
 export type TradeSide = 'buy' | 'sell'

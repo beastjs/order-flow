@@ -6,11 +6,11 @@ import { FOREX_SYMBOLS } from "@/lib/config/venues";
 import { THEME_OPTIONS, type Theme } from "@/lib/theme";
 import { venueSupports } from "@/lib/adapters/capabilities";
 import { CRYPTO_ASSETS } from "@/lib/config/instruments";
-import AssetLogo, {Logo, VenueLogo} from "@/components/AssetLogo.btsx";
+import AssetLogo, {VenueLogo} from "@/components/AssetLogo.btsx";
 import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
 import { useUIStore } from "@/lib/store/uiStore";
-import { GitHubIcon, REPO_URL, Wordmark } from "@/components/Logo.btsx";
-import { Icon } from "@/lib/icons";
+import { REPO_URL, Wordmark } from "@/components/Logo.btsx";
+import { Icon, IconName } from "@/lib/icons";
 import { createElement, useMemo } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
@@ -39,15 +39,16 @@ module
   const VENUES: Record<"perpetual" | "spot", {
     value: Venue;
     label: string;
+    icon: IconName
   }[]> = {
     perpetual: [
-      { value: "binance-futures", label: "Binance" }, { value: "bybit-futures", label: "Bybit" },
-      { value: "okx-futures", label: "OKX" }, { value: "hyperliquid", label: "Hyperliquid" },
-      { value: "bitget-futures", label: "Bitget" }, { value: "deribit", label: "Deribit" },
+      { value: "binance-futures", label: "Binance", icon: 'binance' }, { value: "bybit-futures", label: "Bybit", icon: 'bybit' },
+      { value: "okx-futures", label: "OKX", icon: 'okx' }, { value: "hyperliquid", label: "Hyperliquid", icon: 'hyperliquid' },
+      { value: "bitget-futures", label: "Bitget", icon: 'bitget' }, { value: "deribit", label: "Deribit", icon: 'deribit' },
     ],
     spot: [
-      { value: "binance-spot", label: "Binance" }, { value: "coinbase-spot", label: "Coinbase" },
-      { value: "okx-spot", label: "OKX" }, { value: "bybit-spot", label: "Bybit" }, { value: "bitget-spot", label: "Bitget" },
+      { value: "binance-spot", label: "Binance", icon: 'binance' }, { value: "coinbase-spot", label: "Coinbase", icon: 'coinbase' },
+      { value: "okx-spot", label: "OKX", icon: 'okx' }, { value: "bybit-spot", label: "Bybit", icon: 'bybit' }, { value: "bitget-spot", label: "Bitget", icon: 'bitget' },
     ],
   };
   const PANEL_ITEMS: {
@@ -88,7 +89,7 @@ setup
   const isForex = marketType === "forex";
 
   const instrumentOptions = useMemo(() => isForex
-    ? FOREX_SYMBOLS.map((pair) => ({ value: pair, label: pair, sub: "Spot FX", icon: <Logo symbol={pair} size={22}/> }))
+    ? FOREX_SYMBOLS.map((pair) => ({ value: pair, label: pair, sub: "Spot FX", icon: 'all' }))
     : CRYPTO_ASSETS.map((asset) => {
       const value = `${asset.base}USDT`;
       return {
@@ -96,12 +97,12 @@ setup
         label: value,
         sub: asset.name,
         keywords: asset.base,
-        icon: <Logo symbol={value} size={22}/>,
+        icon: asset.icon,
       };
     }), [isForex]);
 
   const venueOptions = marketType === "perpetual" || marketType === "spot" ? VENUES[marketType] : [];
-  const aggregateValue: VenueSelection = marketType === "perpetual" ? "all-perps" : "all-spot";
+  const aggregateValue: VenueSelection =  "all" ;
   const listedCount = venueOptions.filter((v) => venueSupports(v.value, symbol, marketType)).length;
 
   const venuePickerOptions = useMemo((): PickerOption<VenueSelection>[] => [
@@ -109,14 +110,14 @@ setup
       value: aggregateValue,
       label: marketType === "perpetual" ? "All perps" : "All spot",
       sub: `Aggregated · ${listedCount} venues`,
-      icon: <VenueLogo venue={aggregateValue} size={20}/>,
+      icon: aggregateValue,
     },
     ...venueOptions.map((v) => ({
       value: v.value as VenueSelection,
       label: v.label,
       sub: venueSupports(v.value, symbol, marketType) ? (marketType === "perpetual" ? "Perpetual" : "Spot") : `No ${symbol} market`,
       disabled: !venueSupports(v.value, symbol, marketType),
-      icon: <VenueLogo venue={v.value} size={20}/>,
+      icon: v.icon,
     })),
   ], [marketType, symbol]);
 header.topbar
@@ -198,6 +199,6 @@ header.topbar
     ~ aria-label="Connect wallet"
     ~ data-hint="Connect wallet"
     ~ )
-    GitHubIcon(size={15})
-    span.contribute-label Connect
+    Icon(name='wallet' size={20})
+    span.connect-label Connect
   span.topbar-break(aria-hidden)

@@ -4,8 +4,8 @@ module
   type StatProps = { label: string; value: OctaneNode; sub?: OctaneNode; tone?: "buy" | "sell" | "warn" | "accent" | "muted" | "vwap" | "poc"; title?: string; className?: string }
 props { label, value, sub, tone, title, className = "", }: StatProps
 
-div(className={`stat ${className} relative hover:bg-(--text-primary)/10`} title={title})
-  span.stat-label #{label}
+div(className={`stat ${className} relative group/stat hover:bg-(--text-primary)/3 rounded-xs transition-all duration-75 ease-out`} title={title})
+  span.stat-label(className='group-hover/stat:text-(--text-primary)/70!') #{label}
   span(className={`stat-value ${tone ? `tone-${tone}` : ""}`}) #{value}
   if sub !== undefined
-    span.stat-sub #{sub}
+    span.stat-sub(className='group-hover/stat:text-(--text-primary)/70!') #{sub}

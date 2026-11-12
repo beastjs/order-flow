@@ -156,13 +156,14 @@ section.hero(aria-label="Session statistics")
       ~ value={px(session?.vwap)}
       ~ sub={session ? `${vwapSigma >= 0 ? "+" : ""}${vwapSigma.toFixed(1)}σ · ${formatPercent(vwapDist, 2)}` : undefined}
       ~ tone="vwap"
-      ~ title="Session volume-weighted average price; σ is the volume-weighted standard deviation of traded prices"
+      ~ title="Volume-Weighted Average Price; σ is the volume-weighted standard deviation of traded prices"
       ~ )
     Stat(
       ~ label="POC"
       ~ value={px(profile?.poc)}
-      ~ sub={profile ? `VA ${px(profile.val)} – ${px(profile.vah)}` : undefined}
+      ~ sub={profile ? `${px(profile.val)} – ${px(profile.vah)}` : undefined}
       ~ tone="poc"
+      ~ title='Price of Control'
       ~ )
     Stat(
       ~ label="Delta"
@@ -194,13 +195,13 @@ section.hero(aria-label="Session statistics")
       ~ )
     Stat(
       ~ className="stat-p3"
-      ~ label="Trades / s"
+      ~ label="Trades /sec"
       ~ value={studies.tradesPerSec.toFixed(1)}
       ~ sub={session ? `${formatCompact(session.trades)} total` : undefined}
       ~ )
     Stat(
       ~ className="stat-p3"
-      ~ label="Volume z"
+      ~ label="Volume Z"
       ~ value={studies.z === null ? "—" : `${studies.z >= 0 ? "+" : ""}${studies.z.toFixed(2)}σ`}
       ~ sub="5s vs 20"
       ~ tone={zTone(studies.z)}

@@ -1,16 +1,16 @@
-import { Icon } from "@/lib/icons";
+import { Icon, IconName } from "@/lib/icons";
 import { useEffect, useMemo, useRef, useState, type ClassValue } from "octane";
 import type { OctaneNode, KeyboardEvent } from "octane";
 module
-  export interface PickerOption<T extends string> {
+  export interface PickerOption<T extends any> {
     value: T;
     label: string;
     sub?: string;
-    icon?: OctaneNode;
+    icon?: IconName;
     disabled?: boolean;
     keywords?: string;
   }
-  type PickerProps<T extends string> = {
+  type PickerProps<T extends any> = {
     value: T
     options?: PickerOption<T>[]
     onChange?: (value: T) => void
@@ -105,10 +105,11 @@ div.picker(ref={root} onKeyDown={onKeyDown})
       | #{renderValue(current)}
     else
       fragment
-        | #{current?.icon}
+        if (current)
+          Icon(name={current?.icon as IconName})
         span.picker-label #{current?.label ?? value}
     span.picker-chevron
-      Icon(name='chevron-down' size={12})
+      Icon(name='chevron-down' size={10})
   if open
     .picker-popover(style={{ width }} role="dialog" aria-label={label})
       if searchable
@@ -137,7 +138,7 @@ div.picker(ref={root} onKeyDown={onKeyDown})
               ~ onMouseEnter={() => setActive(index)}
               ~ onClick={() => choose(option)}
               ~ )
-              | #{option.icon}
+              Icon(name={option.icon as IconName})
               span.picker-option-text
                 span #{option.label}
                 if option.sub
