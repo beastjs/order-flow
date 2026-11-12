@@ -1,17 +1,18 @@
 import { type OctaneNode } from 'octane';
 module
-  type SegmentedProps<T> = { value: string;
+  type SegmentedProps<T> = { value: string | number;
     ~ options: readonly {
     ~   value: T;
     ~   label: OctaneNode;
     ~   title?: string;
+    ~   hint?: string
     ~   }[];
     ~ onChange: (value: T) => void;
     ~ size?: "xs" | "sm" | "md";
     ~ ariaLabel?: string;
     ~ accent?: boolean
     ~ }
-props { value, options, onChange, size = "sm", ariaLabel, accent = false, }: SegmentedProps<T extends any>
+props { value, options, onChange, size = "sm", ariaLabel, accent = false, }: SegmentedProps<any>
 div(
   ~ className={`segmented segmented-${size} ${accent ? "segmented-accent" : ""}`}
   ~ role="radiogroup"
@@ -22,6 +23,7 @@ div(
       ~ type="button"
       ~ role="radio"
       ~ aria-checked={value === option.value}
+      ~ data-hint={option.hint}
       ~ title={option.title}
       ~ className={value === option.value ? "is-active" : ""}
       ~ onClick={() => onChange(option.value)}

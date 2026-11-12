@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { resampleBars, rollingRealizedVolatility, rollingVolumeZScores, secondsPerYear } from "@/lib/engine/analytics";
 import { formatCompact, formatPercent, formatPriceValue, formatSigned, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import Stat from "@/components/ui/Stat.btsx";
@@ -181,7 +181,7 @@ section.hero(aria-label="Session statistics")
       ~ className="stat-p2"
       ~ label={marketType === "forex" ? "Ticks" : "Volume"}
       ~ value={session ? formatCompact(session.volume) : "—"}
-      ~ sub={session && marketType !== "forex" ? `${quote}${formatCompact(session.notional)}` : undefined}
+      ~ sub={session && marketType !== "forex" ? `${quote}${formatCompact(session.notional)}` : '-'}
       ~ )
     Stat(
       ~ className="stat-p2"

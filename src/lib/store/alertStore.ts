@@ -1,6 +1,6 @@
 import { DEFAULT_ALERT_SETTINGS, type AlertEvent, type AlertSettings } from '@/lib/engine/alerts'
-import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { create } from '@octanejs/zustand'
+import { createJSONStorage, persist } from '@octanejs/zustand/middleware'
 
 // Alert rules and delivery preferences persist per browser, like the
 // indicator settings. The alert log is kept for this page view only.

@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { formatClock, formatCompact } from "@/lib/format";
 import Panel from "@/components/ui/Panel.btsx";

@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { formatCompact, formatPriceValue, inferDecimals, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import Panel from "@/components/ui/Panel.btsx";
 import type { OrderBookLevel, Venue } from "@/lib/types/market";

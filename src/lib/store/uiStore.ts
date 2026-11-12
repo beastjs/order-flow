@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { create } from "@octanejs/zustand";
+import { persist, createJSONStorage } from "@octanejs/zustand/middleware";
 import { applyTheme, type Theme } from "@/lib/theme";
 import type { HeatmapSettings, PanelVisibility, ToolProfile } from "@/lib/types/market";
 

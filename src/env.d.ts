@@ -1,8 +1,6 @@
-/// <reference types="vite/client" />
-
-import { JSX } from 'octane/strong/jsx-runtime'
+/// <reference types="@rsbuild/core/types" />
 
 declare module '*.btsx' {
-  const component: JSX.Element
+  const component: import('octane').ComponentBody<Record<string, unknown>>
   export default component
 }

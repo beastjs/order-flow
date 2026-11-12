@@ -17,6 +17,7 @@
     "@octanejs/base-ui": "0.1.55",
     "@octanejs/tanstack-router": "^0.3.2",
     "@octanejs/zustand": "^0.1.69",
+    "@rsbuild/plugin-node-polyfill": "^1.4.6",
     "beast-tsrx": "0.16.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -1,6 +1,4 @@
-'use client'
-
-import { useSessionStore } from '@/lib/session/SessionContextProvider.btsx'
+import { useSessionStore } from '@/lib/session/sessionContext'
 import { useNow } from './useNow'
 
 /**

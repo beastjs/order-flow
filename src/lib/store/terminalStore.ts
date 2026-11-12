@@ -3,8 +3,8 @@
 // UI preferences (theme, panels, profiles) live in uiStore.
 // ============================================================
 
-import { create } from "zustand";
-import { subscribeWithSelector } from "zustand/middleware";
+import { create } from "@octanejs/zustand";
+import { subscribeWithSelector } from "@octanejs/zustand/middleware";
 import type {
   Venue,
   VenueSelection,

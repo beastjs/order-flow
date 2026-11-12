@@ -63,7 +63,7 @@ async function transform(
   bytes: Uint8Array,
   format: CompressionFormat,
   mode: 'compress' | 'decompress'
-): Promise<Uint8Array> {
+): Promise<Uint8Array<ArrayBuffer>> {
   const Stream = mode === 'compress' ? CompressionStream : DecompressionStream
 
   const stream = new Blob([bytes as BlobPart]).stream()

@@ -1,8 +1,7 @@
 
 module "use client";
-import { Link } from "@octanejs/tanstack-router";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
-import type { PanelVisibility, Timeframe, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
+import { useSessionStore } from "@/lib/session/sessionContext";
+import type { PanelVisibility, Timeframe, TimeValue, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
 import { FOREX_SYMBOLS } from "@/lib/config/venues";
 import { THEME_OPTIONS, type Theme } from "@/lib/theme";
 import { venueSupports } from "@/lib/adapters/capabilities";
@@ -14,16 +13,18 @@ import { GitHubIcon, REPO_URL, Wordmark } from "@/components/Logo.btsx";
 import { Icon } from "@/lib/icons";
 import { createElement } from "octane";
 import Segmented from "./ui/Segmented.btsx";
-import Menu from "@/components/ui/Menu.btsx";
+import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
+import { Select } from "@/components/ui/Primitives.btsx";
 import AlertsMenu from "./AlertsMenu.btsx";
 import ExportMenu from "./ExportMenu.btsx";
 import RecordingsMenu from "./RecordingsMenu.btsx";
 module
   const TIMEFRAMES: {
-    value: Timeframe;
+    value: TimeValue;
     label: string;
+    hint?: string
   }[] = [
-    { value: "1m", label: "1m" }, { value: "5m", label: "5m" }, { value: "15m", label: "15m" },
+    { value: "1m", label: "1m", hint: "1 minute candle interval" }, { value: "5m", label: "5m" }, { value: "15m", label: "15m" },
     { value: "30m", label: "30m" }, { value: "1h", label: "1H" }, { value: "4h", label: "4H" },
   ];
   const PROFILES: {
@@ -96,7 +97,7 @@ setup
 
   const isForex = marketType === "forex";
 
-  const instrumentOptions: PickerOption<T extends string>[] = isForex
+  const instrumentOptions = isForex
     ? FOREX_SYMBOLS.map((pair) => ({ value: pair, label: pair, sub: "Spot FX", icon: <Logo symbol={pair} size={22}/> }))
     : CRYPTO_ASSETS.map((asset) => {
       const value = `${asset.base}USDT`;
@@ -149,8 +150,20 @@ setup
       setSelectedVenues(aggregateFor(symbol));
     }
   };
+  const handleChangeMarketType = (next: typeof marketType) => {
+    if (next === marketType){
+      return;
+    }
+    setMarketType(next);
+    if (next === "forex"){
+      setSymbol("EUR/USD");
+    }
+    if (isForex || !CRYPTO_SYMBOLS.includes(symbol)){
+      setSymbol("BTCUSDT");
+    }
+   }
 header.topbar
-  Link(className="brand" to="/" aria-label="orderflow home")
+  a(className="brand" href="/" aria-label="hyperflow home")
     Wordmark(size={28})
   fieldset.topbar-market(
     ~ disabled={replaying}
@@ -159,15 +172,7 @@ header.topbar
     .topbar-group
       Segmented(
         ~ value={marketType}
-        ~ onChange={(next: typeof marketType) => {
-        ~ if (next === marketType)
-        ~ return;
-        ~ setMarketType(next);
-        ~ if (next === "forex")
-        ~ setSymbol("EUR/USD");
-        ~ else if (isForex || !CRYPTO_SYMBOLS.includes(symbol))
-        ~ setSymbol("BTCUSDT");
-        ~ }}
+        ~ onChange={handleChangeMarketType}
         ~ options={[
         ~ { value: "perpetual", label: "Perp", title: "Crypto perpetual futures" },
         ~ { value: "spot", label: "Spot", title: "Crypto spot" },
@@ -182,7 +187,7 @@ header.topbar
         ~ value={symbol}
         ~ options={instrumentOptions}
         ~ onChange={chooseSymbol}
-        ~ ariaLabel="Instrument"
+        ~ label="Instrument"
         ~ width={300}
         ~ )
       if !isForex
@@ -190,7 +195,7 @@ header.topbar
           ~ value={venue}
           ~ options={venuePickerOptions}
           ~ onChange={chooseVenue}
-          ~ ariaLabel="Venue"
+          ~ label="Venue"
           ~ width={260}
           ~ )
     .topbar-group
@@ -226,19 +231,16 @@ header.topbar
     Select(
       ~ className="theme-select"
       ~ value={theme}
-      ~ onChange={(e) => setTheme(e.target.value as Theme)}
+      ~ onChange={(e) => setTheme(e.currentTarget.value as Theme)}
       ~ aria-label="Theme"
       ~ )
       each option in THEME_OPTIONS key option.value
         option(value={option.value}) #{option.label}
-  a(
-    ~ className="ui-button contribute-button is-primary"
-    ~ href={REPO_URL}
-    ~ target="_blank"
-    ~ rel="noopener noreferrer"
-    ~ aria-label="Contribute on GitHub"
-    ~ data-hint="Contribute on GitHub"
+  button(
+    ~ className="ui-button connect-wallet-button is-primary"
+    ~ aria-label="Connect wallet"
+    ~ data-hint="Connect wallet"
     ~ )
     GitHubIcon(size={15})
-    span.contribute-label Contribute
+    span.contribute-label Connect
   span.topbar-break(aria-hidden)

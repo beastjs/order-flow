@@ -13,7 +13,7 @@ wss://ws.finnhub.io?token=YOUR_FINNHUB_API_KEY
 Set the key in `.env.local`:
 
 ```bash
-NEXT_PUBLIC_FINNHUB_API_KEY=...
+PUBLIC_FINNHUB_API_KEY=...
 ```
 
 Finnhub subscriptions use its OANDA symbol namespace internally, for example:

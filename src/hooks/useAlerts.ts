@@ -1,12 +1,10 @@
-'use client'
-
 import { notify, playChime } from '@/lib/alerts/delivery'
 import { AlertMonitor, cvdDivergence, type AlertSnapshot } from '@/lib/engine/alerts'
 import { resampleBars, rollingVolumeZScores } from '@/lib/engine/analytics'
 import { stackedRuns } from '@/lib/engine/imbalance'
 import type { MicroEvent } from '@/lib/engine/microstructure'
 import { formatPriceValue, priceDecimals } from '@/lib/format'
-import { useSessionStoreApi } from '@/lib/session/SessionContextProvider.btsx'
+import { useSessionStoreApi } from '@/lib/session/sessionContext'
 import { useAlertStore } from '@/lib/store/alertStore'
 import type { TerminalStore } from '@/lib/store/terminalStore'
 import { useUIStore } from '@/lib/store/uiStore'

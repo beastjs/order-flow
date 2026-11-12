@@ -1,5 +1,3 @@
-'use client'
-
 import { scheduleCanvasRedraw } from '@/lib/session/canvasScheduler'
 import type { ThemeTokens } from '@/lib/theme'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'octane'
@@ -86,8 +84,8 @@ export function monoFont(size: number, weight = 400): string {
 export type DrawFn = (ctx: CanvasRenderingContext2D, width: number, height: number, palette: Palette) => void
 
 export function useCanvas(draw: DrawFn) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const sizeRef = useRef({ width: 0, height: 0 })
   const drawRef = useRef(draw)
 

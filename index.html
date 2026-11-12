@@ -3,12 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="/favicon.ico?v=2" />
-    <meta name="description" content="A Beast app, compiled to TSRX and rendered by Octane." />
-    <title>Beast</title>
+    <link rel="icon" href="/assets/lp-logo-04.svg" />
+    <meta name="description" content="Perps, Spot, Forex" />
+    <style>
+      @font-face {
+        font-family: 'ARK';
+        src: url('/fonts/arkr.woff2') format('woff2');
+        font-weight: 300;
+        font-style: normal;
+        font-display: fallback;
+      }
+      @font-face {
+        font-family: 'ARK';
+        src: url('/fonts/arkm.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: fallback;
+      }
+      @font-face {
+        font-family: 'OKX';
+        src: url('/fonts/okxr.woff2') format('woff2');
+        font-weight: 300;
+        font-style: normal;
+        font-display: fallback;
+      }
+      @font-face {
+        font-family: 'OKX';
+        src: url('/fonts/okxm.woff2') format('woff2');
+        font-weight: 300 400 500 600 700;
+        font-style: normal;
+        font-display: fallback;
+      }
+      @font-face {
+        font-family: 'BMR';
+        src: url('/fonts/bmr.woff2') format('woff2');
+        font-weight: 200;
+        font-style: normal;
+        font-display: fallback;
+      }
+    </style>
+    <title>Hyperflow</title>
+    <script>
+      // Runs before first paint so the stored theme never flashes the default one.
+      ;(function () {
+        var theme = 'default',
+          mode = 'dark'
+        try {
+          var saved = JSON.parse(localStorage.getItem('lucky-pick:theme') || '{}')
+          if (['default', 'doom', 'soft-pop'].indexOf(saved.theme) > -1) theme = saved.theme
+          if (saved.mode === 'light') mode = 'light'
+        } catch (e) {}
+        var root = document.documentElement
+        root.setAttribute('data-theme', theme)
+        if (mode === 'dark') root.classList.add('dark')
+        root.style.colorScheme = mode
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
-
   </body>
 </html>

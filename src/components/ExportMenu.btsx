@@ -1,5 +1,5 @@
 module "use client";
-import { useMarketSession, useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useMarketSession, useSessionStore } from "@/lib/session/sessionContext";
 import { candlesCsv, exportFilename, footprintLevelsCsv, liquidationsCsv, openInterestCsv, profileCsv, tapeCsv } from "@/lib/export/csv";
 import { canvasPng, downloadBlob, downloadText, workspacePng } from "@/lib/export/download";
 import { TAPE_LOG_SIZE } from "@/lib/managers/marketDataManager";

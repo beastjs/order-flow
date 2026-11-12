@@ -82,13 +82,13 @@ abstract class ForexAdapter extends BaseExchangeAdapter {
 export class FinnhubForexAdapter extends ForexAdapter {
   readonly venue: Venue = "finnhub-forex";
   protected buildWsUrl(): string {
-    const token = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
+    const token = import.meta.env.PUBLIC_FINNHUB_API_KEY;
     return `${VENUE_CONFIG[this.venue]!.websocketUrl}?token=${encodeURIComponent(token ?? "")}`;
   }
 
   protected subscribe(): void {
-    if (!process.env.NEXT_PUBLIC_FINNHUB_API_KEY) {
-      this.reportError("Missing NEXT_PUBLIC_FINNHUB_API_KEY");
+    if (!import.meta.env.PUBLIC_FINNHUB_API_KEY) {
+      this.reportError("Missing PUBLIC_FINNHUB_API_KEY (set it in .env and restart the dev server)");
       return;
     }
     this.ws?.send(JSON.stringify({ type: "subscribe", symbol: VENUE_CONFIG[this.venue]!.formatSymbol(this.symbol) }));

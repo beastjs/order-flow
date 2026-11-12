@@ -26,7 +26,7 @@ import {
 } from "@/lib/engine/analytics";
 import { aggregateDerivatives, mergeDerivatives } from "@/lib/engine/derivatives";
 import type { MarketDataBatch, TerminalStore } from "@/lib/store/terminalStore";
-import type { StoreApi } from "zustand";
+import type { StoreApi } from "@octanejs/zustand";
 import type {
   Venue,
   VenueSelection,

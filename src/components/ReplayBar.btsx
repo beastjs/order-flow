@@ -1,6 +1,6 @@
 
 module "use client";
-import { useMarketSession, useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useMarketSession, useSessionStore } from "@/lib/session/sessionContext";
 import { formatClock, formatDuration, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
 import Segmented from "@/components/ui/Segmented.btsx";

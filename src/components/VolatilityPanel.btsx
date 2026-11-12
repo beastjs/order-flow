@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { averageTrueRange, parkinsonVolatility, percentileRank, resampleBars, rollingRealizedVolatility, secondsPerYear, type VolatilityPoint } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";

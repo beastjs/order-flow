@@ -10,8 +10,7 @@ module
   // The popover renders in a portal on <body> with fixed positioning, so a
   // panel's overflow can't clip it. It sits under its button, flips above
   // when there's more room there, and scrolls within the viewport.
-
-
+  export { Badge, Select }
 
 component Badge
   props { className = "", ...props }: HTMLAttributes<HTMLSpanElement>

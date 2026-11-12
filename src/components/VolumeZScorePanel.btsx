@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { resampleBars, rollingVolumeZScores, type VolumeZPoint } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis} from "@/lib/chartUtils";

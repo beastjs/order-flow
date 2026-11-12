@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { useUIStore, type FootprintMode, type IndicatorSettings } from "@/lib/store/uiStore";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { formatClock, formatCompact, formatHM, formatPriceValue, formatSigned, priceDecimals, VENUE_LABEL } from "@/lib/format";
@@ -11,7 +11,7 @@ import { imbalanceOf, stackedRuns } from "@/lib/engine/imbalance";
 import { DEPTH_CAPACITY } from "@/lib/engine/depthHistory";
 import { LiquidityHeatmapRenderer } from "@/lib/render/liquidityHeatmap";
 import type { MicroEvent } from "@/lib/engine/microstructure";
-import { useMarketSession } from "@/lib/session/SessionContextProvider.btsx";
+import { useMarketSession } from "@/lib/session/sessionContext";
 import { usePriorSessions, type PriorSessions } from "@/hooks/usePriorSessions";
 import type { BigTrade, FootprintCandle, NormalizedLiquidation, VolumeProfile, MarketType, HeatmapSettings, PanelVisibility } from "@/lib/types/market";
 import { useCallback, useEffect, useMemo, useRef, createElement, useState } from "octane";
@@ -321,7 +321,7 @@ module
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
   props { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView }: ActionProps
-  fragment
+  div(className='flex items-center justify-center gap-3')
     Segmented(
       ~ size="xs"
       ~ value={mode}

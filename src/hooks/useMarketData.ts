@@ -1,6 +1,4 @@
-'use client'
-
-import { useMarketSession, useSessionStore } from '@/lib/session/SessionContextProvider.btsx'
+import { useMarketSession, useSessionStore } from '@/lib/session/sessionContext'
 import { useEffect } from 'octane'
 
 // ─── Hook: useMarketData ─────────────────────────────────────────

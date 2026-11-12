@@ -1,5 +1,3 @@
-'use client'
-
 import {
   DAY_MS,
   dayLevels,
@@ -9,7 +7,7 @@ import {
   type DayLevels,
   type Kline
 } from '@/lib/engine/priorSessions'
-import { useSessionStore } from '@/lib/session/SessionContextProvider.btsx'
+import { useSessionStore } from '@/lib/session/sessionContext'
 import { useUIStore } from '@/lib/store/uiStore'
 import { useEffect, useMemo, useState } from 'octane'
 import { useNow } from './useNow'

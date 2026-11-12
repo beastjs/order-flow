@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { useMarketNow } from "@/hooks/useMarketNow";
 import { venueSummary, type VenueStat, type VenueSummary } from "@/lib/engine/venues";
 import { formatCompact, formatPriceValue, formatSigned, priceDecimals, VENUE_LABEL } from "@/lib/format";
@@ -52,7 +52,8 @@ Panel(
   ~ title="Venues"
   ~ icon='globe'
   ~ subtitle={selected.length > 1 ? "price, flow and lead / lag by venue" : "needs two or more venues"}
-  ~ value={leader ? <span className="tone-accent">{VENUE_LABEL[leader.venue] ?? leader.venue} leads</span> : undefined}
+  ~ value={leader ? (VENUE_LABEL[leader.venue] ?? leader.venue) : undefined}
+  ~ // value={leader ? <span className="tone-accent">{VENUE_LABEL[leader.venue] ?? leader.venue} leads</span> : undefined}
   ~ className="venues-panel"
   ~ footer={createElement(Footer, { leader, summary })}
   ~ )

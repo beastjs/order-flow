@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { resampleBars } from "@/lib/engine/analytics";
 import { LIQUIDATION_FEED_VENUES, bucketLiquidations, isLiquidationCascade, summarizeLiquidations, type LiquidationBucket, type LiquidationSummary } from "@/lib/engine/derivatives";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";

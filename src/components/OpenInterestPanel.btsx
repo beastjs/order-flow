@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/SessionContextProvider.btsx";
+import { useSessionStore } from "@/lib/session/sessionContext";
 import { OI_REGIME_HINT, OI_REGIME_LABEL, oiWindowChange, type OIRegime, type OIWindowChange } from "@/lib/engine/derivatives";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
