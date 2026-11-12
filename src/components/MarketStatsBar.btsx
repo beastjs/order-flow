@@ -13,7 +13,7 @@ import { OI_REGIME_HINT, OI_REGIME_LABEL, annualizeFunding, fundingRate8h, oiWin
 import type { DerivativesAggregate } from "@/lib/types/market";
 import { useMemo } from "octane";
 import { regimeTone } from "@/lib/panel/regimeTone";
-import {Icon} from "@/lib/icons";
+import {Icon, IconName} from "@/lib/icons";
 module
   const REGIME_WINDOW_MS = 5 * 60000;
   function formatCountdown(ms: number): string {
@@ -134,7 +134,7 @@ section.hero(aria-label="Session statistics")
   .hero-main(title={session ? `${formatSigned(change, 2)} since session open` : undefined})
     .hero-id
       // AssetLogo(symbol={symbol} size={30})
-      Icon(name='tape')
+      Icon(name={base.toLowerCase() as IconName})
       div
         strong
           if marketType === "forex"

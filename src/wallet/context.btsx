@@ -1,6 +1,6 @@
 module "use client";
 import { type Account, type Address, type Chain, type Hash, type Hex } from "viem";
-import type { WalletConfig, WalletContextValue, WalletState, WalletStatus } from "./types";
+import type { WalletActions, WalletConfig, WalletContextValue, WalletState, WalletStatus } from "./types";
 import { createWallet, createPublic, getInitialChain, getChain, getProviderAccounts, requestProviderAccounts, normalizeError, normalizeChainId } from "./utils";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "octane";
 import type { PropsWithChildren } from "octane";
@@ -219,7 +219,9 @@ setup
     });
   }, [address, publicClient]);
 
-  const sendTransaction: WalletContextValue['sendTransaction'] =
+
+
+  const sendTransaction: WalletActions['sendTransaction'] =
     async (...args) => {
       if (!address) {
         throw new Error('No wallet account is connected.')
@@ -233,60 +235,44 @@ setup
       }
     }
 
-  const signMessage = useCallback(async (message: string | {
-    raw: Hex;
-  }): Promise<Hex> => {
+  const signMessage: WalletActions['signMessage'] = async (...args) => {
     if (!address) {
       throw new Error("No wallet account is connected.");
     }
     try {
-      return await walletClient.signMessage({
-        account: address,
-        message,
-      });
+      return await walletClient.signMessage(...args);
     }
     catch (cause) {
       handleError(cause);
       throw cause;
     }
-  }, [address, walletClient, handleError]);
+  };
 
-  const signTypedData = useCallback(async (parameters: {
-    domain?: Record<string, unknown>;
-    types: Record<string, unknown>;
-    primaryType: string;
-    message: Record<string, unknown>;
-  }): Promise<Hex> => {
+  const signTypedData: WalletActions['signTypedData'] = async (...args) => {
     if (!address) {
       throw new Error("No wallet account is connected.");
     }
     try {
-      return await walletClient.signTypedData({
-        account: address,
-        ...parameters,
-      } as never);
+      return await walletClient.signTypedData(...args);
     }
     catch (cause) {
       handleError(cause);
       throw cause;
     }
-  }, [address, walletClient, handleError]);
+  };
 
-  const signTransaction = useCallback(async (parameters: Record<string, unknown>): Promise<Hex> => {
+  const signTransaction: WalletActions['signTransaction'] = async (...args) => {
     if (!address) {
       throw new Error("No wallet account is connected.");
     }
     try {
-      return await walletClient.signTransaction({
-        ...parameters,
-        account: address,
-      } as never);
+      return await walletClient.signTransaction(...args);
     }
     catch (cause) {
       handleError(cause);
       throw cause;
     }
-  }, [address, walletClient, handleError]);
+  };
 
   useEffect(() => {
     mountedRef.current = true;

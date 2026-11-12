@@ -353,7 +353,7 @@ module
 // its props type is the one thing the conversion cannot infer — annotate it
 component Actions
   props { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView }: ActionProps
-  div(className='flex items-center justify-center gap-3')
+  div(className='flex items-center justify-center gap-4')
     Segmented(
       ~ size="xs"
       ~ value={mode}
@@ -364,19 +364,19 @@ component Actions
     span.actions-divider
     IndicatorsMenu
     Button(
-      ~ className={`chip ${showProfile ? "is-active" : ""}`}
+      ~ className={`chip ${showProfile ? "is-active" : "text-(--text-secondary)!"}`}
       ~ onClick={() => setPanelVisible("volumeProfile", !showProfile)}
       ~ title="Session volume profile attached to the price ladder"
       ~ )
       | Profile
     Button(
-      ~ className={`chip ${showHeatmap ? "is-active" : ""}`}
+      ~ className={`chip ${showHeatmap ? "is-active" : "text-(--text-secondary)!"}`}
       ~ onClick={() => setHeatmapVisible("tradedVolume", !showHeatmap)}
       ~ title="Traded-volume heatmap by price (executed volume, not resting liquidity)"
       ~ )
       | Heatmap
     Button(
-      ~ className={`chip ${showLiquidity ? "is-active" : ""}`}
+      ~ className={`chip ${showLiquidity ? "is-active" : "text-(--text-secondary)!"}`}
       ~ onClick={() => setHeatmapVisible("restingLiquidity", !showLiquidity)}
       ~ title="Resting-liquidity heatmap: order-book depth over time, summed across the selected venues"
       ~ )
@@ -386,7 +386,7 @@ component Actions
       ~ onClick={resetView}
       ~ title="Follow the live candle and last price (double-click chart)"
       ~ )
-      | ⟲ Live
+      | Live
 // lifted from the footer attribute; ind, showLiquidity, prior, marketType came from the component around it
 // its props type is the one thing the conversion cannot infer — annotate it
 component Footer

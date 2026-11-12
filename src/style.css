@@ -281,6 +281,7 @@ input {
   height: 26px;
   padding: 0 11px;
   font-size: 12px;
+  font-weight: 450;
   background: transparent;
 }
 .ui-button.chip.is-active {
@@ -599,6 +600,7 @@ input {
 }
 .hero-stats .stat-label {
   font-size: 12px;
+  font-weight: 550;
   min-width: 80px;
 }
 .hero-stats .stat-value {
@@ -845,10 +847,10 @@ input {
   padding: 6px 9px;
 }
 .stat-label {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: 13px;
-  font-weight: 450;
+  font-weight: 550;
   white-space: nowrap;
 }
 .stat-value {

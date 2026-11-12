@@ -1,14 +1,4 @@
-import type {
-  Account,
-  Address,
-  Chain,
-  Hex,
-  LocalAccount,
-  Transport,
-  TypedData,
-  TypedDataDomain,
-  WalletClient
-} from 'viem'
+import type { Account, Address, Chain, LocalAccount, Transport, WalletClient } from 'viem'
 
 export interface EIP1193Provider {
   request(args: { method: string; params?: readonly unknown[] | object }): Promise<unknown>
@@ -62,6 +52,8 @@ export interface WalletState {
   error: Error | null
 }
 
+export type WalletActions = Pick<WalletClient, 'sendTransaction' | 'signMessage' | 'signTypedData' | 'signTransaction'>
+
 export type WalletSendTransaction = WalletClient['sendTransaction']
 
 export interface WalletContextValue extends WalletState {
@@ -75,16 +67,16 @@ export interface WalletContextValue extends WalletState {
 
   getBalance(address?: Address): Promise<bigint>
 
-  sendTransaction: WalletSendTransaction
+  sendTransaction: WalletActions['sendTransaction']
 
-  signMessage(message: string | { raw: Hex }): Promise<Hex>
-
-  signTypedData<const TTypedData extends TypedData | Record<string, unknown>, TPrimaryType extends string>(parameters: {
-    domain?: TypedDataDomain
-    types: TTypedData
-    primaryType: TPrimaryType
-    message: Record<string, unknown>
-  }): Promise<Hex>
-
-  signTransaction(parameters: Record<string, unknown>): Promise<Hex>
+  signMessage: WalletActions['signMessage'] //(message: string | { raw: Hex }): Promise<Hex>
+  signTypedData: WalletActions['signTypedData']
+  // signTypedData<const TTypedData extends TypedData | Record<string, unknown>, TPrimaryType extends string>(parameters: {
+  //   domain?: TypedDataDomain
+  //   types: TTypedData
+  //   primaryType: TPrimaryType
+  //   message: Record<string, unknown>
+  // }): Promise<Hex>
+  signTransaction: WalletActions['signTransaction']
+  // signTransaction(parameters: Record<string, unknown>): Promise<Hex>
 }
