@@ -1,0 +1,31 @@
+module "use client";
+import { http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { mainnet, polygon, arbitrum, sepolia } from "viem/chains";
+import WalletProvider from "@/wallet/context.btsx";
+import type { WalletConfig } from "@/wallet/types";
+import { useMemo } from "octane";
+import type { PropsWithChildren } from "octane";
+
+props { children, }: PropsWithChildren
+setup
+  const config = useMemo<WalletConfig>(() => {
+    const account = privateKeyToAccount(process.env.PUBLIC_WALLET_PRIVATE_KEY as `0x${string}`);
+    return {
+      type: "local",
+      account,
+      chains: [mainnet, polygon, arbitrum, sepolia],
+      chain: mainnet,
+      transport: (chain) => {
+        switch (chain.id) {
+          case polygon.id:
+            return http("https://polygon-rpc.com");
+          case arbitrum.id:
+            return http("https://arb1.arbitrum.io/rpc");
+          default:
+            return http();
+        }
+      },
+    };
+  }, []);
+WalletProvider(config={config}) #{children}

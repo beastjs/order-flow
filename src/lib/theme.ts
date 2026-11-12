@@ -67,7 +67,7 @@ const THEMES: Record<Theme, ThemeTokens> = {
     '--warn': '#ff9f43',
     '--grid': 'rgba(255,255,255,0.045)',
     '--shadow': 'rgba(0,0,0,0.55)',
-    '--accent': '#d7f75b',
+    '--accent': '#fafafa', // d7f75b
     '--on-accent': '#0a0b0d'
   },
   light: {

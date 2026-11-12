@@ -1,0 +1,372 @@
+module "use client";
+import { type Account, type Address, type Chain, type Hash, type Hex } from "viem";
+import type { WalletConfig, WalletContextValue, WalletState, WalletStatus } from "./types";
+import { createWallet, createPublic, getInitialChain, getChain, getProviderAccounts, requestProviderAccounts, normalizeError, normalizeChainId } from "./utils";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "octane";
+import type { PropsWithChildren } from "octane";
+module
+  // -----------------------------------------------------------------------------
+  // Context
+  // -----------------------------------------------------------------------------
+  const WalletContext = createContext<WalletContextValue | null>(null);
+  // -----------------------------------------------------------------------------
+  // Provider
+  // -----------------------------------------------------------------------------
+  interface WalletProviderProps extends PropsWithChildren {
+    ~ config: WalletConfig;
+    ~ }
+  // -----------------------------------------------------------------------------
+  // Hook
+  // -----------------------------------------------------------------------------
+  export function useWallet(): WalletContextValue {
+    const context = useContext(WalletContext);
+    if (!context) {
+      throw new Error("useWallet must be used inside WalletProvider.");
+    }
+    return context;
+  }
+
+props { config, children, }: WalletProviderProps
+setup
+  const initialChain = useMemo(() => getInitialChain(config), [config]);
+  const [chain, setChain] = useState<Chain>(initialChain);
+
+  const [account, setAccount] = useState<Account | Address | undefined>(config.type === "local"
+    ? config.account
+    : undefined);
+
+  const [status, setStatus] = useState<WalletStatus>(config.type === "local"
+    ? "connected" : "disconnected");
+
+  const [error, setError] = useState<Error | null>(null);
+  const mountedRef = useRef(false);
+  const operationRef = useRef(0);
+
+  const address: Address | undefined = typeof account === "string"
+    ? account
+    : account?.address;
+
+  const walletClient = useMemo(() => {
+    return createWallet(config, chain, account);
+  }, [config, chain, account]);
+
+  const publicClient = useMemo(() => {
+    return createPublic(config, chain);
+  }, [config, chain]);
+
+  const isConnected = Boolean(address);
+
+  const state: WalletState = {
+    status,
+    isConnected,
+    isConnecting: status === "connecting",
+    isDisconnected: status === "disconnected",
+    isSwitchingChain: status === "switching-chain",
+    account,
+    address,
+    chain,
+    chainId: chain.id,
+    accountType: config.type,
+    walletClient,
+    error,
+  };
+
+  // ---------------------------------------------------------------------------
+  // Error handling
+  // ---------------------------------------------------------------------------
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const handleError = useCallback((cause: unknown) => {
+    const normalized = normalizeError(cause);
+    setError(normalized);
+    throw normalized;
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (config.type !== "json-rpc") {
+      return;
+    }
+    const operation = ++operationRef.current;
+    try {
+      const [accounts, chainIdResult] = await Promise.all([
+        getProviderAccounts(config.provider),
+        config.provider.request({
+          method: "eth_chainId",
+        }),
+      ]);
+      if (!mountedRef.current ||
+        operation !== operationRef.current) {
+        return;
+      }
+      const chainId = normalizeChainId(chainIdResult);
+      if (chainId === undefined) {
+        throw new Error("Wallet returned an invalid chain ID.");
+      }
+      const nextChain = getChain(config.chains, chainId);
+      if (!nextChain) {
+        throw new Error(`Unsupported chain: ${chainId}`);
+      }
+      setChain(nextChain);
+      setAccount(accounts[0]);
+      setStatus(accounts.length > 0
+        ? "connected" : "disconnected");
+      setError(null);
+    }
+    catch (cause) {
+      if (mountedRef.current &&
+        operation === operationRef.current) {
+        setError(normalizeError(cause));
+      }
+      throw normalizeError(cause);
+    }
+  }, [config]);
+
+  const connect = useCallback(async (): Promise<Address> => {
+    setStatus("connecting");
+    setError(null);
+    try {
+      let nextAccount: Account | Address;
+      if (config.type === "local") {
+        nextAccount = config.account;
+      }
+      else {
+        const accounts = await requestProviderAccounts(config.provider);
+        if (!accounts.length) {
+          throw new Error("No accounts were authorized by the wallet.");
+        }
+        nextAccount = accounts[0];
+      }
+      setAccount(nextAccount);
+      setStatus("connected");
+
+      return typeof nextAccount === 'string'
+        ? nextAccount
+        : nextAccount.address
+    }
+    catch (cause) {
+      setStatus("disconnected");
+      handleError(cause);
+      throw cause;
+    }
+  }, [config, handleError]);
+
+  const disconnect = useCallback(() => {
+    ++operationRef.current;
+    setAccount(undefined);
+    setStatus("disconnected");
+    setError(null);
+  }, []);
+
+  const reconnect = useCallback(async () => {
+    if (config.type === "local") {
+      setAccount(config.account);
+      setStatus("connected");
+      return config.account.address;
+    }
+    try {
+      await refresh();
+      const accounts = await getProviderAccounts(config.provider);
+      return accounts[0];
+    }
+    catch (cause) {
+      setError(normalizeError(cause));
+      return undefined;
+    }
+  }, [config, refresh]);
+
+  const switchChain = useCallback(async (chainId: number) => {
+    const nextChain = getChain(config.chains, chainId);
+    if (!nextChain) {
+      throw new Error(`Chain ${chainId} is not supported.`);
+    }
+    if (chain.id === chainId) {
+      return;
+    }
+    setStatus("switching-chain");
+    setError(null);
+    try {
+      if (config.type === "json-rpc") {
+        await walletClient.switchChain({
+          id: chainId,
+        });
+      }
+      // For local accounts, changing the chain recreates
+      // the wallet client with the chain-specific transport.
+      setChain(nextChain);
+      setStatus(address ? "connected" : "disconnected");
+    }
+    catch (cause) {
+      setStatus(address ? "connected" : "disconnected");
+      handleError(cause);
+    }
+  }, [
+    config,
+    chain,
+    walletClient,
+    address,
+    handleError,
+  ]);
+
+  const getBalance = useCallback(async (targetAddress?: Address): Promise<bigint> => {
+    const owner = targetAddress ?? address;
+    if (!owner) {
+      throw new Error("No wallet account is connected.");
+    }
+    return publicClient.getBalance({
+      address: owner,
+    });
+  }, [address, publicClient]);
+
+  const sendTransaction: WalletContextValue['sendTransaction'] =
+    async (...args) => {
+      if (!address) {
+        throw new Error('No wallet account is connected.')
+      }
+
+      try {
+        return await walletClient.sendTransaction(...args)
+      } catch (cause) {
+        handleError(cause)
+        throw cause
+      }
+    }
+
+  const signMessage = useCallback(async (message: string | {
+    raw: Hex;
+  }): Promise<Hex> => {
+    if (!address) {
+      throw new Error("No wallet account is connected.");
+    }
+    try {
+      return await walletClient.signMessage({
+        account: address,
+        message,
+      });
+    }
+    catch (cause) {
+      handleError(cause);
+      throw cause;
+    }
+  }, [address, walletClient, handleError]);
+
+  const signTypedData = useCallback(async (parameters: {
+    domain?: Record<string, unknown>;
+    types: Record<string, unknown>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }): Promise<Hex> => {
+    if (!address) {
+      throw new Error("No wallet account is connected.");
+    }
+    try {
+      return await walletClient.signTypedData({
+        account: address,
+        ...parameters,
+      } as never);
+    }
+    catch (cause) {
+      handleError(cause);
+      throw cause;
+    }
+  }, [address, walletClient, handleError]);
+
+  const signTransaction = useCallback(async (parameters: Record<string, unknown>): Promise<Hex> => {
+    if (!address) {
+      throw new Error("No wallet account is connected.");
+    }
+    try {
+      return await walletClient.signTransaction({
+        ...parameters,
+        account: address,
+      } as never);
+    }
+    catch (cause) {
+      handleError(cause);
+      throw cause;
+    }
+  }, [address, walletClient, handleError]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    if (config.type !== "json-rpc") {
+      return () => {
+        mountedRef.current = false;
+      };
+    }
+    const { provider } = config;
+    const handleAccountsChanged = (value: unknown) => {
+      if (!Array.isArray(value)) {
+        return;
+      }
+      const accounts = value as Address[];
+      setAccount(accounts[0]);
+      setStatus(accounts.length > 0
+        ? "connected" : "disconnected");
+      setError(null);
+    };
+    const handleChainChanged = (value: unknown) => {
+      const chainId = normalizeChainId(value);
+      if (chainId === undefined) {
+        setError(new Error("Wallet returned an invalid chain ID."));
+        return;
+      }
+      const nextChain = getChain(config.chains, chainId);
+      if (!nextChain) {
+        setError(new Error(`Unsupported chain: ${chainId}`));
+        return;
+      }
+      setChain(nextChain);
+      setError(null);
+    };
+    const handleDisconnect = () => {
+      setAccount(undefined);
+      setStatus("disconnected");
+    };
+    provider.on?.("accountsChanged", handleAccountsChanged);
+    provider.on?.("chainChanged", handleChainChanged);
+    provider.on?.("disconnect", handleDisconnect);
+    void refresh().catch(() => {
+      // Refresh already updates the error state.
+    });
+    return () => {
+      mountedRef.current = false;
+      ++operationRef.current;
+      provider.removeListener?.("accountsChanged", handleAccountsChanged);
+      provider.removeListener?.("chainChanged", handleChainChanged);
+      provider.removeListener?.("disconnect", handleDisconnect);
+    };
+  }, [config, refresh]);
+
+  // ---------------------------------------------------------------------------
+  // Context value
+  // ---------------------------------------------------------------------------
+  const value = useMemo<WalletContextValue>(() => ({
+    ...state,
+    connect,
+    disconnect,
+    reconnect,
+    switchChain,
+    refresh,
+    clearError,
+    getBalance,
+    sendTransaction,
+    signMessage,
+    signTypedData,
+    signTransaction,
+  }), [
+    state,
+    connect,
+    disconnect,
+    reconnect,
+    switchChain,
+    refresh,
+    clearError,
+    getBalance,
+    sendTransaction,
+    signMessage,
+    signTypedData,
+    signTransaction,
+  ]);
+WalletContext(value={value}) #{children}

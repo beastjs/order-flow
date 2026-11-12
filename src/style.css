@@ -563,7 +563,7 @@ input {
   padding: 0 9px;
   border-radius: 999px;
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -599,7 +599,7 @@ input {
 }
 .hero-stats .stat-label {
   font-size: 11px;
-  min-width: 100px;
+  min-width: 80px;
 }
 .hero-stats .stat-value {
   font-size: 14px;

@@ -1309,9 +1309,9 @@ setup
   const tf = timeframe.toUpperCase();
   const venueLabel = marketType === "forex" ? "FX" : VENUE_LABEL[venue] ?? venue;
 Panel(
-  ~ title="Footprint"
+  ~ title={symbol}
   ~ icon='delta'
-  ~ subtitle={`${symbol} · ${tf} · ${venueLabel}`}
+  ~ subtitle={`${venueLabel} · ${tf}`}
   ~ className="footprint-panel"
   ~ actions={createElement(Actions, { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView })}
   ~ footer={createElement(Footer, { ind, showLiquidity, prior, marketType })}

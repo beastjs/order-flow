@@ -1,0 +1,15 @@
+module "use client";
+import { mainnet, polygon, arbitrum, sepolia } from "viem/chains";
+import WalletProvider from "@/wallet/context.btsx";
+import type { WalletConfig, EIP1193Provider } from "@/wallet/types";
+import { type PropsWithChildren } from "octane";
+
+props { children }: PropsWithChildren
+setup
+  const config: WalletConfig = {
+    ~ type: "json-rpc",
+    ~ provider: window.ethereum as EIP1193Provider,
+    ~ chains: [mainnet, polygon, arbitrum, sepolia],
+    ~ chain: mainnet,
+    ~ }
+WalletProvider(config={config}) #{children}
