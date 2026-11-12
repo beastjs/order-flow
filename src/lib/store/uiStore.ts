@@ -129,8 +129,6 @@ export const useUIStore = create<UIStore>()(
       name: "oft-ui-preferences",
       version: 2,
       storage: createJSONStorage(() => localStorage),
-      // Hydrated manually after mount to keep SSR markup stable.
-      skipHydration: true,
       partialize: (state) => ({
         toolProfile: state.toolProfile,
         panels: state.panels,

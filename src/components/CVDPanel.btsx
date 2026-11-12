@@ -1,7 +1,7 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
-import { resampleBars } from "@/lib/engine/analytics";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
+import { resampleWithLive } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatCompact, formatPriceValue, formatSigned, priceDecimals } from "@/lib/format";
@@ -77,7 +77,7 @@ component Footer
 
 setup
   const flowBars = useSessionStore((s) => s.flowBars);
-  const liveBar = useSessionStore((s) => s.liveBar);
+  const liveBar = useThrottledSessionStore((s) => s.liveBar, 250);
   const tickSize = useSessionStore((s) => s.tickSize);
   const crosshairTime = useSessionStore((s) => s.crosshairTime);
   const [resolution, setResolution] = useState<Resolution>(5);
@@ -89,7 +89,7 @@ setup
     plotR: number;
   }>({ points: [], slot: 0, plotR: 0 });
 
-  const bars = useMemo(() => resampleBars(liveBar ? [...flowBars, liveBar] : flowBars, resolution), [flowBars, liveBar, resolution]);
+  const bars = useMemo(() => resampleWithLive(flowBars, liveBar, resolution), [flowBars, liveBar, resolution]);
   const decimals = priceDecimals(tickSize, bars[bars.length - 1]?.close);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D, W: number, H: number, p: Palette) => {

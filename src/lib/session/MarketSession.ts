@@ -2,8 +2,9 @@
 
 import { createTerminalStore, type TerminalSettings, type TerminalStore } from "@/lib/store/terminalStore";
 import { MarketDataManager } from "@/lib/managers/marketDataManager";
-import { SessionRecorder } from "@/lib/recording/recorder";
-import { ReplayPlayer } from "@/lib/recording/player";
+// Recording and replay code is loaded the first time either is used.
+import type { SessionRecorder } from "@/lib/recording/recorder";
+import type { ReplayPlayer } from "@/lib/recording/player";
 import { recordingStorage } from "@/lib/recording/storage";
 import type { RecordingMeta, RecordingStorage, ReplaySpeed } from "@/lib/recording/types";
 import { alertsNeedBackground } from "@/lib/store/alertStore";
@@ -61,6 +62,8 @@ export class MarketSession {
   async startRecording(): Promise<void> {
     const storage = this.storage;
     if (!storage || this.recorder || this.player) return;
+    const { SessionRecorder } = await import("@/lib/recording/recorder");
+    if (this.recorder || this.player) return;
     const s = this.store.getState();
     this.recordingNotice = null;
     const recorder = new SessionRecorder({
@@ -101,6 +104,7 @@ export class MarketSession {
   async startReplay(meta: RecordingMeta): Promise<void> {
     const storage = this.storage;
     if (!storage) return;
+    const { ReplayPlayer } = await import("@/lib/recording/player");
     if (this.recorder) await this.stopRecording();
     this.player?.dispose();
     const s = this.store.getState();

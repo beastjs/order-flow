@@ -11,11 +11,11 @@ section(className={`panel ${className}`} aria-label={title})
         Icon(name={icon})
       .panel-titles
         h2.panel-title
-          | #{title}
+          | #{subtitle}
           if value !== undefined
             span.panel-value #{value}
         if subtitle
-          span.panel-subtitle #{subtitle}
+          span.panel-subtitle #{title}
     if actions
       .panel-actions #{actions}
   div(className={`panel-body ${bodyClassName}`}) #{children}

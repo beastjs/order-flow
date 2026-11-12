@@ -14,8 +14,8 @@ import {
   classifyTrade,
   roundToTick,
   getCandleOpenTime,
-} from "../lib/engine/orderFlowEngine";
-import type { NormalizedTrade, FootprintCandle } from "../lib/types/market";
+} from "@/lib/engine/orderFlowEngine";
+import type { NormalizedTrade, FootprintCandle } from "@/lib/types/market";
 
 // ─── Helper: create a test trade ─────────────────────────────
 function makeTrade(

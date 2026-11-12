@@ -58,7 +58,6 @@ export const useAlertStore = create<AlertStore>()(
       name: 'oft-alerts',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      skipHydration: true,
       partialize: (state) => ({ settings: state.settings }),
       merge: (persisted, current) => {
         const saved = ((persisted ?? {}) as Partial<AlertStore>).settings

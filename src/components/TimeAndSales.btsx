@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { formatClock, formatCompact, formatPriceValue, priceDecimals, VENUE_SHORT } from "@/lib/format";
 import { Icon } from "@/lib/icons";
 import Panel from "@/components/ui/Panel.btsx";
@@ -24,11 +24,13 @@ module
   const MAX_ROWS = 120;
   type TapeRow = {
     ~ kind: "trade";
+    ~ key: string;
     ~ trade: NormalizedTrade;
     ~ tick: number;
     ~ ratio: number;
     ~ } | {
     ~ kind: "liq";
+    ~ key: string;
     ~ liq: NormalizedLiquidation;
     ~ };
 // lifted from the icon attribute
@@ -53,8 +55,9 @@ component Footer
     span.tone-sell Sell #{((1 - buyShare) * 100).toFixed(0)}%
 
 setup
-  const trades = useSessionStore((s) => s.recentTrades);
-  const session = useSessionStore((s) => s.session);
+  // The tape is read by eye: 8 updates a second instead of one per feed flush.
+  const trades = useThrottledSessionStore((s) => s.recentTrades, 125);
+  const session = useThrottledSessionStore((s) => s.session, 125);
   const tickSize = useSessionStore((s) => s.tickSize);
   const selectedVenues = useSessionStore((s) => s.selectedVenues);
   const marketType = useSessionStore((s) => s.marketType);
@@ -68,9 +71,17 @@ setup
 
   const rows = useMemo(() => {
     const out: TapeRow[] = [];
+    // Row keys let the list move existing rows down instead of rewriting all of
+    // them; a repeated id gets a suffix so keys stay unique.
+    const seen = new Map<string, number>();
+    const keyFor = (base: string) => {
+      const count = seen.get(base) ?? 0;
+      seen.set(base, count + 1);
+      return count ? `${base}#${count}` : base;
+    };
     if (activeFilter === LIQ_FILTER) {
       for (let i = liquidations.length - 1; i >= 0 && out.length < MAX_ROWS; i--)
-        out.push({ kind: "liq", liq: liquidations[i] });
+        out.push({ kind: "liq", key: keyFor(`l:${liquidations[i].id}`), liq: liquidations[i] });
       return out;
     }
     // Liquidations are interleaved by time, limited to the span the tape covers.
@@ -81,21 +92,28 @@ setup
       const trade = trades[i];
       while (li >= 0 && liquidations[li].timestamp >= trade.timestamp && out.length < MAX_ROWS) {
         if (liquidations[li].timestamp >= oldestTrade)
-          out.push({ kind: "liq", liq: liquidations[li] });
+          out.push({ kind: "liq", key: keyFor(`l:${liquidations[li].id}`), liq: liquidations[li] });
         li--;
       }
       if (activeFilter && trade.quantity < threshold)
         continue;
       const prev = trades[i + 1];
       const tick = prev ? Math.sign(trade.price - prev.price) : 0;
-      out.push({ kind: "trade", trade, tick, ratio: avg ? trade.quantity / avg : 1 });
+      out.push({ kind: "trade", key: keyFor(`t:${trade.venue}:${trade.id}:${trade.timestamp}`), trade, tick, ratio: avg ? trade.quantity / avg : 1 });
     }
     return out;
   }, [trades, liquidations, avg, activeFilter]);
 
-  const recentBuy = trades.slice(0, 200).reduce((s, t) => s + (t.side === "buy" ? t.quantity : 0), 0);
-  const recentTotal = trades.slice(0, 200).reduce((s, t) => s + t.quantity, 0);
-  const buyShare = recentTotal ? recentBuy / recentTotal : 0.5;
+  const buyShare = useMemo(() => {
+    let buy = 0;
+    let total = 0;
+    for (let i = 0; i < trades.length && i < 200; i++) {
+      total += trades[i].quantity;
+      if (trades[i].side === "buy")
+        buy += trades[i].quantity;
+    }
+    return total ? buy / total : 0.5;
+  }, [trades]);
 Panel(
   ~ title="Time & Sales"
   ~ icon={'tape'}
@@ -120,7 +138,7 @@ Panel(
             | #{"No prints match the filter"}
           else
             | #{"Waiting for trades…"}
-      each row in rows
+      each row in rows key row.key
         fragment
           if row.kind === "liq"
             scope
@@ -128,7 +146,6 @@ Panel(
                 const { liq } = row;
                 const side = liq.side === "long" ? "sell" : "buy";
               div(
-                ~ key={liq.id}
                 ~ className={`tape-row ${side} is-liq`}
                 ~ title={`${liq.side === "long" ? "Long" : "Short"} liquidated: ${liq.quantity} @ ${liq.price} ($${formatCompact(liq.quoteVolume, 2)}) on ${VENUE_SHORT[liq.venue] ?? liq.venue}`}
                 ~ )
@@ -145,7 +162,6 @@ Panel(
                 const { trade, tick, ratio } = row;
                 const heat = Math.min(1, Math.max(0, (ratio - 1) / 9));
               div(
-                ~ key={trade.id + trade.timestamp}
                 ~ className={`tape-row ${trade.side} ${ratio >= 5 ? "is-block" : ""}`}
                 ~ style={{ "--heat": heat.toFixed(3) } as CSSProperties}
                 ~ title={`${trade.side === "buy" ? "Buy" : "Sell"} ${trade.quantity} @ ${trade.price} · ${ratio.toFixed(1)}× average${marketType === "forex" ? " (tick)" : ""}`}

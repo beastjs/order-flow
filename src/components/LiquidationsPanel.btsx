@@ -1,7 +1,7 @@
 
 module "use client";
 import { useSessionStore } from "@/lib/session/sessionContext";
-import { resampleBars } from "@/lib/engine/analytics";
+import { resampleCompleted } from "@/lib/engine/analytics";
 import { LIQUIDATION_FEED_VENUES, bucketLiquidations, isLiquidationCascade, summarizeLiquidations, type LiquidationBucket, type LiquidationSummary } from "@/lib/engine/derivatives";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { useMarketNow } from "@/hooks/useMarketNow";
@@ -94,7 +94,7 @@ setup
   const buckets = useMemo(() => bucketLiquidations(liquidations, bucketMs, bucketCount, now), [liquidations, bucketMs, bucketCount, now]);
 
   const prices = useMemo(() => {
-    const bars = resampleBars(flowBars, bucketSec);
+    const bars = resampleCompleted(flowBars, bucketSec);
     const byTime = new Map(bars.map((b) => [b.time, b.close]));
     return buckets.map((b) => byTime.get(b.time));
   }, [flowBars, bucketSec, buckets]);

@@ -1,35 +1,26 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { formatDuration, VENUE_LABEL } from "@/lib/format";
-import { useEffect, useState } from "octane";
+import { useNow } from "@/hooks/useNow";
 module
   // ─── Status bar ──────────────────────────────────────────────────
   // Feed health per venue, data lag, session age and a UTC clock.
   // ─── Status bar ──────────────────────────────────────────────────
   // Feed health per venue, data lag, session age and a UTC clock.
-  function useNow(intervalMs = 1000) {
-    const [now, setNow] = useState<number | null>(null);
-    useEffect(() => {
-      const tick = () => setNow(Date.now());
-      tick();
-      const id = setInterval(tick, intervalMs);
-      return () => clearInterval(id);
-    }, [intervalMs]);
-    return now;
-  }
 
 setup
   const connections = useSessionStore((s) => s.connections);
   const selectedVenues = useSessionStore((s) => s.selectedVenues);
   const marketType = useSessionStore((s) => s.marketType);
-  const session = useSessionStore((s) => s.session);
+  // Only the fields shown are selected, so prints don't re-render the bar.
+  const lag = useThrottledSessionStore((s) => s.session?.lastTradeLagMs ?? null, 500);
+  const sessionStart = useSessionStore((s) => s.session?.startTime ?? null);
   const candles = useSessionStore((s) => s.candles.length);
   const now = useNow();
   const replay = useSessionStore((s) => s.replay);
   const venues = marketType === "forex" ? (["finnhub-forex"] as const) : selectedVenues;
   const live = venues.filter((v) => connections[v]?.status === "live").length;
-  const lag = session?.lastTradeLagMs ?? null;
   const lagTone = lag === null ? "" : lag < 250 ? "tone-buy" : lag < 1000 ? "tone-warn" : "tone-sell";
 footer.statusbar
   .statusbar-feeds
@@ -60,13 +51,13 @@ footer.statusbar
     span
       | Session
       b
-        if session && now
-          | #{formatDuration(now - session.startTime)}
+        if sessionStart !== null && now
+          | #{formatDuration(now - sessionStart)}
         else
           | #{"—"}
     span
       | Candles
-      b #{candles + (session ? 1 : 0)}
+      b #{candles + (sessionStart !== null ? 1 : 0)}
     span.statusbar-clock
       if now
         | #{new Date(now).toISOString().slice(11, 19)}

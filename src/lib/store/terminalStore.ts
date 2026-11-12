@@ -140,7 +140,7 @@ export interface MarketDataBatch {
 }
 
 export const MAX_FLOW_BARS = 7200; // two hours of 1-second bars
-const MAX_CANDLES = 500;
+export const MAX_CANDLES = 500;
 const MAX_OBI_POINTS = 600;
 export const MAX_LIQUIDATIONS = 5000;
 export const MAX_OI_POINTS = 7200; // two hours of 1-second samples
@@ -194,7 +194,7 @@ const isAggregate = (venue: VenueSelection) => venue === "all-perps" || venue ==
 export const createTerminalStore = (initial: Partial<TerminalSettings> = {}) => {
   const recentTradeBuffer = new RingBuffer<NormalizedTrade>(500);
   return create<TerminalStore>()(
-    subscribeWithSelector((set) => ({
+    subscribeWithSelector((set, get) => ({
       ...INITIAL_SETTINGS,
       ...initial,
       ...(initial.venue && isAggregate(initial.venue) ? { orderBookMode: "aggregated" as const } : {}),
@@ -327,7 +327,11 @@ export const createTerminalStore = (initial: Partial<TerminalSettings> = {}) => 
           };
         }),
 
-      setCrosshair: (crosshairTime, crosshairPrice) => set({ crosshairTime, crosshairPrice }),
+      // Called on every pointer move; most moves stay on the same candle and row.
+      setCrosshair: (crosshairTime, crosshairPrice) => {
+        const s = get();
+        if (s.crosshairTime !== crosshairTime || s.crosshairPrice !== crosshairPrice) set({ crosshairTime, crosshairPrice });
+      },
 
       resetMarketData: () => {
         recentTradeBuffer.clear();

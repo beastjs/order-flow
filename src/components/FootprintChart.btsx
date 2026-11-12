@@ -11,10 +11,10 @@ import { imbalanceOf, stackedRuns } from "@/lib/engine/imbalance";
 import { DEPTH_CAPACITY } from "@/lib/engine/depthHistory";
 import { LiquidityHeatmapRenderer } from "@/lib/render/liquidityHeatmap";
 import type { MicroEvent } from "@/lib/engine/microstructure";
-import { useMarketSession } from "@/lib/session/sessionContext";
+import { useMarketSession, useSessionStoreApi } from "@/lib/session/sessionContext";
 import { usePriorSessions, type PriorSessions } from "@/hooks/usePriorSessions";
 import type { BigTrade, FootprintCandle, NormalizedLiquidation, VolumeProfile, MarketType, HeatmapSettings, PanelVisibility } from "@/lib/types/market";
-import { useCallback, useEffect, useMemo, useRef, createElement, useState } from "octane";
+import { useCallback, useEffect, useRef, createElement, useState } from "octane";
 import type { MouseEvent, Dispatch, SetStateAction } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import IndicatorsMenu from "./IndicatorsMenu.btsx";
@@ -97,6 +97,34 @@ module
     ~ followX: boolean;
     ~ followY: boolean;
     ~ }
+  /**
+   * Completed candle columns, drawn once to an offscreen canvas and blitted
+   * each frame. It is larger than the plot, so scrolling (and the ladder
+   * following the last price) only shifts it until the margin runs out.
+   */
+  interface ColumnLayer {
+    ~ canvas: HTMLCanvasElement;
+    ~ candles: FootprintCandle[];
+    ~ count: number;
+    ~ rowH: number;
+    ~ colW: number;
+    ~ tick: number;
+    ~ mode: FootprintMode;
+    ~ heatmapOn: boolean;
+    ~ ind: IndicatorSettings;
+    ~ palette: Palette;
+    ~ dpr: number;
+    ~ plotL: number;
+    ~ plotW: number;
+    ~ plotH: number;
+    ~ marginX: number;
+    ~ marginY: number;
+    ~ anchorX: number;
+    ~ anchorY: number;
+    ~ anchorPrice: number;
+    ~ }
+  const LAYER_MARGIN_X = 160;
+  const LAYER_MARGIN_Y = 240;
   interface Layout {
     ~ W: number;
     ~ H: number;
@@ -266,7 +294,11 @@ module
     ctx.fillText("SESSION VP", 8, HEADER_H / 2 + 1);
     if (!profile || !profile.levels.length)
       return;
-    const max = Math.max(...profile.levels.map((l) => l.totalVolume)) || 1;
+    let max = 0;
+    for (const level of profile.levels)
+      if (level.totalVolume > max)
+        max = level.totalVolume;
+    max = max || 1;
     const barMax = width - 10;
     ctx.save();
     ctx.beginPath();
@@ -416,20 +448,14 @@ component Footer
     span.legend-hint Drag to pan · Wheel scroll · ⌘/Ctrl+wheel row zoom · Alt+wheel column width · Double-click to follow
 
 setup
-  const candles = useSessionStore((s) => s.candles);
-  const currentCandle = useSessionStore((s) => s.currentCandle);
-  const tickSize = useSessionStore((s) => s.tickSize);
-  const volumeProfile = useSessionStore((s) => s.volumeProfile);
-  const session = useSessionStore((s) => s.session);
-  const ticker = useSessionStore((s) => s.ticker);
+  // Market data is read from the store inside `draw`, and a store subscription
+  // schedules the repaint, so the feed never re-renders this component.
+  const store = useSessionStoreApi();
+  const hasCandles = useSessionStore((s) => s.candles.length > 0 || s.currentCandle !== null);
   const symbol = useSessionStore((s) => s.symbol);
   const timeframe = useSessionStore((s) => s.timeframe);
   const venue = useSessionStore((s) => s.venue);
   const marketType = useSessionStore((s) => s.marketType);
-  const liquidations = useSessionStore((s) => s.liquidations);
-  const bigTrades = useSessionStore((s) => s.bigTrades);
-  const microEvents = useSessionStore((s) => s.microEvents);
-  const depthVersion = useSessionStore((s) => s.depthVersion);
   const marketSession = useMarketSession();
   const prior = usePriorSessions();
   const showLiquidity = useUIStore((s) => s.heatmap.restingLiquidity);
@@ -443,7 +469,37 @@ setup
   const showHeatmap = useUIStore((s) => s.heatmap.tradedVolume);
   const setPanelVisible = useUIStore((s) => s.setPanelVisible);
   const setHeatmapVisible = useUIStore((s) => s.setHeatmapVisible);
-  const allCandles = useMemo(() => (currentCandle ? [...candles, currentCandle] : candles), [candles, currentCandle]);
+  // Derived values, recomputed only when the store object they come from changes.
+  const derivedRef = useRef<{
+    candles: FootprintCandle[] | null;
+    current: FootprintCandle | null;
+    all: FootprintCandle[];
+    profile: VolumeProfile | null;
+    heatmapCap: number;
+  }>({ candles: null, current: null, all: [], profile: null, heatmapCap: 1 });
+
+  const candlesOf = (state: ReturnType<typeof store.getState>) => {
+    const derived = derivedRef.current;
+    if (derived.candles !== state.candles || derived.current !== state.currentCandle) {
+      derived.candles = state.candles;
+      derived.current = state.currentCandle;
+      derived.all = state.currentCandle ? [...state.candles, state.currentCandle] : state.candles;
+    }
+    return derived.all;
+  };
+
+  // 95th-percentile level volume for the heatmap scale: sorted when the profile changes, not per frame.
+  const heatmapCapOf = (profile: VolumeProfile | null) => {
+    const derived = derivedRef.current;
+    if (derived.profile !== profile) {
+      derived.profile = profile;
+      const sorted = profile ? profile.levels.map((l) => l.totalVolume).sort((a, b) => a - b) : [];
+      derived.heatmapCap = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 1;
+    }
+    return derived.heatmapCap;
+  };
+
+  const layerRef = useRef<ColumnLayer | null>(null);
   const viewRef = useRef<View>({ scrollX: 0, scrollY: 0, rowH: 18, colW: 112, followX: true, followY: true });
 
   const mouseRef = useRef<{
@@ -460,9 +516,12 @@ setup
 
   const layoutRef = useRef<Layout | null>(null);
   const bubblesRef = useRef<Bubble[]>([]);
-  const decimals = priceDecimals(tickSize, ticker?.price);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D, W: number, H: number, p: Palette) => {
+    const state = store.getState();
+    const { tickSize, volumeProfile, session, ticker, liquidations, bigTrades, microEvents, marketType } = state;
+    const allCandles = candlesOf(state);
+    const decimals = priceDecimals(tickSize, ticker?.price);
     const view = viewRef.current;
     ctx.fillStyle = p.bgPanel;
     ctx.fillRect(0, 0, W, H);
@@ -523,8 +582,7 @@ setup
     ctx.rect(plotL, plotT, plotW, plotH);
     ctx.clip();
     // ── Resting-liquidity heatmap (order-book depth over time) ──
-    // depthVersion changes when the history gains a snapshot; it is what redraws this layer.
-    if (showLiquidity && depthVersion >= 0) {
+    if (showLiquidity) {
       const history = marketSession.manager.depthHistory;
       liquidity.update(history);
       const firstColumn = Math.max(0, Math.floor((plotL - colX(0)) / colW) - 1);
@@ -532,8 +590,7 @@ setup
     }
     // ── Traded-volume heatmap (session volume by price) ──
     if (showHeatmap && volumeProfile && volumeProfile.levels.length) {
-      const sorted = volumeProfile.levels.map((l) => l.totalVolume).sort((a, b) => a - b);
-      const cap = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 1;
+      const cap = heatmapCapOf(volumeProfile);
       for (const level of volumeProfile.levels) {
         const y = priceY(level.price);
         if (y + rowH < plotT || y > plotB)
@@ -570,25 +627,75 @@ setup
     const fontSize = Math.max(9, Math.min(11, rowH * 0.6));
     ctx.font = monoFont(fontSize);
     ctx.textBaseline = "middle";
-    for (let ci = startIndex; ci < allCandles.length; ci++) {
-      const candle = allCandles[ci];
-      const x = colX(ci);
-      if (x > plotR)
-        break;
-      if (x + colW < plotL || candle.tradeCount === 0)
-        continue;
-      drawCandleColumn(ctx, candle, x, colW, rowH, priceY, plotT, plotB, mode, showText, showHeatmap || showLiquidity, p, ind, pocColor);
+    const heatmapOn = showHeatmap || showLiquidity;
+    const drawColumn = (target: CanvasRenderingContext2D, candle: FootprintCandle, x: number, top: number, bottom: number) => {
+      drawCandleColumn(target, candle, x, colW, rowH, priceY, top, bottom, mode, showText, heatmapOn, p, ind, pocColor);
       // Stacked imbalances — vertical bars at the column edge.
       if (ind.stackedImbalances) {
         for (const stack of stackedRuns(candle, ind.imbalanceRatio, ind.stackedLevels)) {
           const yTop = priceY(stack.end);
           const yBot = priceY(stack.start) + rowH;
-          ctx.fillStyle = stack.dir === "buy" ? p.buy : p.sell;
-          ctx.beginPath();
-          ctx.roundRect(x + colW - 4.5, yTop + 1, 3, yBot - yTop - 2, 1.5);
-          ctx.fill();
+          target.fillStyle = stack.dir === "buy" ? p.buy : p.sell;
+          target.beginPath();
+          target.roundRect(x + colW - 4.5, yTop + 1, 3, yBot - yTop - 2, 1.5);
+          target.fill();
         }
       }
+    };
+    // Completed candles never change, so their columns come from a cached layer;
+    // only the candle still forming is drawn every frame.
+    const completed = state.candles;
+    const dpr = window.devicePixelRatio || 1;
+    const marginX = LAYER_MARGIN_X;
+    const marginY = Math.min(LAYER_MARGIN_Y, Math.ceil(plotH / 2));
+    let layer = layerRef.current;
+    const reusable = layer !== null
+      && layer.candles === completed && layer.count === allCandles.length
+      && layer.rowH === rowH && layer.colW === colW && layer.tick === tick
+      && layer.mode === mode && layer.heatmapOn === heatmapOn && layer.ind === ind && layer.palette === p
+      && layer.dpr === dpr && layer.plotL === plotL && layer.plotW === plotW && layer.plotH === plotH
+      && Math.abs(colX(0) - layer.anchorX) <= layer.marginX
+      && Math.abs(priceY(layer.anchorPrice) - layer.anchorY) <= layer.marginY;
+    if (!reusable) {
+      const canvas = layer?.canvas ?? document.createElement("canvas");
+      const layerW = plotW + marginX * 2;
+      const layerH = plotH + marginY * 2;
+      // Assigning the size also clears the previous contents.
+      canvas.width = Math.max(1, Math.round(layerW * dpr));
+      canvas.height = Math.max(1, Math.round(layerH * dpr));
+      const target = canvas.getContext("2d");
+      if (target) {
+        target.setTransform(dpr, 0, 0, dpr, 0, 0);
+        target.translate(marginX - plotL, marginY - plotT);
+        target.font = monoFont(fontSize);
+        target.textBaseline = "middle";
+        const from = Math.max(0, Math.floor((plotL - marginX - colX(0)) / colW) - 1);
+        for (let ci = from; ci < completed.length; ci++) {
+          const x = colX(ci);
+          if (x > plotR + marginX)
+            break;
+          if (x + colW < plotL - marginX || completed[ci].tradeCount === 0)
+            continue;
+          drawColumn(target, completed[ci], x, plotT - marginY, plotB + marginY);
+        }
+      }
+      layer = {
+        canvas, candles: completed, count: allCandles.length, rowH, colW, tick, mode, heatmapOn, ind, palette: p,
+        dpr, plotL, plotW, plotH, marginX, marginY, anchorX: colX(0), anchorY: priceY(maxPrice), anchorPrice: maxPrice,
+      };
+      layerRef.current = layer;
+    }
+    if (layer) {
+      // Shift by whole device pixels so the cached text stays sharp.
+      const dx = Math.round((colX(0) - layer.anchorX) * dpr) / dpr;
+      const dy = Math.round((priceY(layer.anchorPrice) - layer.anchorY) * dpr) / dpr;
+      ctx.drawImage(layer.canvas, plotL - layer.marginX + dx, plotT - layer.marginY + dy, plotW + layer.marginX * 2, plotH + layer.marginY * 2);
+    }
+    const live = state.currentCandle;
+    if (live && live.tradeCount > 0) {
+      const x = colX(allCandles.length - 1);
+      if (x <= plotR && x + colW >= plotL)
+        drawColumn(ctx, live, x, plotT, plotB);
     }
     // ── Session POC / VAH / VAL / high / low lines ──
     const sessionLines: [
@@ -1019,9 +1126,18 @@ setup
     ctx.font = monoFont(9, 600);
     ctx.textAlign = "center";
     ctx.fillText(`TICK ${formatPriceValue(tick, priceDecimals(tick))}`, plotR + AXIS_W / 2, HEADER_H / 2 + 1);
-  }, [allCandles, tickSize, volumeProfile, session, ticker, mode, showProfile, showHeatmap, ind, decimals, liquidations, bigTrades, marketType, microEvents, showLiquidity, depthVersion, liquidity, marketSession, prior]);
+  }, [store, mode, showProfile, showHeatmap, ind, showLiquidity, liquidity, marketSession, prior]);
 
   const { containerRef, canvasRef, redraw } = useCanvas(draw);
+
+  // Repaint (coalesced per frame) when anything the chart shows changes.
+  useEffect(() => store.subscribe((next, prev) => {
+    if (next.currentCandle !== prev.currentCandle || next.candles !== prev.candles || next.ticker !== prev.ticker
+      || next.volumeProfile !== prev.volumeProfile || next.session !== prev.session || next.tickSize !== prev.tickSize
+      || next.liquidations !== prev.liquidations || next.bigTrades !== prev.bigTrades
+      || next.microEvents !== prev.microEvents || next.depthVersion !== prev.depthVersion || next.marketType !== prev.marketType)
+      redraw();
+  }), [store, redraw]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -1079,7 +1195,9 @@ setup
     const colW = viewRef.current.colW;
     const first = colX(0);
     const index = Math.floor((x - first) / colW);
-    const candle = allCandles[index];
+    const state = store.getState();
+    const decimals = priceDecimals(state.tickSize, state.ticker?.price);
+    const candle = candlesOf(state)[index];
     if (!candle || x < plotL || x > plotR) {
       hideTooltip();
       return;
@@ -1215,7 +1333,7 @@ Panel(
     ~ onDoubleClick={resetView}
     ~ )
     canvas(ref={canvasRef})
-    if allCandles.length === 0
+    if !hasCandles
       .canvas-overlay
         .spinner
         strong Waiting for trades

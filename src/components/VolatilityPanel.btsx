@@ -1,7 +1,7 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
-import { averageTrueRange, parkinsonVolatility, percentileRank, resampleBars, rollingRealizedVolatility, secondsPerYear, type VolatilityPoint } from "@/lib/engine/analytics";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
+import { averageTrueRange, parkinsonVolatility, percentileRank, resampleWithLive, rollingRealizedVolatility, secondsPerYear, type VolatilityPoint } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatPriceValue, priceDecimals } from "@/lib/format";
@@ -107,7 +107,7 @@ component Footer
 
 setup
   const flowBars = useSessionStore((s) => s.flowBars);
-  const liveBar = useSessionStore((s) => s.liveBar);
+  const liveBar = useThrottledSessionStore((s) => s.liveBar, 250);
   const candles = useSessionStore((s) => s.candles);
   const currentCandle = useSessionStore((s) => s.currentCandle);
   const marketType = useSessionStore((s) => s.marketType);
@@ -126,8 +126,7 @@ setup
   const yearSeconds = secondsPerYear(marketType);
 
   const series = useMemo(() => {
-    const bars = liveBar ? [...flowBars, liveBar] : flowBars;
-    return rollingRealizedVolatility(resampleBars(bars, resolution), window, resolution, yearSeconds);
+    return rollingRealizedVolatility(resampleWithLive(flowBars, liveBar, resolution), window, resolution, yearSeconds);
   }, [flowBars, liveBar, resolution, window, yearSeconds]);
 
   const values = useMemo(() => series.map((pt) => pt.value).filter((v): v is number => v !== null), [series]);

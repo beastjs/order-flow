@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { formatClock, formatCompact } from "@/lib/format";
 import Panel from "@/components/ui/Panel.btsx";
@@ -34,8 +34,8 @@ component Value
     | #{current.toFixed(2)}
 
 setup
-  const history = useSessionStore((s) => s.obiHistory);
-  const current = useSessionStore((s) => s.currentOBI);
+  const history = useThrottledSessionStore((s) => s.obiHistory, 100);
+  const current = useThrottledSessionStore((s) => s.currentOBI, 100);
   const marketType = useSessionStore((s) => s.marketType);
 
   const hoverRef = useRef<{

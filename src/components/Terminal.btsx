@@ -2,7 +2,6 @@
 module "use client";
 import { useMarketData } from "@/hooks/useMarketData";
 import { useAlerts } from "@/hooks/useAlerts";
-import { useAlertStore } from "@/lib/store/alertStore";
 import AlertToasts from "@/components/AlertToasts.btsx";
 import ReplayBar from "@/components/ReplayBar.btsx";
 import SessionContextProvider from "@/lib/session/SessionContextProvider.btsx";
@@ -68,11 +67,6 @@ component SessionTerminal
     const [obiHeight, setObiHeight] = useState(160);
     const [bookShare, setBookShare] = useState(0.56);
     const sidebarRef = useRef<HTMLElement | null>(null);
-
-    useEffect(() => {
-      void useUIStore.persist.rehydrate();
-      void useAlertStore.persist.rehydrate();
-    }, []);
 
     useLayoutEffect(() => {
       applyTheme(theme);

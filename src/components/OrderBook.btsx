@@ -1,6 +1,6 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { formatCompact, formatPriceValue, inferDecimals, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import Panel from "@/components/ui/Panel.btsx";
 import type { OrderBookLevel, Venue } from "@/lib/types/market";
@@ -88,20 +88,22 @@ component LadderRow
     span.ladder-total #{formatCompact(row.cum, 1)}
 
 setup
-  const orderBook = useSessionStore((s) => s.orderBook);
-  const aggregatedBook = useSessionStore((s) => s.aggregatedBook);
+  // The ladder repaints 10×/s; the feed can deliver twice that.
+  const orderBook = useThrottledSessionStore((s) => s.orderBook, 100);
+  const aggregatedBook = useThrottledSessionStore((s) => s.aggregatedBook, 100);
   const mode = useSessionStore((s) => s.orderBookMode);
   const setMode = useSessionStore((s) => s.setOrderBookMode);
   const selectedVenues = useSessionStore((s) => s.selectedVenues);
   const tickSize = useSessionStore((s) => s.tickSize);
   const marketType = useSessionStore((s) => s.marketType);
-  const lastTrade = useSessionStore((s) => s.ticker);
+  // Only the price magnitude matters here (it picks the decimals shown).
+  const lastPrice = useThrottledSessionStore((s) => s.ticker?.price, 1000);
   const [group, setGroup] = useState<Group>(0);
   const multiVenue = selectedVenues.length > 1;
   const book = mode === "aggregated" || mode === "compact" ? aggregatedBook ?? orderBook : orderBook ?? aggregatedBook;
   const step = group === 0 ? 0 : tickSize * group;
   const rawDecimals = useMemo(() => (book ? inferDecimals([...book.bids.slice(0, 20), ...book.asks.slice(0, 20)].map((l) => l.price)) : 0), [book]);
-  const decimals = step ? priceDecimals(step, lastTrade?.price) : Math.max(rawDecimals, priceDecimals(tickSize));
+  const decimals = step ? priceDecimals(step, lastPrice) : Math.max(rawDecimals, priceDecimals(tickSize));
 
   const view = useMemo(() => {
     if (!book)
@@ -124,7 +126,7 @@ setup
     const bidSize = book.bids[0]?.size ?? 0;
     const askSize = book.asks[0]?.size ?? 0;
     const micro = bidSize + askSize > 0 ? (bestAsk * bidSize + bestBid * askSize) / (bidSize + askSize) : mid;
-    return { asks, bids, median, wallSize, maxSize, maxCum, spread, mid, bidTotal, askTotal, micro };
+    return { asks, asksTopDown: [...asks].reverse(), bids, median, wallSize, maxSize, maxCum, spread, mid, bidTotal, askTotal, micro };
   }, [book, step, decimals]);
 
   const groupOptions: GroupOption[] = GROUPS.map((g) => ({
@@ -160,7 +162,7 @@ Panel(
         span Size
         span Total
       div(className="ladder-side ladder-asks")
-        each row in [...view.asks].reverse() key `a${row.price}`
+        each row in view.asksTopDown key `a${row.price}`
           LadderRow(row={row} side="ask" view={view} decimals={decimals})
       .ladder-spread
         strong #{formatPriceValue(view.mid, decimals)}

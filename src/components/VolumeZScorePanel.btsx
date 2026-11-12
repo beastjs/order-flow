@@ -1,7 +1,7 @@
 
 module "use client";
-import { useSessionStore } from "@/lib/session/sessionContext";
-import { resampleBars, rollingVolumeZScores, type VolumeZPoint } from "@/lib/engine/analytics";
+import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
+import { resampleWithLive, rollingVolumeZScores, type VolumeZPoint } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis} from "@/lib/chartUtils";
 import { formatClock, formatCompact } from "@/lib/format";
@@ -91,7 +91,7 @@ component Footer
 
 setup
   const flowBars = useSessionStore((s) => s.flowBars);
-  const liveBar = useSessionStore((s) => s.liveBar);
+  const liveBar = useThrottledSessionStore((s) => s.liveBar, 250);
   const crosshairTime = useSessionStore((s) => s.crosshairTime);
   const marketType = useSessionStore((s) => s.marketType);
   const [resolution, setResolution] = useState<Resolution>(5);
@@ -105,8 +105,7 @@ setup
   }>({ points: [], slot: 0, plotR: 0 });
 
   const series = useMemo(() => {
-    const bars = liveBar ? [...flowBars, liveBar] : flowBars;
-    return rollingVolumeZScores(resampleBars(bars, resolution), window);
+    return rollingVolumeZScores(resampleWithLive(flowBars, liveBar, resolution), window);
   }, [flowBars, liveBar, resolution, window]);
 
   const draw = useCallback((ctx: CanvasRenderingContext2D, W: number, H: number, p: Palette) => {

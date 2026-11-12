@@ -1,7 +1,5 @@
 module "use client";
 import { useMarketSession, useSessionStore } from "@/lib/session/sessionContext";
-import { candlesCsv, exportFilename, footprintLevelsCsv, liquidationsCsv, openInterestCsv, profileCsv, tapeCsv } from "@/lib/export/csv";
-import { canvasPng, downloadBlob, downloadText, workspacePng } from "@/lib/export/download";
 import { TAPE_LOG_SIZE } from "@/lib/managers/marketDataManager";
 import { formatCompact, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
@@ -40,7 +38,12 @@ component ExportItems
     const liqCount = useSessionStore((s) => s.liquidations.length);
     const oiCount = useSessionStore((s) => s.oiHistory.length);
     const [error, setError] = useState<string | null>(null);
-    const name = (kind: string, ext = "csv") => exportFilename(symbol, timeframe, kind, ext);
+    // The CSV and image code is loaded on the first export.
+    const tools = async () => {
+      const [csv, download] = await Promise.all([import("@/lib/export/csv"), import("@/lib/export/download")]);
+      const name = (kind: string, ext = "csv") => csv.exportFilename(symbol, timeframe, kind, ext);
+      return { ...csv, ...download, name };
+    };
 
     const candles = () => {
       const s = store.getState();
@@ -65,26 +68,26 @@ component ExportItems
         ~ label="Footprint candles"
         ~ hint={`${candleCount} candles · OHLC, volume, delta, CVD, VWAP`}
         ~ disabled={!candleCount}
-        ~ onClick={() => run(() => downloadText(candlesCsv(candles()), name("candles")))}
+        ~ onClick={() => run(async () => { const t = await tools(); t.downloadText(t.candlesCsv(candles()), t.name("candles")); })}
         ~ )
       Item(
         ~ label="Footprint levels"
         ~ hint="Bid / ask volume per price per candle"
         ~ disabled={!candleCount}
-        ~ onClick={() => run(() => downloadText(footprintLevelsCsv(candles()), name("footprint")))}
+        ~ onClick={() => run(async () => { const t = await tools(); t.downloadText(t.footprintLevelsCsv(candles()), t.name("footprint")); })}
         ~ )
       Item(
         ~ label="Session profile"
         ~ hint="Volume by price with POC and value area"
         ~ disabled={!hasProfile}
-        ~ onClick={() => run(() => { const p = store.getState().volumeProfile; if (p)
-        ~ downloadText(profileCsv(p), name("profile")); })}
+        ~ onClick={() => run(async () => { const t = await tools(); const p = store.getState().volumeProfile; if (p)
+        ~ t.downloadText(t.profileCsv(p), t.name("profile")); })}
         ~ )
       Item(
         ~ label="Time & sales"
         ~ hint={`Last ${formatCompact(Math.min(tapeSize, TAPE_LOG_SIZE), 0)} prints (up to ${formatCompact(TAPE_LOG_SIZE, 0)})`}
         ~ disabled={!tapeSize}
-        ~ onClick={() => run(() => downloadText(tapeCsv(session.manager.getTapeLog()), name("tape")))}
+        ~ onClick={() => run(async () => { const t = await tools(); t.downloadText(t.tapeCsv(session.manager.getTapeLog()), t.name("tape")); })}
         ~ )
       if isPerp
         fragment
@@ -92,13 +95,13 @@ component ExportItems
             ~ label="Liquidations"
             ~ hint={`${liqCount} this session`}
             ~ disabled={!liqCount}
-            ~ onClick={() => run(() => downloadText(liquidationsCsv(store.getState().liquidations), name("liquidations")))}
+            ~ onClick={() => run(async () => { const t = await tools(); t.downloadText(t.liquidationsCsv(store.getState().liquidations), t.name("liquidations")); })}
             ~ )
           Item(
             ~ label="Open interest"
             ~ hint={`${oiCount} one-second samples`}
             ~ disabled={!oiCount}
-            ~ onClick={() => run(() => downloadText(openInterestCsv(store.getState().oiHistory), name("open-interest")))}
+            ~ onClick={() => run(async () => { const t = await tools(); t.downloadText(t.openInterestCsv(store.getState().oiHistory), t.name("open-interest")); })}
             ~ )
     MenuSection(title="Image")
       Item(
@@ -109,7 +112,8 @@ component ExportItems
         ~ const canvas = document.querySelector<HTMLCanvasElement>(".footprint-panel canvas");
         ~ if (!canvas)
         ~ throw new Error("Footprint chart is not visible");
-        ~ downloadBlob(await canvasPng(canvas), name("footprint", "png"));
+        ~ const t = await tools();
+        ~ t.downloadBlob(await t.canvasPng(canvas), t.name("footprint", "png"));
         ~ })}
         ~ )
       Item(
@@ -122,7 +126,8 @@ component ExportItems
         ~ const s = store.getState();
         ~ const venue = s.selectedVenues.length > 1 ? VENUE_LABEL[s.venue] ?? s.venue : VENUE_LABEL[s.selectedVenues[0]] ?? s.venue;
         ~ const caption = `orderflow. · ${s.symbol} · ${venue} · ${s.timeframe.toUpperCase()} · ${new Date(s.replay ? s.replay.position : Date.now()).toISOString().slice(0, 19).replace("T", " ")} UTC${s.replay ? " (replay)" : ""}`;
-        ~ downloadBlob(await workspacePng(root, caption), name("workspace", "png"));
+        ~ const t = await tools();
+        ~ t.downloadBlob(await t.workspacePng(root, caption), t.name("workspace", "png"));
         ~ })}
         ~ )
     if error

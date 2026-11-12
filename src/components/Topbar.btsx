@@ -11,7 +11,7 @@ import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
 import { useUIStore } from "@/lib/store/uiStore";
 import { GitHubIcon, REPO_URL, Wordmark } from "@/components/Logo.btsx";
 import { Icon } from "@/lib/icons";
-import { createElement } from "octane";
+import { createElement, useMemo } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
 import { Select } from "@/components/ui/Primitives.btsx";
@@ -87,7 +87,7 @@ setup
 
   const isForex = marketType === "forex";
 
-  const instrumentOptions = isForex
+  const instrumentOptions = useMemo(() => isForex
     ? FOREX_SYMBOLS.map((pair) => ({ value: pair, label: pair, sub: "Spot FX", icon: <Logo symbol={pair} size={22}/> }))
     : CRYPTO_ASSETS.map((asset) => {
       const value = `${asset.base}USDT`;
@@ -98,13 +98,13 @@ setup
         keywords: asset.base,
         icon: <Logo symbol={value} size={22}/>,
       };
-    });
+    }), [isForex]);
 
   const venueOptions = marketType === "perpetual" || marketType === "spot" ? VENUES[marketType] : [];
   const aggregateValue: VenueSelection = marketType === "perpetual" ? "all-perps" : "all-spot";
   const listedCount = venueOptions.filter((v) => venueSupports(v.value, symbol, marketType)).length;
 
-  const venuePickerOptions: PickerOption<VenueSelection>[] = [
+  const venuePickerOptions = useMemo((): PickerOption<VenueSelection>[] => [
     {
       value: aggregateValue,
       label: marketType === "perpetual" ? "All perps" : "All spot",
@@ -118,7 +118,7 @@ setup
       disabled: !venueSupports(v.value, symbol, marketType),
       icon: <VenueLogo venue={v.value} size={20}/>,
     })),
-  ];
+  ], [marketType, symbol]);
 header.topbar
   a(className="brand" href="/" aria-label="hyperflow home")
     Wordmark(size={28})

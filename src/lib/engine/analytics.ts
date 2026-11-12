@@ -62,6 +62,49 @@ export function resampleBars(bars: FlowBar[], seconds: number): FlowBar[] {
   return out;
 }
 
+const resampleCache = new WeakMap<FlowBar[], Map<number, FlowBar[]>>();
+
+/**
+ * `resampleBars` of the completed bars, computed once per bar list and
+ * resolution and shared by every panel that asks. The result must not be mutated.
+ */
+export function resampleCompleted(bars: FlowBar[], seconds: number): FlowBar[] {
+  if (seconds <= 1) return bars;
+  let byResolution = resampleCache.get(bars);
+  if (!byResolution) resampleCache.set(bars, (byResolution = new Map()));
+  let out = byResolution.get(seconds);
+  if (!out) byResolution.set(seconds, (out = resampleBars(bars, seconds)));
+  return out;
+}
+
+/**
+ * Completed bars plus the bar still forming, at `seconds` resolution. Only the
+ * last bucket is rebuilt when the live bar changes.
+ */
+export function resampleWithLive(bars: FlowBar[], live: FlowBar | null, seconds: number): FlowBar[] {
+  const base = resampleCompleted(bars, seconds);
+  // A live bar that has already been completed (a stale read) adds nothing.
+  if (!live || (bars.length > 0 && live.time <= bars[bars.length - 1].time)) return base;
+  if (seconds <= 1) return [...base, live];
+  const bucketMs = seconds * 1000;
+  const bucket = Math.floor(live.time / bucketMs) * bucketMs;
+  const last = base[base.length - 1];
+  if (!last || last.time !== bucket) return [...base, { ...live, time: bucket }];
+  const out = base.slice();
+  out[out.length - 1] = {
+    ...last,
+    high: Math.max(last.high, live.high),
+    low: Math.min(last.low, live.low),
+    close: live.close,
+    volume: last.volume + live.volume,
+    buyVolume: last.buyVolume + live.buyVolume,
+    sellVolume: last.sellVolume + live.sellVolume,
+    trades: last.trades + live.trades,
+    cvd: live.cvd,
+  };
+  return out;
+}
+
 // ----------------------------------------------------------
 // Volume Z-Score
 // z_t = (V_t − mean(V_{t−N..t−1})) / std(V_{t−N..t−1})

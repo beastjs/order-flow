@@ -188,6 +188,15 @@ export function applyTradeToCandle(
 // ----------------------------------------------------------
 // Apply Z-Score to all levels in a candle
 // ----------------------------------------------------------
+/** Score a candle's levels against a known mean / standard deviation of level volume. */
+export function applyLevelZScores(candle: FootprintCandle, mean: number, std: number): void {
+  if (!(std > 0)) return;
+  for (const level of candle.levels.values()) {
+    level.zScore = (level.totalVolume - mean) / std;
+    level.isHighVolume = level.zScore >= 2;
+  }
+}
+
 export function applyZScores(
   candle: FootprintCandle,
   allLevels: FootprintLevel[]
@@ -328,11 +337,13 @@ export function detectAbsorption(
 // ----------------------------------------------------------
 // Compute volume profile from a set of candles
 // ----------------------------------------------------------
+export type ProfileBucket = { bid: number; ask: number; trades: number };
+
 export function computeVolumeProfile(
   candles: FootprintCandle[],
   valueAreaPct = 0.7
 ) {
-  const map = new Map<number, { bid: number; ask: number; trades: number }>();
+  const map = new Map<number, ProfileBucket>();
 
   for (const candle of candles) {
     for (const [price, level] of candle.levels) {
@@ -343,7 +354,64 @@ export function computeVolumeProfile(
       map.set(price, existing);
     }
   }
+  return profileFromBuckets(map, valueAreaPct);
+}
 
+/**
+ * Volume by price of the completed candles, kept up to date as candles close
+ * and age out, so the live profile only has to merge the candle in progress.
+ */
+export class ProfileAccumulator {
+  private buckets = new Map<number, ProfileBucket>();
+
+  add(candle: FootprintCandle): void {
+    for (const [price, level] of candle.levels) {
+      const bucket = this.buckets.get(price);
+      if (bucket) {
+        bucket.bid += level.bidVolume;
+        bucket.ask += level.askVolume;
+        bucket.trades += level.tradeCount;
+      } else {
+        this.buckets.set(price, { bid: level.bidVolume, ask: level.askVolume, trades: level.tradeCount });
+      }
+    }
+  }
+
+  remove(candle: FootprintCandle): void {
+    for (const [price, level] of candle.levels) {
+      const bucket = this.buckets.get(price);
+      if (!bucket) continue;
+      bucket.trades -= level.tradeCount;
+      if (bucket.trades <= 0) {
+        this.buckets.delete(price);
+      } else {
+        bucket.bid = Math.max(0, bucket.bid - level.bidVolume);
+        bucket.ask = Math.max(0, bucket.ask - level.askVolume);
+      }
+    }
+  }
+
+  clear(): void {
+    this.buckets.clear();
+  }
+
+  /** The profile of the completed candles plus the one still forming. */
+  profile(live: FootprintCandle | null, valueAreaPct = 0.7) {
+    if (!live) return profileFromBuckets(this.buckets, valueAreaPct);
+    const merged = new Map(this.buckets);
+    for (const [price, level] of live.levels) {
+      const base = merged.get(price);
+      merged.set(price, {
+        bid: (base?.bid ?? 0) + level.bidVolume,
+        ask: (base?.ask ?? 0) + level.askVolume,
+        trades: (base?.trades ?? 0) + level.tradeCount,
+      });
+    }
+    return profileFromBuckets(merged, valueAreaPct);
+  }
+}
+
+function profileFromBuckets(map: Map<number, ProfileBucket>, valueAreaPct: number) {
   const prices = [...map.keys()].sort((a, b) => a - b);
   const totalVol = prices.reduce((s, p) => s + (map.get(p)?.bid ?? 0) + (map.get(p)?.ask ?? 0), 0);
 

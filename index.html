@@ -46,12 +46,12 @@
     <script>
       // Runs before first paint so the stored theme never flashes the default one.
       ;(function () {
-        var theme = 'default',
+        var theme = 'dark',
           mode = 'dark'
         try {
-          var saved = JSON.parse(localStorage.getItem('lucky-pick:theme') || '{}')
-          if (['default', 'doom', 'soft-pop'].indexOf(saved.theme) > -1) theme = saved.theme
-          if (saved.mode === 'light') mode = 'light'
+          var saved = (JSON.parse(localStorage.getItem('oft-ui-preferences') || '{}').state || {}).theme
+          if (['dark', 'light', 'forest', 'futuristic', 'dark-dull', 'light-dull'].indexOf(saved) > -1) theme = saved
+          if (theme === 'light' || theme === 'light-dull') mode = 'light'
         } catch (e) {}
         var root = document.documentElement
         root.setAttribute('data-theme', theme)
