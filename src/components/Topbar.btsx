@@ -6,15 +6,10 @@ import { FOREX_SYMBOLS } from "@/lib/config/venues";
 import { venueSupports } from "@/lib/adapters/capabilities";
 import { CRYPTO_ASSETS } from "@/lib/config/instruments";
 import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
-import { useUIStore } from "@/lib/store/uiStore";
 import { REPO_URL, Wordmark } from "@/components/Logo.btsx";
 import { Icon, IconName } from "@/lib/icons";
-import { createElement, useMemo } from "octane";
+import { useMemo } from "octane";
 import Segmented from "./ui/Segmented.btsx";
-import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
-import AlertsMenu from "./AlertsMenu.btsx";
-import ExportMenu from "./ExportMenu.btsx";
-import RecordingsMenu from "./RecordingsMenu.btsx";
 import WalletButton from "./WalletButton.btsx";
 module
   const TIMEFRAMES: {
@@ -60,7 +55,7 @@ setup
   const isForex = marketType === "forex";
 
   const instrumentOptions = useMemo((): PickerOption<string>[] => isForex
-    ? FOREX_SYMBOLS.map((pair) => ({ value: pair, label: pair, sub: "Spot FX", icon: 'all' }))
+    ? FOREX_SYMBOLS.map((pair) => ({ value: pair, label: pair, sub: "Spot FX", icon: pair.split('/')[0].toLowerCase() as IconName }))
     : CRYPTO_ASSETS.map((asset) => {
       const value = `${asset.base}USDT`;
       return {
@@ -73,7 +68,7 @@ setup
     }), [isForex]);
 
   const venueOptions = marketType === "perpetual" || marketType === "spot" ? VENUES[marketType] : [];
-  const aggregateValue: VenueSelection =  "all" ;
+  const aggregateValue: VenueSelection =  marketType === "perpetual" ? "all-perps" : "all-spot" ;
   const listedCount = venueOptions.filter((v) => venueSupports(v.value, symbol, marketType)).length;
 
   const venuePickerOptions = useMemo((): PickerOption<VenueSelection>[] => [
@@ -81,7 +76,7 @@ setup
       value: aggregateValue,
       label: marketType === "perpetual" ? "All perps" : "All spot",
       sub: `Aggregated · ${listedCount} venues`,
-      icon: aggregateValue,
+      icon: aggregateValue.split('-')[0] as IconName,
     },
     ...venueOptions.map((v) => ({
       value: v.value as VenueSelection,

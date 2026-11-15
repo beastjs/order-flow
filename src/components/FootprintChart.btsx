@@ -1,5 +1,6 @@
 
 module "use client";
+import { useMarketClosed, MARKET_CLOSED_HOURS } from "@/hooks/useMarketClosed";
 import { useSessionStore } from "@/lib/session/sessionContext";
 import { useUIStore, type FootprintMode, type IndicatorSettings } from "@/lib/store/uiStore";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
@@ -451,6 +452,7 @@ setup
   // schedules the repaint, so the feed never re-renders this component.
   const store = useSessionStoreApi();
   const hasCandles = useSessionStore((s) => s.candles.length > 0 || s.currentCandle !== null);
+  const marketClosed = useMarketClosed();
   const symbol = useSessionStore((s) => s.symbol);
   const timeframe = useSessionStore((s) => s.timeframe);
   const venue = useSessionStore((s) => s.venue);
@@ -1332,7 +1334,11 @@ Panel(
     ~ onDoubleClick={resetView}
     ~ )
     canvas(ref={canvasRef})
-    if !hasCandles
+    if !hasCandles && marketClosed
+      .canvas-overlay
+        strong Market closed
+        span #{MARKET_CLOSED_HOURS}
+    elseif !hasCandles
       .canvas-overlay
         .spinner
         strong Waiting for trades

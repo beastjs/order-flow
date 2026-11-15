@@ -1,5 +1,6 @@
 
 module "use client";
+import { useMarketClosed } from "@/hooks/useMarketClosed";
 import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { formatClock, formatCompact, formatPriceValue, priceDecimals, VENUE_SHORT } from "@/lib/format";
 import { Icon } from "@/lib/icons";
@@ -59,6 +60,7 @@ setup
   const trades = useThrottledSessionStore((s) => s.recentTrades, 125);
   const session = useThrottledSessionStore((s) => s.session, 125);
   const tickSize = useSessionStore((s) => s.tickSize);
+  const marketClosed = useMarketClosed();
   const selectedVenues = useSessionStore((s) => s.selectedVenues);
   const marketType = useSessionStore((s) => s.marketType);
   const liquidations = useSessionStore((s) => s.liquidations);
@@ -136,6 +138,8 @@ Panel(
             | #{"No liquidations yet this session"}
           elseif trades.length
             | #{"No prints match the filter"}
+          elseif marketClosed
+            | #{"Market closed"}
           else
             | #{"Waiting for trades…"}
       each row in rows key row.key

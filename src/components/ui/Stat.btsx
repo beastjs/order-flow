@@ -9,3 +9,5 @@ div(className={`stat ${className} relative group/stat hover:bg-(--text-primary)/
   span(className={`stat-value ${tone ? `tone-${tone}` : ""}`}) #{value}
   if sub !== undefined
     span.stat-sub(className='group-hover/stat:text-(--text-primary)/70!') #{sub}
+  else
+    span(className='opacity-0') -

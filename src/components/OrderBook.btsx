@@ -1,5 +1,6 @@
 
 module "use client";
+import { useMarketClosed } from "@/hooks/useMarketClosed";
 import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { formatCompact, formatPriceValue, inferDecimals, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import Panel from "@/components/ui/Panel.btsx";
@@ -95,6 +96,7 @@ setup
   const setMode = useSessionStore((s) => s.setOrderBookMode);
   const selectedVenues = useSessionStore((s) => s.selectedVenues);
   const tickSize = useSessionStore((s) => s.tickSize);
+  const marketClosed = useMarketClosed();
   const marketType = useSessionStore((s) => s.marketType);
   // Only the price magnitude matters here (it picks the decimals shown).
   const lastPrice = useThrottledSessionStore((s) => s.ticker?.price, 1000);
@@ -153,7 +155,9 @@ Panel(
   ~ </strong>
   ~ </div>)}
   ~ )
-  if !view
+  if !view && marketClosed
+    .empty-state Market closed
+  elseif !view
     .empty-state Waiting for order book…
   else
     .ladder

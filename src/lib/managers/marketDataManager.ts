@@ -233,6 +233,10 @@ export class MarketDataManager {
       adapter.on("status", statusListener);
       adapter.on("liquidation", liquidationListener);
       adapter.on("derivatives", derivativesListener);
+      // The adapter connected before these listeners were attached (and a
+      // pooled one may be long connected), so start from the status it has.
+      const current = adapter.getStatus?.();
+      if (current) statusListener(current);
       this.adapters.set(selectedVenue, adapter);
       this.listeners.set(selectedVenue, { tradeListener, bookListener, statusListener, liquidationListener, derivativesListener });
     }

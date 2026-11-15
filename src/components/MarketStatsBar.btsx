@@ -183,7 +183,7 @@ section.hero(aria-label="Session statistics")
       ~ className="stat-p2"
       ~ label={marketType === "forex" ? "Ticks" : "Volume"}
       ~ value={session ? formatCompact(session.volume) : "—"}
-      ~ sub={session && marketType !== "forex" ? `${quote}${formatCompact(session.notional)}` : '-'}
+      ~ sub={session && marketType !== "forex" ? `${quote}${formatCompact(session.notional)}` : undefined}
       ~ )
     Stat(
       ~ className="stat-p2"

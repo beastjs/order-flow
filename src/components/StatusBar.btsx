@@ -6,12 +6,9 @@ import { useNow } from "@/hooks/useNow";
 import AlertsMenu from "./AlertsMenu.btsx";
 import RecordingsMenu from "./RecordingsMenu.btsx";
 import ExportMenu from "./ExportMenu.btsx";
-import Menu from "./ui/Menu.btsx";
 import PanelItems from "./PanelItems.btsx";
 import ThemeSelector from "./ThemeSelector.btsx";
 module
-  // ─── Status bar ──────────────────────────────────────────────────
-  // Feed health per venue, data lag, session age and a UTC clock.
   // ─── Status bar ──────────────────────────────────────────────────
   // Feed health per venue, data lag, session age and a UTC clock.
 
