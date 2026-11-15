@@ -1,0 +1,89 @@
+module "use client";
+import { useWallet } from "@/wallet/context.btsx";
+import { Icon } from "@/lib/icons";
+import { createElement, useCallback, useEffect, useState } from "octane";
+import Menu, { MenuSection } from "./ui/Menu.btsx";
+import WalletModal from "./WalletModal.btsx";
+// ─── Wallet button ───────────────────────────────────────────────
+// Disconnected: a Connect button that opens the wallet picker modal.
+// Connected: a menu with the account's address, network and disconnect.
+module
+  const shorten = (address: string, slice=-4) => `${address.slice(0, 6)}…${address.slice(slice)}`;
+
+component Item
+  props { label, hint, disabled, onClick }: { label: string; hint?: string; disabled?: boolean; onClick: VoidFunction }
+  button(
+    ~ className="menu-item menu-action"
+    ~ type="button"
+    ~ role="menuitem"
+    ~ disabled={disabled}
+    ~ onClick={onClick}
+    ~ )
+    span.menu-item-text
+      span #{label}
+      if hint
+        small #{hint}
+// lifted from the label attribute
+component Label
+  setup const { address } = useWallet();
+  div(className='flex items-center justify-between gap-3 bg-(--text-primary)/20! px-2.5! rounded')
+    Icon(name='metamask' className='size-9')
+    span.connect-label #{address ? shorten(address) : ""}
+component WalletItems
+  setup
+    const wallet = useWallet();
+    const [copied, setCopied] = useState(false);
+
+    const copy = async () => {
+      if (!wallet.address)
+        return;
+      await navigator.clipboard.writeText(wallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    };
+  .wallet-menu
+    MenuSection(title={wallet.accountType === "local" ? "Local dev account" : wallet.wallet?.name ?? "Browser wallet"})
+      Item(
+        ~ label={wallet.address ? shorten(wallet.address, -16) : ""}
+        ~ hint={copied ? "Copied" : "Copy"}
+        ~ onClick={() => void copy().catch(() => undefined)}
+        ~ )
+    MenuSection(title="Network")
+      each chain in wallet.chains key chain.id
+        Item(
+          ~ label={chain.name}
+          ~ hint={chain.id === wallet.chainId && wallet.isChainSupported ? "Current" : undefined}
+          ~ disabled={wallet.isSwitchingChain}
+          ~ onClick={() => void wallet.switchChain(chain.id).catch(() => undefined)}
+          ~ )
+    MenuSection(title="Session")
+      Item(label="Disconnect" onClick={wallet.disconnect})
+    if wallet.error
+      div(className="menu-note tone-sell") #{wallet.error.message}
+
+setup
+  const wallet = useWallet();
+  const [modalOpen, setModalOpen] = useState(false);
+  const closeModal = useCallback(() => setModalOpen(false), []);
+
+  // Connected: the picker has done its job.
+  useEffect(() => {
+    if (wallet.isConnected)
+      setModalOpen(false);
+  }, [wallet.isConnected]);
+fragment
+  if wallet.isConnected
+    Menu(hint="Wallet" buttonClassName="connect-wallet-button" label={createElement(Label, {})})
+      WalletItems
+  else
+    button(
+      ~ className="ui-button connect-wallet-button is-primary"
+      ~ type="button"
+      ~ aria-label="Connect wallet"
+      ~ aria-haspopup="dialog"
+      ~ data-hint="Connect wallet"
+      ~ onClick={() => setModalOpen(true)}
+      ~ )
+      Icon(name='wallet' size={20})
+      span.connect-label #{wallet.isConnecting ? "Connecting…" : "Connect"}
+  WalletModal(open={modalOpen && !wallet.isConnected} onClose={closeModal})

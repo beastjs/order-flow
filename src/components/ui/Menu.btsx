@@ -102,4 +102,4 @@ setup
     ~ )
     | #{label}
   if open
-    | #{createPortal(createElement(Portal, { children, pos: 'relative', align: 'left' }), document.body)}
+    | #{createPortal(createElement(Portal, { children, style: pos, popoverRef }), document.body)}

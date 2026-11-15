@@ -4,7 +4,6 @@ import { useSessionStore } from "@/lib/session/sessionContext";
 import { useUIStore, type FootprintMode, type IndicatorSettings } from "@/lib/store/uiStore";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { formatClock, formatCompact, formatHM, formatPriceValue, formatSigned, priceDecimals, VENUE_LABEL } from "@/lib/format";
-import { Icon } from "@/lib/icons";
 import Panel from "@/components/ui/Panel.btsx";
 import { ARRIVAL_SLACK_MS } from "@/lib/engine/derivatives";
 import { imbalanceOf, stackedRuns } from "@/lib/engine/imbalance";
@@ -15,7 +14,7 @@ import { useMarketSession, useSessionStoreApi } from "@/lib/session/sessionConte
 import { usePriorSessions, type PriorSessions } from "@/hooks/usePriorSessions";
 import type { BigTrade, FootprintCandle, NormalizedLiquidation, VolumeProfile, MarketType, HeatmapSettings, PanelVisibility } from "@/lib/types/market";
 import { useCallback, useEffect, useRef, createElement, useState } from "octane";
-import type { MouseEvent, Dispatch, SetStateAction } from "octane";
+import type { MouseEvent } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import IndicatorsMenu from "./IndicatorsMenu.btsx";
 import Button from "./ui/button.btsx";
@@ -1310,7 +1309,7 @@ setup
   const venueLabel = marketType === "forex" ? "FX" : VENUE_LABEL[venue] ?? venue;
 Panel(
   ~ title={symbol}
-  ~ icon='delta'
+  ~ icon='chart'
   ~ subtitle={`${venueLabel} · ${tf}`}
   ~ className="footprint-panel"
   ~ actions={createElement(Actions, { mode, setMode, showProfile, setPanelVisible, showHeatmap, setHeatmapVisible, showLiquidity, resetView })}

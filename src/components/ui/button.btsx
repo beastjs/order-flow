@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "octane";
+import type { ButtonHTMLAttributes, RefObject } from "octane";
 import { cva, type VariantProps } from "class-variance-authority";
 import { clsx } from "clsx";
 
@@ -31,13 +31,14 @@ module
   });
   // A plain <button> with clsx: neither caller passes Tailwind classes that
   // could conflict, so the base-ui primitive and tailwind-merge aren't needed.
-  type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
+  type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants> & {ref?: RefObject<HTMLButtonElement | null>};
   export { buttonVariants };
 component ButtonRoot
-  props { className, variant = "default", size = "default", ...props }: ButtonProps
+  props { className, variant = "default", ref, size = "default", ...props }: ButtonProps
   button(
     ~ type="button"
     ~ data-slot="button"
+    ~ ref={ref}
     ~ className={clsx(buttonVariants({ variant, size }), className as string | undefined)}
     ~ {...props}
     ~ )

@@ -1,0 +1,88 @@
+module "use client";
+import { useWallet } from "@/wallet/context.btsx";
+import { Icon } from "@/lib/icons";
+import { createElement, createPortal, useEffect, useRef, useState } from "octane";
+// ─── Connect wallet modal ────────────────────────────────────────
+// Lists the wallet extensions detected in this browser. Picking one asks
+// it to connect; WalletButton closes the modal once an account is connected.
+module
+  type ModalProps = { open: boolean; onClose: () => void }
+
+component Option
+  props { name, icon, note, busy, disabled, onClick }: { name: string; icon?: string; note?: string; busy?: boolean; disabled?: boolean; onClick: () => void }
+  button.wallet-option(type="button" disabled={disabled} aria-busy={busy} onClick={onClick})
+    span.wallet-option-icon(aria-hidden)
+      if icon
+        img(src={icon} alt="" width={28} height={28})
+      else
+        Icon(name='wallet' size={18})
+    span.wallet-option-name #{name}
+    if note
+      span.wallet-option-note #{note}
+component Dialog
+  props { onClose }: { onClose: () => void }
+  setup
+    const wallet = useWallet();
+    // The option the user picked in this modal, to show progress on it.
+    const [picked, setPicked] = useState<string | null>(null);
+    const dialogRef = useRef<HTMLElement | null>(null);
+    const hasLocal = wallet.availableTypes.includes("local");
+
+    useEffect(() => {
+      dialogRef.current?.focus();
+      const escape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+      window.addEventListener("keydown", escape);
+      return () => window.removeEventListener("keydown", escape);
+    }, [onClose]);
+
+    const pickWallet = (id: string) => {
+      setPicked(id);
+      wallet.connectWallet(id);
+    };
+
+    const pickLocal = () => {
+      setPicked("local");
+      if (wallet.accountType === "local")
+        void wallet.connect().catch(() => undefined);
+      else
+        wallet.setAccountType("local");
+    };
+  .wallet-modal-backdrop(
+    ~ role="presentation"
+    ~ onMouseDown={(event) => {
+    ~ if (event.target === event.currentTarget)
+    ~ onClose();
+    ~ }}
+    ~ )
+    section.wallet-modal(
+      ~ ref={dialogRef}
+      ~ role="dialog"
+      ~ aria-modal="true"
+      ~ aria-labelledby="wallet-modal-title"
+      ~ tabIndex={-1}
+      ~ )
+      header.wallet-modal-head
+        div
+          h2#wallet-modal-title Connect a wallet
+          p.ui-eyebrow Wallets detected in this browser
+        button.wallet-modal-close(type="button" aria-label="Close" onClick={onClose}) ×
+      .wallet-options
+        each option in wallet.wallets key option.id
+          Option(
+            ~ name={option.name}
+            ~ icon={option.icon}
+            ~ note={picked === option.id && wallet.isConnecting ? "Check your wallet…" : "Detected"}
+            ~ busy={picked === option.id && wallet.isConnecting}
+            ~ disabled={wallet.isConnecting}
+            ~ onClick={() => pickWallet(option.id)}
+            ~ )
+        empty
+          p.wallet-modal-empty No wallet extension was detected. Install one, then reload this page.
+        if hasLocal
+          Option(name="Local dev account" note="Development only" disabled={wallet.isConnecting} onClick={pickLocal})
+      if picked && wallet.error
+        p.wallet-modal-error(role="alert") #{wallet.error.code === 4001 ? "The request was rejected in the wallet." : wallet.error.message}
+
+props { open, onClose }: ModalProps
+if open
+  | #{createPortal(createElement(Dialog, { onClose }), document.body)}

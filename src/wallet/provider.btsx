@@ -1,0 +1,61 @@
+module "use client";
+import WalletSession from "@/wallet/context.btsx";
+import { injectedConfig, localConfig } from "@/wallet/config";
+import { getDetectedWallets, subscribeDetectedWallets, readSelectedWalletId, writeSelectedWalletId } from "@/wallet/discovery";
+import type { DetectedWallet, WalletAccountType } from "@/wallet/types";
+import { useCallback, useEffect, useMemo, useState } from "octane";
+import type { PropsWithChildren } from "octane";
+
+// The single wallet provider. It tracks the browser wallets detected on the
+// page, which one the user picked, and whether the browser wallet or the
+// local dev account is active, then hands the matching config to the session.
+props { children, }: PropsWithChildren
+setup
+  const [wallets, setWallets] = useState<readonly DetectedWallet[]>(() => getDetectedWallets());
+
+  // Extensions announce themselves asynchronously, some after page load.
+  useEffect(() => {
+    setWallets(getDetectedWallets());
+    return subscribeDetectedWallets(() => setWallets(getDetectedWallets()));
+  }, []);
+
+  // Restored from the last session so a reload reconnects the same wallet.
+  const [selectedId, setSelectedId] = useState<string | undefined>(() => readSelectedWalletId());
+  const wallet = wallets.find((candidate) => candidate.id === selectedId);
+  const provider = wallet?.provider;
+
+  const local = useMemo(() => localConfig(), []);
+  const injected = useMemo(() => injectedConfig(provider), [provider]);
+
+  const availableTypes = useMemo<readonly WalletAccountType[]>(() => local
+    ? ["json-rpc", "local"]
+    : ["json-rpc"], [local]);
+
+  const [accountType, setAccountTypeState] = useState<WalletAccountType>("json-rpc");
+
+  const setAccountType = useCallback((type: WalletAccountType) => {
+    if (availableTypes.includes(type)) {
+      setAccountTypeState(type);
+    }
+  }, [availableTypes]);
+
+  const [connectRequest, setConnectRequest] = useState(0);
+
+  const connectWallet = useCallback((id: string) => {
+    writeSelectedWalletId(id);
+    setSelectedId(id);
+    setAccountTypeState("json-rpc");
+    setConnectRequest((count) => count + 1);
+  }, []);
+
+  const config = accountType === "local" && local ? local : injected;
+WalletSession(
+  ~ config={config}
+  ~ availableTypes={availableTypes}
+  ~ setAccountType={setAccountType}
+  ~ wallets={wallets}
+  ~ wallet={wallet}
+  ~ connectWallet={connectWallet}
+  ~ connectRequest={connectRequest}
+  ~ )
+  | #{children}

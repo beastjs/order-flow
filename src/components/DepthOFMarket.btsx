@@ -166,7 +166,7 @@ setup
   const source = book && "venue" in book ? VENUE_LABEL[book.venue] ?? book.venue : "Consolidated";
 Panel(
   ~ title="Market Depth"
-  ~ icon={'delta'}
+  ~ icon={'compare'}
   ~ subtitle={source}
   ~ footer={createElement(PanelFooter, { d10b, d10a, ratio, d25b, d25a })}
   ~ )

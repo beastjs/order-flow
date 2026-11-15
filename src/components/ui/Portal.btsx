@@ -1,9 +1,14 @@
-import { useRef } from "octane/server";
+import type { CSSProperties, OctaneNode, Ref } from "octane";
 module
-  type PortalProps = {children: unknown, align: 'left' | 'right', pos?: 'absolute' | 'relative' }
-props {children, align, pos}: PortalProps
-setup
-  const popoverRef = useRef<HTMLDivElement | null>(null)
-
-div(ref={popoverRef} className={`menu-popover menu-${align} is-portal`} role="menu" style={pos ?? { position: "fixed", visibility: "hidden" }})
-| #{children}
+  // The popover a Menu portals into document.body. Menu owns the ref and the
+  // computed position; until the first placement it is rendered hidden so it
+  // can be measured.
+  type PortalProps = { children: OctaneNode; style: CSSProperties | null; popoverRef: Ref<HTMLDivElement> }
+props { children, style, popoverRef }: PortalProps
+div(
+  ~ ref={popoverRef}
+  ~ className="menu-popover is-portal"
+  ~ role="menu"
+  ~ style={style ?? { position: "fixed", visibility: "hidden" }}
+  ~ )
+  | #{children}
