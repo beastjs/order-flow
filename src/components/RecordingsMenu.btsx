@@ -27,7 +27,7 @@ module
 // lifted from the label attribute
 component Label
   fragment
-    Icon(name='clock')
+    Icon(name='clock' className='size-5')
     span.hide-compact Replay
 component RecordingList
   setup
@@ -79,10 +79,8 @@ component RecordingList
               const venues = meta.selectedVenues.length > 1 ? `${meta.selectedVenues.length} venues` : VENUE_LABEL[meta.selectedVenues[0]] ?? meta.selectedVenues[0];
             li(className={active ? "is-active" : ""})
               .recording-info
-                strong
-                  | #{meta.symbol}
-                  |
-                  span #{meta.marketType === "perpetual" ? "Perp" : meta.marketType === "spot" ? "Spot" : "FX"} · #{venues}
+                strong #{meta.symbol}
+                  span(className='px-3!') #{meta.marketType === "perpetual" ? "Perp" : meta.marketType === "spot" ? "Spot" : "FX"} · #{venues}
                 small #{formatStart(meta.startedAt)} · #{formatDuration(meta.endedAt - meta.startedAt)} · #{formatCompact(meta.events, 1)} events · #{formatBytes(meta.bytes)}#{live ? " · recording" : !meta.complete ? " · interrupted" : ""}
               .recording-actions
                 button(
@@ -92,7 +90,7 @@ component RecordingList
                   ~ onClick={() => void session.startReplay(meta)}
                   ~ data-hint="Replay this session"
                   ~ )
-                  Icon(name='play')
+                  Icon(name='play' className='size-3')
                   span  Play
                 button(
                   ~ className="ui-button chip icon-only"
@@ -130,7 +128,7 @@ setup
     ~ ? `Stop recording · ${formatCompact(recording.events, 1)} events · ${formatBytes(recording.bytes)}`
     ~ : "Record session"}
     ~ )
-    Icon(name='delta')
+    Icon(name={recording ? 'recording': 'record'} className='size-5')
 
     if recording
       span.record-elapsed
@@ -140,5 +138,5 @@ setup
           | #{"0s"}
     else
       span.hide-compact Rec
-  Menu(hint="Replay recordings" label={createElement(Label, {})})
+  Menu(hint="Replay recordings" label={createElement(Label, {})} align='left')
     RecordingList

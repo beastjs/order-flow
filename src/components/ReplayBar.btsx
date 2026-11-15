@@ -51,7 +51,7 @@ if !(!replay)
         ~ aria-label={playing ? "Pause" : ended ? "Play from start" : "Play"}
         ~ data-hint={playing ? "Pause" : ended ? "Play from start" : "Play"}
         ~ )
-        Icon(name={playing ? 'pause' : 'play'})
+        Icon(name={playing ? 'pause' : 'play'} className='size-5')
 
       button(
         ~ className="ui-button chip icon-only"
@@ -70,6 +70,7 @@ if !(!replay)
         ~ ariaLabel="Replay speed"
         ~ )
       span.replay-time #{formatClock(position)}
+      span.replay-time #{formatDuration(duration)}
       .replay-track(
         ~ role="slider"
         ~ tabIndex={0}
@@ -82,7 +83,7 @@ if !(!replay)
         ~ title="Click to jump. ← / → move 10 s (Shift: 1 min)"
         ~ )
         .replay-fill(style={{ width: `${progress * 100}%` }})
-      span(className="replay-time muted") #{formatDuration(position - meta.startedAt)} / #{formatDuration(duration)}
+      span(className="replay-time") #{formatDuration(position - meta.startedAt)}
       span.replay-meta(title={`${meta.symbol} · ${venues} · recorded ${new Date(meta.startedAt).toLocaleString()}`})
         if seeking
           | #{"Seeking…"}
@@ -97,4 +98,3 @@ if !(!replay)
         ~ data-hint="Back to the live feed"
         ~ )
         Icon(name='close')
-        |  Exit

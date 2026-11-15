@@ -23,8 +23,7 @@ component Item
 // lifted from the label attribute
 component Label
   fragment
-    Icon(name='download')
-
+    Icon(name='download' className='size-6.5')
     span.hide-compact Export
 component ExportItems
   setup
@@ -133,5 +132,5 @@ component ExportItems
     if error
       div(className="menu-note tone-sell") #{error}
 
-Menu(hint="Export" label={createElement(Label, {})})
+Menu(hint="Export" label={createElement(Label, {})} align='left')
   ExportItems

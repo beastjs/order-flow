@@ -37,7 +37,7 @@ component Row
 component Label
   props { enabled, unread }: {enabled: boolean, unread: number}
   fragment
-    Icon(name={enabled ? 'bell-ring' : 'bell'})
+    Icon(name={enabled ? 'bell-ring' : 'bell'} className='size-5')
     span.hide-compact Alerts
     if unread > 0
       span.chip-count
@@ -156,5 +156,6 @@ Menu(
   ~ hint={unread > 0 ? `Alerts · ${unread} new` : "Alerts"}
   ~ buttonClassName={enabled ? "has-alerts" : ""}
   ~ label={createElement(Label, { enabled, unread })}
+  ~ align='left'
   ~ )
   AlertsMenuBody

@@ -1,0 +1,48 @@
+import Menu, { MenuCheckbox, MenuSection } from "./ui/Menu.btsx";
+import { createElement } from 'octane/server';
+import {Icon} from "../lib/icons";
+import { useUIStore } from '@/lib/store/uiStore';
+import { PanelVisibility } from '@/lib/types/market';
+//
+// lifted from the label attribute
+component Label
+  fragment
+    Icon(name='panel' className='size-5')
+    span.hide-compact Panels
+module
+  type PanelItem = {
+    key: keyof PanelVisibility;
+    label: string;
+    hint: string;
+    group: "Chart" | "Studies" | "Sidebar";
+  }
+  const PANEL_ITEMS: PanelItem[] = [
+    { key: "volumeProfile", label: "Session profile", hint: "Volume by price beside the footprint", group: "Chart" },
+    { key: "heatmap", label: "Traded-volume heatmap", hint: "Executed volume by price", group: "Chart" },
+    { key: "cvd", label: "Cumulative delta", hint: "CVD with price overlay", group: "Studies" },
+    { key: "volumeZ", label: "Volume z-score", hint: "Unusual participation", group: "Studies" },
+    { key: "openInterest", label: "Open interest", hint: "OI with price and regime (perps)", group: "Studies" },
+    { key: "liquidations", label: "Liquidations", hint: "Forced longs / shorts per bucket (perps)", group: "Studies" },
+    { key: "venues", label: "Venues", hint: "Price, flow and lead / lag by venue", group: "Studies" },
+    { key: "volatility", label: "Realized volatility", hint: "RV, ATR, Parkinson", group: "Studies" },
+    { key: "depthOfMarket", label: "Market depth", hint: "Cumulative liquidity curve", group: "Studies" },
+    { key: "orderBook", label: "Order book", hint: "Price ladder", group: "Sidebar" },
+    { key: "obi", label: "Book imbalance", hint: "OBI gauge and history", group: "Sidebar" },
+    { key: "timeSales", label: "Time & sales", hint: "Executed prints", group: "Sidebar" },
+  ];
+setup
+
+  const panels = useUIStore((s) => s.panels);
+  const setPanelVisible = useUIStore((s) => s.setPanelVisible);
+
+Menu(hint="Panel Visibility" label={createElement(Label, {})} align='left')
+  .panels-menu
+    each group in (["Chart", "Studies", "Sidebar"] as const) key group
+      MenuSection(title={group})
+        each item in PANEL_ITEMS.filter((item) => item.group === group) key item.key
+          MenuCheckbox(
+            ~ checked={panels[item.key]}
+            ~ onChange={(checked) => setPanelVisible(item.key, checked)}
+            ~ label={item.label}
+            ~ hint={item.hint}
+            ~ )

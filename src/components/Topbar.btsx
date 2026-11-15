@@ -3,7 +3,6 @@ module "use client";
 import { useMarketUrlState } from "@/hooks/useMarketUrlState";
 import type { PanelVisibility, TimeValue, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
 import { FOREX_SYMBOLS } from "@/lib/config/venues";
-import { THEME_OPTIONS, type Theme } from "@/lib/theme";
 import { venueSupports } from "@/lib/adapters/capabilities";
 import { CRYPTO_ASSETS } from "@/lib/config/instruments";
 import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
@@ -13,7 +12,6 @@ import { Icon, IconName } from "@/lib/icons";
 import { createElement, useMemo } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
-import { Select } from "@/components/ui/Primitives.btsx";
 import AlertsMenu from "./AlertsMenu.btsx";
 import ExportMenu from "./ExportMenu.btsx";
 import RecordingsMenu from "./RecordingsMenu.btsx";
@@ -51,41 +49,14 @@ module
       { value: "okx-spot", label: "OKX", icon: 'okx' }, { value: "bybit-spot", label: "Bybit", icon: 'bybit' }, { value: "bitget-spot", label: "Bitget", icon: 'bitget' },
     ],
   };
-  const PANEL_ITEMS: {
-    key: keyof PanelVisibility;
-    label: string;
-    hint: string;
-    group: "Chart" | "Studies" | "Sidebar";
-  }[] = [
-    { key: "volumeProfile", label: "Session profile", hint: "Volume by price beside the footprint", group: "Chart" },
-    { key: "heatmap", label: "Traded-volume heatmap", hint: "Executed volume by price", group: "Chart" },
-    { key: "cvd", label: "Cumulative delta", hint: "CVD with price overlay", group: "Studies" },
-    { key: "volumeZ", label: "Volume z-score", hint: "Unusual participation", group: "Studies" },
-    { key: "openInterest", label: "Open interest", hint: "OI with price and regime (perps)", group: "Studies" },
-    { key: "liquidations", label: "Liquidations", hint: "Forced longs / shorts per bucket (perps)", group: "Studies" },
-    { key: "venues", label: "Venues", hint: "Price, flow and lead / lag by venue", group: "Studies" },
-    { key: "volatility", label: "Realized volatility", hint: "RV, ATR, Parkinson", group: "Studies" },
-    { key: "depthOfMarket", label: "Market depth", hint: "Cumulative liquidity curve", group: "Studies" },
-    { key: "orderBook", label: "Order book", hint: "Price ladder", group: "Sidebar" },
-    { key: "obi", label: "Book imbalance", hint: "OBI gauge and history", group: "Sidebar" },
-    { key: "timeSales", label: "Time & sales", hint: "Executed prints", group: "Sidebar" },
-  ];
-// lifted from the label attribute
-component Label
-  fragment
-    Icon(name='panel')
-    span.hide-compact Panels
+
+
 
 setup
   const {
     marketType, symbol, venue, timeframe, toolProfile, replaying,
     chooseMarketType, chooseSymbol, chooseVenue, chooseTimeframe, chooseToolProfile,
   } = useMarketUrlState();
-  const theme = useUIStore((s) => s.theme);
-  const setTheme = useUIStore((s) => s.setTheme);
-  const panels = useUIStore((s) => s.panels);
-  const setPanelVisible = useUIStore((s) => s.setPanelVisible);
-
   const isForex = marketType === "forex";
 
   const instrumentOptions = useMemo((): PickerOption<string>[] => isForex
@@ -165,10 +136,7 @@ header.topbar
         ~ ariaLabel="Candle interval"
         ~ )
   .topbar-spacer
-  div(className="topbar-group topbar-tools")
-    AlertsMenu
-    RecordingsMenu
-    ExportMenu
+
   .topbar-group
     Segmented(
       ~ value={toolProfile}
@@ -176,24 +144,6 @@ header.topbar
       ~ options={PROFILES}
       ~ ariaLabel="Workspace"
       ~ )
-    Menu(hint="Panels" label={createElement(Label, {})})
-      .panels-menu
-        each group in (["Chart", "Studies", "Sidebar"] as const) key group
-          MenuSection(title={group})
-            each item in PANEL_ITEMS.filter((item) => item.group === group) key item.key
-              MenuCheckbox(
-                ~ checked={panels[item.key]}
-                ~ onChange={(checked) => setPanelVisible(item.key, checked)}
-                ~ label={item.label}
-                ~ hint={item.hint}
-                ~ )
-    Select(
-      ~ className="theme-select"
-      ~ value={theme}
-      ~ onChange={(e) => setTheme(e.currentTarget.value as Theme)}
-      ~ aria-label="Theme"
-      ~ )
-      each option in THEME_OPTIONS key option.value
-        option(value={option.value}) #{option.label}
+
   WalletButton
   span.topbar-break(aria-hidden)

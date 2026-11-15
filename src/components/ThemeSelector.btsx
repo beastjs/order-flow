@@ -1,0 +1,14 @@
+import { Select } from "@/components/ui/Primitives.btsx";
+import { useUIStore } from '@/lib/store/uiStore';
+import { THEME_OPTIONS, type Theme } from "@/lib/theme";
+setup
+  const theme = useUIStore((s) => s.theme);
+  const setTheme = useUIStore((s) => s.setTheme);
+Select(
+  ~ className="theme-select"
+  ~ value={theme}
+  ~ onChange={(e) => setTheme(e.currentTarget.value as Theme)}
+  ~ aria-label="Theme"
+  ~ )
+  each option in THEME_OPTIONS key option.value
+    option(value={option.value}) #{option.label}
