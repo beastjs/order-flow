@@ -26,7 +26,7 @@ component Item
 // lifted from the label attribute
 component Label
   setup const { address } = useWallet();
-  div(className='flex items-center justify-between gap-3 bg-(--text-primary)/20! px-2.5! rounded')
+  div(className='flex items-center justify-between gap-3 bg-(--text-primary)/20! px-2.5! rounded py-2 border border-transparent hover:border-(--text-primary)/40')
     Icon(name='metamask' className='size-9')
     span.connect-label #{address ? shorten(address) : ""}
 component WalletItems
@@ -73,7 +73,7 @@ setup
   }, [wallet.isConnected]);
 fragment
   if wallet.isConnected
-    Menu(hint="Wallet" buttonClassName="connect-wallet-button" label={createElement(Label, {})})
+    Menu(hint="Wallet" label={createElement(Label, {})})
       WalletItems
   else
     button(

@@ -1336,7 +1336,7 @@ Panel(
     canvas(ref={canvasRef})
     if !hasCandles && marketClosed
       .canvas-overlay
-        strong Market closed
+        img(src="https://res.cloudinary.com/dx0heqhhe/image/upload/v1794733998/Market_Closed_Alert_Banner_p1whmx.webp" alt='market-closed-banner' className='h-96 rounded-[3rem]')
         span #{MARKET_CLOSED_HOURS}
     elseif !hasCandles
       .canvas-overlay
