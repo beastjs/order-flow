@@ -215,7 +215,7 @@ export class BybitSpotAdapter extends BaseExchangeAdapter {
 // ============================================================
 export class OKXFuturesAdapter extends BaseExchangeAdapter {
   readonly venue: Venue = "okx-futures";
-  private readonly BASE_WS = "wss://ws.okx.com:8443/ws/v5/public";
+  private readonly BASE_WS = "wss://ws.okx.com/ws/v5/public";
   private contractValue = 1;
 
   constructor(symbol: string) {
@@ -355,7 +355,7 @@ export class OKXFuturesAdapter extends BaseExchangeAdapter {
 // ============================================================
 export class OKXSpotAdapter extends BaseExchangeAdapter {
   readonly venue: Venue = "okx-spot";
-  private readonly BASE_WS = "wss://ws.okx.com:8443/ws/v5/public";
+  private readonly BASE_WS = "wss://ws.okx.com/ws/v5/public";
 
   constructor(symbol: string) {
     let s = symbol.toUpperCase();

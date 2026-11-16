@@ -34,6 +34,7 @@
 
   --font-ui: 'OKX', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'BMR', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-news: 'Newsreader';
   --radius-card: 16px;
   --radius: 10px;
   --radius-sm: 7px;
@@ -198,22 +199,29 @@ input {
   text-decoration: none;
 }
 .wordmark {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: start;
   gap: 9px;
 }
 .wordmark svg {
   flex: none;
-  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3);
-}
-.brand:hover .wordmark svg {
-  transform: rotate(180deg);
 }
 .wordmark-text {
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.045em;
+  font-size: 22px;
+  font-weight: 450;
+  /*font-family: var(--font-news);*/
+  letter-spacing: -0.01em;
+  line-height: 1em;
   color: var(--text-primary);
+  /*border: 1px solid var(--text-secondary);*/
+}
+.wordmark-text em {
+  font-family: var(--font-news);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.016em;
+  color: var(--text-secondary);
+  /*text-transform: uppercase;*/
 }
 .wordmark-dot {
   color: var(--accent);
