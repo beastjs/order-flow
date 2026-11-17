@@ -41,9 +41,9 @@ describe("paper position math", () => {
     expect(liquidationPrice(openPosition("X", "up", 100, 1, 200))).toBeLessThan(2);
   });
 
-  it("caps a liquidation loss at the margin", () => {
+  it("caps a liquidation loss at margin plus the opening fee", () => {
     const p = openPosition("X", "up", 100, 50, 200);
-    expect(closePosition(p, 150, true).realized).toBe(-100);
+    expect(closePosition(p, 150, true).realized).toBeCloseTo(-(100 + 5000 * TAKER_FEE));
   });
 });
 
@@ -67,9 +67,10 @@ describe("paper store", () => {
     expect(paperStore.open("X", "down", 100, 2, 100)).toMatch(/Close/);
   });
 
-  it("liquidation forfeits the margin", () => {
+  it("liquidation forfeits margin and the opening fee", () => {
     paperStore.open("X", "up", 1000, 10, 100);
-    paperStore.close("X", 90, true);
-    expect(paperStore.get().balance).toBeCloseTo(STARTING_BALANCE - 1000);
+    const fill = paperStore.close("X", 90, true)!;
+    expect(paperStore.get().balance).toBeCloseTo(STARTING_BALANCE - 1000 - 10_000 * TAKER_FEE);
+    expect(paperStore.get().balance).toBeCloseTo(STARTING_BALANCE + fill.realized);
   });
 });

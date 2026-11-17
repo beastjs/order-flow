@@ -1114,3 +1114,216 @@
     grid-template-columns: 1fr;
   }
 }
+.sim-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -6px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+.sim-mode-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.sim-mode.is-cloud .sim-mode-dot {
+  background: var(--buy);
+}
+.sim-loading {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.sim-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── /predictions tabs ─── */
+.lp-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border-muted);
+  margin-bottom: 4px;
+}
+.lp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.lp-tab:hover {
+  color: var(--text-primary);
+}
+.lp-tab.is-active {
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+/* ─── open positions ─── */
+.pos {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 20px;
+  padding-bottom: 72px;
+}
+.pos-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--border-muted);
+}
+.pos-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--bg-surface);
+  min-width: 0;
+}
+.pos-stat span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.pos-stat strong {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pos-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) repeat(5, minmax(0, 1fr)) minmax(0, 1.2fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--bg-panel), var(--bg-surface));
+  border: 1px solid var(--border-muted);
+}
+.pos-asset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.pos-asset:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pos-asset-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+.pos-asset-name strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pos-side {
+  font-size: 12px;
+  font-weight: 500;
+}
+.pos-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pos-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.pos-pnl small {
+  font-size: 11.5px;
+}
+.pos-close {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pos-close:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+}
+.pos-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pos-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 64px 0;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .pos-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .pos-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 14px;
+  }
+  .pos-asset {
+    grid-column: 1 / 3;
+  }
+  .pos-close {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+}
+
+/* Phones: brand + 2 links + wallet + sign-in don't fit; keep just the logo mark. */
+@media (max-width: 480px) {
+  .site-brand .wordmark-text {
+    display: none;
+  }
+  .site-links {
+    gap: 0;
+  }
+  .site-links a {
+    padding: 6px 10px;
+  }
+  .site-wallet {
+    margin-left: 4px;
+    gap: 6px;
+  }
+}

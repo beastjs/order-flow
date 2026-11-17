@@ -5,6 +5,9 @@ import type { OkxTicker } from "@/lib/okx";
 import { assetIdOf, CATEGORY_LABEL, fmtCompact, fmtPrice, sparkPaths, type AssetIndexItem } from "./assetFormat";
 import { cn } from "@/lib/utils";
 
+module
+  export { AssetGlyph }
+
 component AssetGlyph
   props { base }: { base: string }
   setup const [failed, setFailed] = useState(false);

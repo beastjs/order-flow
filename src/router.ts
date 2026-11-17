@@ -9,7 +9,15 @@ const rootRoute = createRootRoute({ component: RootLayout })
 
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: Landing })
 const terminalRoute = createRoute({ getParentRoute: () => rootRoute, path: 'terminal', component: TerminalPage })
-const predictionsRoute = createRoute({ getParentRoute: () => rootRoute, path: 'predictions', component: Predictions })
+export type PredictionsTab = 'markets' | 'positions'
+const predictionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'predictions',
+  component: Predictions,
+  // ?tab=positions — omitted for the default Markets tab.
+  validateSearch: (search: Record<string, unknown>): { tab?: PredictionsTab } =>
+    search.tab === 'positions' ? { tab: 'positions' } : {}
+})
 const assetRoute = createRoute({ getParentRoute: () => rootRoute, path: 'predictions/$assetId', component: AssetPage })
 
 export const router = createRouter({

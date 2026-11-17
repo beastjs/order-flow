@@ -307,3 +307,24 @@ export function useOkxTrades(instId: string | null | undefined, max = 40, thrott
   }, [instId, max, throttleMs])
   return trades
 }
+
+/** Live mark prices for many instruments, keyed by instId (for PnL across positions). */
+export function useOkxMarkPrices(instIds: readonly string[], throttleMs = 500): Record<string, number> {
+  const [marks, setMarks] = useState<Record<string, number>>({})
+  const key = instIds.join(',')
+  useEffect(() => {
+    const latest: Record<string, number> = {}
+    const t = throttled(setMarks, throttleMs)
+    const offs = instIds.map((id) =>
+      okx.markPrice(id, (m) => {
+        latest[id] = m.markPx
+        t.push({ ...latest })
+      })
+    )
+    return () => {
+      offs.forEach((off) => off())
+      t.cancel()
+    }
+  }, [key, throttleMs])
+  return marks
+}

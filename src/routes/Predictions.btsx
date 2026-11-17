@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "octane";
+import { Link, useSearch } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
+import OpenPositions from "@/components/app/OpenPositions.btsx";
+import { useOpenPositions } from "@/hooks/usePaperAccount";
 import AssetIndex from "@/components/app/AssetIndex.btsx";
 import { useOkxTickerSnapshot } from "@/hooks/useOkx";
 import { fetchPerps, type OkxPerpCategory, type OkxPerpInstrument } from "@/lib/okx";
@@ -37,6 +40,9 @@ module
   }
 
 setup
+  const search = useSearch({ strict: false }) as { tab?: "positions" };
+  const tab = search.tab === "positions" ? "positions" : "markets";
+  const openCount = useOpenPositions().rows.length;
   const [perps, setPerps] = useState<OkxPerpInstrument[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -78,42 +84,59 @@ setup
     p.lp-eyebrow
       span.lp-live-dot
       | Streaming from OKX · public & business WebSocket
-    h1.lp-page-title
-      | #{"Every perpetual, "}
-      em live.
-    p.lp-page-sub #{counts.all ? `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals.` : "Loading the OKX instrument catalog…"} Prices stream only for the cards on screen.
+    if tab === "positions"
+      h1.lp-page-title
+        | #{"Your positions, "}
+        em live.
+    else
+      h1.lp-page-title
+        | #{"Every perpetual, "}
+        em live.
+    p.lp-page-sub #{tab === "positions" ? "Open positions marked to the live OKX mark price. Close any of them at market." : counts.all ? `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.` : "Loading the OKX instrument catalog…"}
 
-  .lp-toolbar
-    .lp-segmented(role="tablist")
-      each f in FILTERS key f.value
-        button(
-          ~ type="button"
-          ~ role="tab"
-          ~ aria-selected={filter === f.value}
-          ~ className={cn("lp-seg", filter === f.value && "is-active")}
-          ~ onClick={() => setFilter(f.value)}
-          ~ )
-          | #{f.label}
-          span.lp-seg-count #{counts[f.value] || ""}
-    .lp-toolbar-right
-      input.lp-search(
-        ~ type="search"
-        ~ placeholder="Search AAPL, BTC, XAU…"
-        ~ value={query}
-        ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
-        ~ )
-      .lp-segmented
-        each s in SORTS key s.value
-          button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => setSort(s.value)}) #{s.label}
+  nav.lp-tabs(aria-label="Predictions")
+    Link(to="/predictions" search={{}} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
+      | Markets
+      span.lp-seg-count #{counts.all || ""}
+    Link(to="/predictions" search={{ tab: "positions" }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
+      | Positions
+      span.lp-seg-count #{openCount || ""}
 
-  if error
-    p.lp-grid-empty Couldn’t load OKX instruments: #{error}
+  if tab === "positions"
+    OpenPositions
   else
-    section.lp-asset-grid
-      each p in visible key p.instId
-        AssetIndex(item={toItem(p)} initial={snapshot[p.instId]})
-      empty
-        p.lp-grid-empty #{perps.length ? "No markets match your search." : "Loading markets…"}
+    .lp-markets
+      .lp-toolbar
+        .lp-segmented(role="tablist")
+          each f in FILTERS key f.value
+            button(
+              ~ type="button"
+              ~ role="tab"
+              ~ aria-selected={filter === f.value}
+              ~ className={cn("lp-seg", filter === f.value && "is-active")}
+              ~ onClick={() => setFilter(f.value)}
+              ~ )
+              | #{f.label}
+              span.lp-seg-count #{counts[f.value] || ""}
+        .lp-toolbar-right
+          input.lp-search(
+            ~ type="search"
+            ~ placeholder="Search AAPL, BTC, XAU…"
+            ~ value={query}
+            ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
+            ~ )
+          .lp-segmented
+            each s in SORTS key s.value
+              button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => setSort(s.value)}) #{s.label}
+
+      if error
+        p.lp-grid-empty Couldn’t load OKX instruments: #{error}
+      else
+        section.lp-asset-grid
+          each p in visible key p.instId
+            AssetIndex(item={toItem(p)} initial={snapshot[p.instId]})
+          empty
+            p.lp-grid-empty #{perps.length ? "No markets match your search." : "Loading markets…"}
 
   footer.site-foot
     span Data: OKX public market data. Perpetual swaps are leveraged derivatives. Not investment advice.

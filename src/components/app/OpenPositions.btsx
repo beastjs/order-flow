@@ -1,0 +1,118 @@
+import { useState } from "octane";
+import { Link } from "@octanejs/tanstack-router";
+import { AssetGlyph } from "./AssetIndex.btsx";
+import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
+import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
+import { metrics, TAKER_FEE } from "@/lib/paper/math";
+import type { OkxTicker } from "@/lib/okx";
+import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
+import { cn } from "@/lib/utils";
+
+module
+  // Round first so a value like −0.001 prints "$0.00", not "−$0.00".
+  const usd = (v: number | null | undefined, signed = false) => {
+    if (v === null || v === undefined || !Number.isFinite(v)) return "—"
+    const cents = Math.round(v * 100) / 100
+    return `${signed && cents > 0 ? "+" : cents < 0 ? "−" : ""}$${Math.abs(cents).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+component PositionRow
+  props { row, ticker, mark, busy, onClose }: { row: OpenPositionRow; ticker?: OkxTicker; mark?: number; busy: boolean; onClose: (row: OpenPositionRow) => void }
+  setup
+    const p = row.position;
+    const price = mark ?? ticker?.last;
+    const m = price ? metrics(p, price) : null;
+    const exit = p.side === "up" ? ticker?.bidPx || ticker?.last : ticker?.askPx || ticker?.last;
+    const net = m && exit ? m.pnl - p.openFee - p.size * exit * TAKER_FEE : null;
+  article.pos-row(data-side={p.side})
+    Link.pos-asset(to="/predictions/$assetId" params={{ assetId: row.base }})
+      AssetGlyph(base={row.base})
+      span.pos-asset-name
+        strong #{row.base}
+        span(className={cn("pos-side", p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "▲ Up" : "▼ Down"} #{p.leverage}×
+    .pos-cell
+      span.pos-label Size
+      span #{fmtSize(p.size)}
+    .pos-cell
+      span.pos-label Entry
+      span #{fmtPrice(p.entry)}
+    .pos-cell
+      span.pos-label Mark
+      span #{fmtPrice(price)}
+    .pos-cell
+      span.pos-label Liq. (est.)
+      span.is-down #{m ? fmtPrice(m.liq) : "—"}
+    .pos-cell
+      span.pos-label Margin
+      span #{usd(p.margin)}
+    .pos-cell.pos-pnl
+      span.pos-label PnL
+      span(className={m && m.pnl >= 0 ? "is-up" : "is-down"}) #{m ? usd(m.pnl, true) : "—"}
+      small(className={m && m.roe >= 0 ? "is-up" : "is-down"}) #{m ? fmtPct(m.roe) : ""}
+    button.pos-close(type="button" disabled={busy || net === null} onClick={() => onClose(row)} title={net === null ? "Waiting for a price" : `Close at market · ${usd(net, true)} after fees`})
+      | #{busy ? "Closing…" : "Close"}
+
+setup
+  const open = useOpenPositions();
+  const instIds = open.rows.map((r) => r.instId);
+  const tickers = useOkxTickers(instIds, 500);
+  const marks = useOkxMarkPrices(instIds, 500);
+  const [closing, setClosing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastFill, setLastFill] = useState<(SimResult & { base: string }) | null>(null);
+
+  let totalMargin = 0;
+  let totalPnl = 0;
+  for (const r of open.rows) {
+    const px = marks[r.instId] ?? tickers[r.instId]?.last;
+    totalMargin += r.position.margin;
+    if (px) totalPnl += metrics(r.position, px).pnl;
+  }
+
+  const close = async (row: OpenPositionRow) => {
+    const t = tickers[row.instId];
+    setClosing(row.key);
+    setError(null);
+    try {
+      const { result, error: err } = await open.close(row, { bid: t?.bidPx || t?.last, ask: t?.askPx || t?.last });
+      setError(err);
+      if (result) setLastFill({ ...result, base: row.base });
+    } finally {
+      setClosing(null);
+    }
+  };
+
+section.pos
+  .pos-summary
+    .pos-stat
+      span Open positions
+      strong #{open.loading ? "—" : open.rows.length}
+    .pos-stat
+      span Margin in use
+      strong #{usd(totalMargin)}
+    .pos-stat
+      span Unrealized PnL
+      strong(className={totalPnl >= 0 ? "is-up" : "is-down"}) #{open.rows.length ? usd(totalPnl, true) : "—"}
+    .pos-stat
+      span Free balance
+      strong #{usd(open.balance)}
+  p(className={cn("sim-mode", open.mode === "cloud" && "is-cloud")})
+    span.sim-mode-dot
+    | #{open.mode === "cloud" ? "Your account · positions are saved and priced by the server" : "Practice mode · positions live in this browser — sign in to save them"}
+
+  if error
+    p.sim-error #{error}
+  if lastFill
+    p(className={cn("sim-result", lastFill.realized >= 0 ? "is-up" : "is-down")})
+      | Closed #{lastFill.side === "up" ? "Up" : "Down"} #{lastFill.leverage}× #{lastFill.base} at #{fmtPrice(lastFill.exit)} · #{usd(lastFill.realized, true)} (#{fmtPct((lastFill.realized / lastFill.margin) * 100)})
+
+  if open.loading
+    p.lp-grid-empty Loading positions…
+  else
+    .pos-list
+      each row in open.rows key row.key
+        PositionRow(row={row} ticker={tickers[row.instId]} mark={marks[row.instId]} busy={closing === row.key} onClose={close})
+      empty
+        .pos-empty
+          p No open positions.
+          Link.lp-btn.lp-btn-ghost(to="/predictions") Browse markets
