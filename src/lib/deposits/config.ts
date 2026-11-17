@@ -1,0 +1,109 @@
+// ============================================================
+// TOP-UPS — shared constants for the browser and the Convex backend.
+// USD stablecoins only (1 token = $1), sent from the user's linked
+// wallet to DEPOSIT_DESTINATION_ADDRESS. Contract addresses were
+// checked on-chain (symbol + 6 decimals) before being listed here.
+// ============================================================
+
+export const MIN_TOPUP_USD = 25
+export const STABLE_DECIMALS = 6
+
+export type StableSymbol = 'USDC' | 'USDT'
+
+export interface DepositToken {
+  symbol: StableSymbol
+  address: `0x${string}`
+}
+
+export interface DepositChain {
+  chainId: number
+  name: string
+  /** Blocks on top of the transfer's block before it is credited. */
+  confirmations: number
+  /** Test networks credit real USD from free tokens: off unless DEPOSIT_ALLOW_TESTNET=true. */
+  testnet: boolean
+  tokens: DepositToken[]
+}
+
+export const DEPOSIT_CHAINS: DepositChain[] = [
+  {
+    chainId: 1,
+    name: 'Ethereum',
+    confirmations: 6,
+    testnet: false,
+    tokens: [
+      { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' },
+      { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' }
+    ]
+  },
+  {
+    chainId: 42161,
+    name: 'Arbitrum',
+    confirmations: 3,
+    testnet: false,
+    tokens: [
+      { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' },
+      { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9' }
+    ]
+  },
+  {
+    chainId: 137,
+    name: 'Polygon',
+    confirmations: 32,
+    testnet: false,
+    tokens: [
+      { symbol: 'USDC', address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' },
+      { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F' }
+    ]
+  },
+  {
+    chainId: 11155111,
+    name: 'Sepolia (testnet)',
+    confirmations: 3,
+    testnet: true,
+    tokens: [{ symbol: 'USDC', address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' }]
+  }
+]
+
+/**
+ * Public RPCs that serve eth_getTransactionReceipt for recent blocks without a
+ * key (checked against live receipts). publicnode's Arbitrum endpoint refuses
+ * receipts without a token and polygon-rpc.com is disabled, so neither is used.
+ * The server can override per chain with DEPOSIT_RPC_URL_<chainId>.
+ */
+export const PUBLIC_RPC: Record<number, string> = {
+  1: 'https://ethereum-rpc.publicnode.com',
+  137: 'https://polygon-bor-rpc.publicnode.com',
+  42161: 'https://arb1.arbitrum.io/rpc',
+  11155111: 'https://ethereum-sepolia-rpc.publicnode.com'
+}
+
+export function depositChain(chainId: number): DepositChain | undefined {
+  return DEPOSIT_CHAINS.find((c) => c.chainId === chainId)
+}
+
+/** USD (2dp) → token base units (6dp), exactly. */
+export function usdToUnits(usd: number): bigint {
+  return BigInt(Math.round(usd * 100)) * 10n ** BigInt(STABLE_DECIMALS - 2)
+}
+
+/** Token base units → USD number (stablecoins at par). */
+export function unitsToUsd(units: bigint): number {
+  return Number(units) / 10 ** STABLE_DECIMALS
+}
+
+/** Wallets link by signing this exact text; the server rebuilds it to verify. */
+export function linkWalletMessage(accountId: string, address: string, issuedAt: string): string {
+  return [
+    'SuperCEX — link wallet',
+    '',
+    `Wallet: ${address}`,
+    `Account: ${accountId}`,
+    `Issued at: ${issuedAt}`,
+    '',
+    'Signing proves you own this wallet so top-ups from it can be credited to your account.',
+    'It does not send a transaction or cost gas.'
+  ].join('\n')
+}
+
+export const LINK_MESSAGE_TTL_MS = 10 * 60_000

@@ -11,7 +11,8 @@ export const defaultChain: Chain = mainnet
 function transport(chain: Chain): Transport {
   switch (chain.id) {
     case polygon.id:
-      return http('https://polygon-rpc.com')
+      // polygon-rpc.com now answers "tenant disabled" (403).
+      return http('https://polygon-bor-rpc.publicnode.com')
     case arbitrum.id:
       return http('https://arb1.arbitrum.io/rpc')
     default:

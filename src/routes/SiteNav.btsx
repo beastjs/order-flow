@@ -1,13 +1,34 @@
-import { Link } from "@octanejs/tanstack-router";
+import { Link, useLocation } from "@octanejs/tanstack-router";
 import { Wordmark } from "@/components/Logo.btsx";
 import WalletButton from "@/components/WalletButton.btsx";
 import SignButton from "@/components/SignButton.btsx";
+import BalancePill from "@/components/BalancePill.btsx";
+import MobileMenu from "@/components/MobileMenu.btsx";
+import { useOpenPositions } from "@/hooks/usePaperAccount";
+import { cn } from "@/lib/utils";
+
+setup
+  // Markets and Positions share /predictions (Positions is ?tab=positions), so
+  // the router's own active matching can't tell them apart — decide here.
+  const location = useLocation();
+  const onPositions = location.pathname === "/predictions" && (location.search as { tab?: string }).tab === "positions";
+  const onMarkets = location.pathname.startsWith("/predictions") && !onPositions;
+  const onTerminal = location.pathname.startsWith("/terminal");
+  const openCount = useOpenPositions().rows.length;
+
 header.site-nav
-  Link.site-brand(to="/")
+  Link.site-brand(to="/" aria-label="Home")
     Wordmark(size={24})
   nav.site-links
-    Link(to="/predictions" activeProps={{ className: "is-active" }}) Markets
-    Link(to="/terminal" activeProps={{ className: "is-active" }}) Terminal
-    .site-wallet
-      WalletButton
-      SignButton
+    Link(to="/predictions" search={{}} className={cn(onMarkets && "is-active")} aria-current={onMarkets ? "page" : undefined}) Markets
+    Link(to="/terminal" className={cn(onTerminal && "is-active")} aria-current={onTerminal ? "page" : undefined}) Terminal
+    Link(to="/predictions" search={{ tab: "positions" }} className={cn(onPositions && "is-active")} aria-current={onPositions ? "page" : undefined})
+      | Positions
+      if openCount > 0
+        span.site-link-badge(aria-label={`${openCount} open`}) #{openCount}
+  .site-wallet
+    BalancePill
+    WalletButton
+    SignButton
+  // Phones: everything above collapses into this one menu (hidden on wider screens).
+  MobileMenu

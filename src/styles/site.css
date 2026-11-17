@@ -15,6 +15,8 @@
   line-height: 1.55;
   --site-max: 1180px;
   --site-pad: clamp(16px, 4vw, 40px);
+  /* Sticky nav height; sticky toolbars sit just under it. */
+  --nav-h: 64px;
 }
 
 .site > * {
@@ -30,8 +32,8 @@
   z-index: 10;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 64px;
+  gap: 8px;
+  height: var(--nav-h);
   max-width: none !important;
   background: color-mix(in oklab, var(--bg-base) 72%, transparent);
   backdrop-filter: blur(14px);
@@ -45,8 +47,12 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
 }
 .site-links a {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 13px;
@@ -437,7 +443,7 @@
 }
 .lp-toolbar {
   position: sticky;
-  top: 64px;
+  top: var(--nav-h);
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
@@ -520,7 +526,7 @@
   }
   .lp-search {
     min-width: 0;
-    flex: 1;
+    flex: 1 1 100%;
   }
   .lp-toolbar-right {
     width: 100%;
@@ -1311,19 +1317,320 @@
   }
 }
 
-/* Phones: brand + 2 links + wallet + sign-in don't fit; keep just the logo mark. */
-@media (max-width: 480px) {
-  .site-brand .wordmark-text {
+
+/* ─── top-up modal (rendered in a portal; uses wallet-modal chrome) ─── */
+.topup {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  --tone: var(--buy);
+}
+.topup-step {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.topup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.topup-field .sim-chips {
+  margin-top: 0;
+}
+.topup-note {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.topup-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-muted);
+  font-size: 13px;
+}
+.topup-status strong {
+  font-size: 15px;
+}
+.topup-status[data-status='credited'] strong {
+  color: var(--buy);
+}
+.topup-status[data-status='rejected'] strong,
+.topup-status[data-status='failed'] strong,
+.topup-status[data-status='under_minimum'] strong {
+  color: var(--sell);
+}
+.topup-status span {
+  color: var(--text-secondary);
+}
+.topup-link {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+.topup-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-muted);
+}
+.topup-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.topup-row[data-status='credited'] span:last-child {
+  color: var(--buy);
+}
+.topup-row[data-status='rejected'] span:last-child,
+.topup-row[data-status='failed'] span:last-child,
+.topup-row[data-status='under_minimum'] span:last-child {
+  color: var(--sell);
+}
+
+/* Simulator: available balance under the amount (click = Max). */
+.sim-available {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: -6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  text-align: left;
+}
+.sim-available:hover:not(:disabled) span:last-child {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sim-available:disabled {
+  cursor: default;
+}
+
+/* Open-positions count on the nav's Positions link. */
+.site-link-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  vertical-align: 1px;
+}
+
+/* ─── phone top bar (≤720px, where the full row needs ~770px): one menu button instead of links/balance/wallet/account ─── */
+.mobile-menu-root {
+  display: none;
+}
+@media (max-width: 720px) {
+  .site-links,
+  .site-wallet {
     display: none;
   }
-  .site-links {
-    gap: 0;
+  .mobile-menu-root {
+    display: block;
+    margin-left: auto;
   }
-  .site-links a {
-    padding: 6px 10px;
+}
+.mobile-menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mobile-menu-trigger.has-avatar {
+  border-color: transparent;
+  background: transparent;
+}
+.mobile-menu-trigger.is-open,
+.mobile-menu-trigger:hover {
+  border-color: var(--text-muted);
+}
+.mobile-menu-trigger.has-avatar.is-open .account-avatar {
+  box-shadow: 0 0 0 2px var(--text-muted);
+}
+.mobile-menu {
+  position: fixed;
+  z-index: 60;
+  top: calc(var(--nav-h, 64px) + 6px);
+  left: 12px;
+  right: 12px;
+  max-height: calc(100dvh - var(--nav-h, 64px) - 18px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  box-shadow: 0 18px 48px var(--shadow);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  outline: none;
+  animation: mobile-menu-in 0.16s ease-out;
+}
+@keyframes mobile-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
   }
-  .site-wallet {
-    margin-left: 4px;
-    gap: 6px;
+}
+.mobile-menu-links {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-base);
+}
+.mobile-menu-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: 9px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.mobile-menu-link.is-active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+.mobile-menu-section {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-muted);
+}
+.mobile-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  text-decoration: none;
+  text-align: left;
+  font: inherit;
+}
+a.mobile-menu-row,
+button.mobile-menu-row {
+  cursor: pointer;
+}
+a.mobile-menu-row:active,
+button.mobile-menu-row:active {
+  background: var(--bg-hover);
+}
+.mobile-menu-row > span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.mobile-menu-row small {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+.mobile-menu-row strong {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.mobile-menu-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mobile-menu-action:active {
+  background: var(--bg-hover);
+}
+.mobile-menu-action.is-primary {
+  justify-content: center;
+  margin: 4px 0;
+  background: var(--text-primary);
+  color: var(--bg-base);
+  font-weight: 500;
+}
+.mobile-menu-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mobile-menu-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.mobile-menu-account > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.mobile-menu-account strong {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-menu-account span {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Narrow tablets: keep the full row by dropping the pill's "Available" label. */
+@media (max-width: 900px) {
+  .site-nav .balance-pill-label {
+    display: none;
   }
 }

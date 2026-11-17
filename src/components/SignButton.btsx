@@ -4,11 +4,15 @@ import Menu, { MenuSection } from "./ui/Menu.btsx";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
 import { getAccountLabel } from "@/lib/firebase/accounts";
+import TopUpModal from "./TopUpModal.btsx";
+import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
+import { api } from "../../convex/_generated/api";
 // ─── Sign-in button ─────────────────────────────────────────────
 // Signed out: an icon-only button that opens Google sign-in.
 // Signed in: the user's avatar, opening a menu with the account,
 // previously used accounts to switch to, and sign out.
 module
+  export { Avatar, errorMessage as signInErrorMessage }
   // Closing the Google popup is the user changing their mind, not an error.
   const QUIET_ERRORS = new Set(["auth/popup-closed-by-user", "auth/cancelled-popup-request"])
 
@@ -44,10 +48,13 @@ component Item
         small #{hint}
 
 component AccountItems
-  props { onError }: { onError: (message: string | null) => void }
+  props { onError, onTopUp }: { onError: (message: string | null) => void; onTopUp: () => void }
   setup
     const { user } = useFirebaseUser();
     const accounts = useRememberedAccounts();
+    const authed = useConvexAuth().isAuthenticated;
+    const usdBalance = useConvexQuery(api.funds.usd, authed ? {} : "skip").data;
+    const usdLabel = usdBalance === undefined || usdBalance === null ? "USD balance" : `USD balance · $${usdBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const others = accounts.filter((a) => a.uid !== user?.uid && a.email);
     const run = (task: Promise<unknown>) => task.then(() => onError(null), (e) => onError(errorMessage(e)));
   .account-menu
@@ -58,6 +65,8 @@ component AccountItems
           strong #{user.displayName ?? user.email ?? "Signed in"}
           if user.displayName && user.email
             span #{user.email}
+    MenuSection(title="Funds")
+      Item(label={usdLabel} hint="Top up" disabled={!authed} onClick={onTopUp})
     if others.length
       MenuSection(title="Switch account")
         each a in others key a.uid
@@ -70,6 +79,7 @@ setup
   const { user, isLoading } = useFirebaseUser();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const signIn = () => {
     setBusy(true);
     setError(null);
@@ -86,7 +96,7 @@ fragment
       ~ buttonClassName="account-trigger"
       ~ label={createElement(Avatar, { photoURL: user.photoURL, name: user.displayName, email: user.email })}
       ~ )
-      AccountItems(onError={setError})
+      AccountItems(onError={setError} onTopUp={() => setTopUpOpen(true)})
   else
     button(
       ~ className="ui-button account-signin"
@@ -100,3 +110,4 @@ fragment
       ~ onClick={signIn}
       ~ )
       Icon(name="user" size={18})
+  TopUpModal(open={topUpOpen && Boolean(user)} onClose={() => setTopUpOpen(false)})

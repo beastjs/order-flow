@@ -1,0 +1,162 @@
+import { createElement, createPortal, useEffect, useRef, useState } from "octane";
+import { Link, useLocation } from "@octanejs/tanstack-router";
+import { Icon } from "@/lib/icons";
+import { useWallet } from "@/wallet/context.btsx";
+import WalletModal from "./WalletModal.btsx";
+import TopUpModal from "./TopUpModal.btsx";
+import { Avatar, signInErrorMessage } from "./SignButton.btsx";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
+import { getAccountLabel } from "@/lib/firebase/accounts";
+import { useAvailableBalance, useOpenPositions } from "@/hooks/usePaperAccount";
+import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
+import { api } from "../../convex/_generated/api";
+import { cn } from "@/lib/utils";
+// ─── Phone top-bar menu ─────────────────────────────────────────
+// On phone widths every top-bar item moves into this one popover:
+// section links, available balance, wallet and account. The trigger
+// is a menu icon, or the user's avatar once signed in.
+module
+  const usd = (v: number | null | undefined) =>
+    v === null || v === undefined ? "—" : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
+
+component Panel
+  props { onClose, onConnectWallet, onTopUp }: { onClose: () => void; onConnectWallet: () => void; onTopUp: () => void }
+  setup
+    const location = useLocation();
+    const onPositions = location.pathname === "/predictions" && (location.search as { tab?: string }).tab === "positions";
+    const onMarkets = location.pathname.startsWith("/predictions") && !onPositions;
+    const onTerminal = location.pathname.startsWith("/terminal");
+    const openCount = useOpenPositions().rows.length;
+    const available = useAvailableBalance();
+    const authed = useConvexAuth().isAuthenticated;
+    const usdBalance = useConvexQuery(api.funds.usd, authed ? {} : "skip").data;
+    const wallet = useWallet();
+    const { user } = useFirebaseUser();
+    const accounts = useRememberedAccounts();
+    const others = accounts.filter((a) => a.uid !== user?.uid && a.email);
+    const [error, setError] = useState<string | null>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+      panelRef.current?.focus();
+    }, []);
+
+    const signIn = (hint?: string) => {
+      setError(null);
+      signInWithGoogle(hint)
+        .then(() => onClose())
+        .catch((e) => setError(signInErrorMessage(e)));
+    };
+  .mobile-menu(ref={panelRef} role="menu" aria-label="Menu" tabIndex={-1})
+    nav.mobile-menu-links
+      Link(to="/predictions" search={{}} className={cn("mobile-menu-link", onMarkets && "is-active")} onClick={onClose}) Markets
+      Link(to="/predictions" search={{ tab: "positions" }} className={cn("mobile-menu-link", onPositions && "is-active")} onClick={onClose})
+        | Positions
+        if openCount > 0
+          span.site-link-badge #{openCount}
+      Link(to="/terminal" className={cn("mobile-menu-link", onTerminal && "is-active")} onClick={onClose}) Terminal
+
+    .mobile-menu-section
+      Link.mobile-menu-row(to="/predictions" search={{ tab: "positions" }} onClick={onClose})
+        span
+          | Available
+          small #{available.mode === "cloud" ? "Paper balance · your account" : "Practice balance"}
+        strong #{usd(available.balance)}
+      if user
+        button.mobile-menu-row(type="button" disabled={!authed} onClick={onTopUp})
+          span
+            | USD balance
+            small Top up with USDC / USDT
+          strong #{usd(usdBalance)}
+
+    .mobile-menu-section
+      if wallet.isConnected && wallet.address
+        .mobile-menu-group
+          .mobile-menu-row
+            span
+              | Wallet
+              small #{wallet.chain.name}#{wallet.isChainSupported ? "" : " · unsupported network"}
+            strong #{short(wallet.address)}
+          button.mobile-menu-action(type="button" onClick={() => { wallet.disconnect(); onClose(); }}) Disconnect wallet
+      else
+        button.mobile-menu-action(type="button" onClick={onConnectWallet})
+          Icon(name="wallet" size={16})
+          | #{wallet.isConnecting ? "Connecting…" : "Connect wallet"}
+
+    .mobile-menu-section
+      if user
+        .mobile-menu-group
+          .mobile-menu-account
+            Avatar(photoURL={user.photoURL} name={user.displayName} email={user.email} size={36})
+            div
+              strong #{user.displayName ?? user.email ?? "Signed in"}
+              if user.displayName && user.email
+                span #{user.email}
+          each a in others key a.uid
+            button.mobile-menu-action(type="button" onClick={() => signIn(a.email ?? undefined)}) Switch to #{getAccountLabel(a)}
+          button.mobile-menu-action(type="button" onClick={() => { signOutUser().then(onClose, (e) => setError(signInErrorMessage(e))); }}) Sign out
+      else
+        button.mobile-menu-action.is-primary(type="button" disabled={!isFirebaseConfigured} onClick={() => signIn()})
+          Icon(name="user" size={16})
+          | #{isFirebaseConfigured ? "Sign in with Google" : "Sign-in unavailable"}
+      if error
+        p.sim-error #{error}
+
+setup
+  const { user } = useFirebaseUser();
+  const wallet = useWallet();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const [walletModal, setWalletModal] = useState(false);
+  const [topUp, setTopUp] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const close = () => setOpen(false);
+
+  // Navigating anywhere closes the menu.
+  useEffect(() => {
+    setOpen(false);
+  }, [location.href]);
+
+  // Tap outside or Escape closes it.
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: Event) => {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || document.querySelector(".mobile-menu")?.contains(target)) return;
+      setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    window.addEventListener("pointerdown", outside);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("pointerdown", outside);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  // The wallet picker closes itself once an account connects.
+  useEffect(() => {
+    if (wallet.isConnected) setWalletModal(false);
+  }, [wallet.isConnected]);
+
+.mobile-menu-root(ref={rootRef})
+  button(
+    ~ type="button"
+    ~ className={cn("mobile-menu-trigger", user && "has-avatar", open && "is-open")}
+    ~ aria-haspopup="menu"
+    ~ aria-expanded={open}
+    ~ aria-label={open ? "Close menu" : user ? "Open menu and account" : "Open menu"}
+    ~ onClick={() => setOpen((v) => !v)}
+    ~ )
+    if user
+      Avatar(photoURL={user.photoURL} name={user.displayName} email={user.email} size={32})
+    elseif open
+      Icon(name="close" size={18})
+    else
+      Icon(name="menu" size={18})
+  if open
+    | #{createPortal(createElement(Panel, { onClose: close, onConnectWallet: () => { setOpen(false); setWalletModal(true); }, onTopUp: () => { setOpen(false); setTopUp(true); } }), document.body)}
+  WalletModal(open={walletModal && !wallet.isConnected} onClose={() => setWalletModal(false)})
+  TopUpModal(open={topUp && Boolean(user)} onClose={() => setTopUp(false)})

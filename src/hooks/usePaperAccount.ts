@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'octane'
 import { api } from '../../convex/_generated/api'
 import { convex } from '@/lib/convex/client'
-import { paperStore, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
+import { TAKER_FEE, paperStore, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from './useConvex'
 
 // ─── One paper account, two backends ─────────────────────────────
@@ -202,4 +202,27 @@ export function useOpenPositions(): OpenPositions {
       }
     }
   }
+}
+
+// ─── available balance (topbar + simulator) ─────────────────────
+
+export interface AvailableBalance {
+  mode: 'cloud' | 'local'
+  /** Free paper balance (excludes margin locked in open positions); null while loading. */
+  balance: number | null
+}
+
+/** The free paper trading balance: your account when signed in, practice mode otherwise. */
+export function useAvailableBalance(): AvailableBalance {
+  const authState = useConvexAuth()
+  const cloud = Boolean(convex) && authState.isAuthenticated
+  const local = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get)
+  const funds = useConvexQuery(api.funds.mine, cloud ? {} : 'skip')
+  if (cloud) return { mode: 'cloud', balance: funds.data?.balance ?? null }
+  return { mode: 'local', balance: authState.isLoading ? null : local.balance }
+}
+
+/** Largest margin affordable at `leverage` once the opening fee is included, floored to cents. */
+export function maxMargin(available: number, leverage: number): number {
+  return Math.max(0, Math.floor((available / (1 + leverage * TAKER_FEE)) * 100) / 100)
 }

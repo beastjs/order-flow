@@ -20,6 +20,37 @@ export async function requireFunds(ctx: MutationCtx, userId: Doc<"users">["_id"]
   return funds;
 }
 
+export async function getUsdFunds(ctx: QueryCtx | MutationCtx, userId: Doc<"users">["_id"]) {
+  return await ctx.db
+    .query("funds")
+    .withIndex("by_userId_and_currency", (q) => q.eq("userId", userId).eq("currency", "USD"))
+    .unique();
+}
+
+/** Add real USD (verified top-ups). Creates the USD balance on first credit. Returns the new balance. */
+export async function creditUsd(ctx: MutationCtx, userId: Doc<"users">["_id"], amount: number): Promise<number> {
+  if (!(amount > 0)) throw new Error("Credit must be positive.");
+  const funds = await getUsdFunds(ctx, userId);
+  if (!funds) {
+    await ctx.db.insert("funds", { userId, currency: "USD", mode: "live", balance: amount, locked: 0 });
+    return amount;
+  }
+  const balance = funds.balance + amount;
+  await ctx.db.patch("funds", funds._id, { balance });
+  return balance;
+}
+
+/** The caller's real USD balance from top-ups (0 before the first one), or null when signed out. */
+export const usd = query({
+  args: {},
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx) => {
+    const user = await currentUser(ctx);
+    if (!user) return null;
+    return (await getUsdFunds(ctx, user._id))?.balance ?? 0;
+  },
+});
+
 /** The caller's paper USDT balance, or null when signed out. */
 export const mine = query({
   args: {},

@@ -12,6 +12,7 @@ import { useMemo } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import WalletButton from "./WalletButton.btsx";
 import SignButton from "./SignButton.btsx";
+import BalancePill from "./BalancePill.btsx";
 module
   const TIMEFRAMES: {
     value: TimeValue;
@@ -141,6 +142,7 @@ header.topbar
       ~ ariaLabel="Workspace"
       ~ )
 
+  BalancePill
   WalletButton
   SignButton
   span.topbar-break(aria-hidden)

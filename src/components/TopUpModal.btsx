@@ -1,0 +1,230 @@
+import { createElement, createPortal, useEffect, useRef, useState } from "octane";
+import { encodeFunctionData, erc20Abi, getAddress, type Address, type Hex } from "viem";
+import { useWallet } from "@/wallet/context.btsx";
+import { api } from "../../convex/_generated/api";
+import { convex } from "@/lib/convex/client";
+import { convexErrorMessage, useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
+import { explorerTx, useStableBalance } from "@/hooks/useTopUp";
+import { MIN_TOPUP_USD, linkWalletMessage, usdToUnits } from "@/lib/deposits/config";
+import { cn } from "@/lib/utils";
+// ─── Top up ──────────────────────────────────────────────────────
+// Sends USDC/USDT from the connected (and linked) wallet to the
+// deposit address, then tracks the server's on-chain verification
+// until the USD balance is credited.
+module
+  type ModalProps = { open: boolean; onClose: () => void }
+
+  const usd = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
+
+  function walletErrorMessage(e: unknown): string {
+    const code = (e as { code?: number })?.code
+    if (code === 4001) return "The request was rejected in your wallet."
+    const msg = e instanceof Error ? (e as { shortMessage?: string }).shortMessage ?? e.message : String(e)
+    return msg.split("\n")[0]
+  }
+
+  const STATUS_LABEL: Record<string, string> = {
+    pending: "Confirming",
+    credited: "Credited",
+    under_minimum: "Under minimum",
+    rejected: "Rejected",
+    failed: "Failed",
+  }
+
+component Dialog
+  props { onClose }: { onClose: () => void }
+  setup
+    const wallet = useWallet();
+    const auth = useConvexAuth();
+    const dialogRef = useRef<HTMLElement | null>(null);
+    const signedIn = auth.isAuthenticated;
+    const config = useConvexQuery(api.deposits.config, {});
+    const me = useConvexQuery(api.users.me, signedIn ? {} : "skip");
+    const linked = useConvexQuery(api.deposits.myWallets, signedIn ? {} : "skip");
+    const usdBalance = useConvexQuery(api.funds.usd, signedIn ? {} : "skip");
+    const deposits = useConvexQuery(api.deposits.listMine, signedIn ? { paginationOpts: { numItems: 5, cursor: null } } : "skip");
+
+    const chains = config.data?.chains ?? [];
+    const [chainId, setChainId] = useState<number | null>(null);
+    const [symbol, setSymbol] = useState<"USDC" | "USDT">("USDC");
+    const [amount, setAmount] = useState(String(MIN_TOPUP_USD));
+    const [busy, setBusy] = useState<"link" | "switch" | "send" | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [sentHash, setSentHash] = useState<string | null>(null);
+    const [refresh, setRefresh] = useState(0);
+
+    // Default to the network the wallet is already on, when supported.
+    useEffect(() => {
+      if (chainId !== null || chains.length === 0) return;
+      setChainId(chains.some((c) => c.chainId === wallet.chainId) ? wallet.chainId : chains[0].chainId);
+    }, [chains.length, wallet.chainId]);
+
+    useEffect(() => {
+      dialogRef.current?.focus();
+      const escape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+      window.addEventListener("keydown", escape);
+      return () => window.removeEventListener("keydown", escape);
+    }, [onClose]);
+
+    const chain = chains.find((c) => c.chainId === chainId) ?? null;
+    const token = chain?.tokens.find((t) => t.symbol === symbol) ?? chain?.tokens[0] ?? null;
+    const address = wallet.address;
+    const isLinked = Boolean(address && linked.data?.some((a) => a.toLowerCase() === address.toLowerCase()));
+    const onChain = wallet.chainId === chainId && wallet.isChainSupported;
+    const balance = useStableBalance(chainId, (token?.address as Address) ?? null, address, refresh);
+    const value = Number(amount);
+    const valid = Number.isFinite(value) && value >= MIN_TOPUP_USD && Math.round(value * 100) === value * 100;
+    const insufficient = balance !== null && valid && value > balance;
+    const tracked = sentHash ? deposits.data?.page.find((d) => d.txHash === sentHash.toLowerCase()) : undefined;
+
+    const run = async (kind: "link" | "switch" | "send", task: () => Promise<void>) => {
+      setBusy(kind);
+      setError(null);
+      try {
+        await task();
+      } catch (e) {
+        setError(e instanceof Error && /Uncaught Error/.test(e.message) ? convexErrorMessage(e) : walletErrorMessage(e));
+      } finally {
+        setBusy(null);
+      }
+    };
+
+    const link = () =>
+      run("link", async () => {
+        if (!address || !me.data) throw new Error("Connect a wallet first.");
+        const issuedAt = new Date().toISOString();
+        const checksum = getAddress(address);
+        const signature = await wallet.signMessage({ account: checksum, message: linkWalletMessage(me.data._id, checksum, issuedAt) });
+        try {
+          await convex!.action(api.deposits.linkWallet, { address: checksum, issuedAt, signature });
+        } catch (e) {
+          throw new Error(convexErrorMessage(e));
+        }
+      });
+
+    const switchNetwork = () => run("switch", async () => { if (chainId) await wallet.switchChain(chainId); });
+
+    const send = () =>
+      run("send", async () => {
+        if (!address || !chain || !token || !config.data) return;
+        const viemChain = wallet.chains.find((c) => c.id === chain.chainId);
+        const data = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [config.data.address as Address, usdToUnits(value)],
+        });
+        const hash: Hex = await wallet.sendTransaction({ account: address, chain: viemChain, to: token.address as Address, data });
+        setSentHash(hash);
+        try {
+          await convex!.mutation(api.deposits.submit, { chainId: chain.chainId, txHash: hash });
+        } catch (e) {
+          throw new Error(`Sent, but registering it failed: ${convexErrorMessage(e)}. Keep the transaction hash ${hash}.`);
+        }
+        setRefresh((n) => n + 1);
+      });
+
+  .wallet-modal-backdrop(
+    ~ role="presentation"
+    ~ onMouseDown={(event) => {
+    ~ if (event.target === event.currentTarget)
+    ~ onClose();
+    ~ }}
+    ~ )
+    section.wallet-modal.topup(ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="topup-title" tabIndex={-1})
+      header.wallet-modal-head
+        div
+          h2#topup-title Top up
+          p.ui-eyebrow USD balance #{usdBalance.data === undefined || usdBalance.data === null ? "—" : usd(usdBalance.data)} · USDC or USDT, min #{usd(MIN_TOPUP_USD)}
+        button.wallet-modal-close(type="button" aria-label="Close" onClick={onClose}) ×
+
+      if !signedIn
+        p.topup-note Sign in to top up — deposits are credited to your account.
+      elseif config.data === undefined
+        p.topup-note Loading…
+      elseif config.data === null
+        p.topup-note Top-ups aren’t enabled on this deployment.
+      elseif !address
+        p.topup-note Connect a wallet with the wallet button to top up from it.
+      elseif !isLinked
+        .topup-step
+          p.topup-note Link #{short(address)} to your account first. You’ll sign a message — it doesn’t send a transaction or cost gas, and lets us credit top-ups sent from this wallet.
+          button.sim-submit.is-up(type="button" disabled={busy !== null || linked.data === undefined || !me.data} onClick={link}) #{busy === "link" ? "Check your wallet…" : "Link wallet"}
+      elseif tracked || sentHash
+        .topup-step
+          if tracked
+            .topup-status(data-status={tracked.status})
+              strong #{STATUS_LABEL[tracked.status]}
+              span #{tracked.status === "credited" ? `${usd(tracked.amountUsd ?? 0)} added to your USD balance.` : tracked.status === "pending" ? `${tracked.confirmations ?? 0}/${tracked.requiredConfirmations} confirmations · ${tracked.reason ?? "Waiting for the transaction to be mined."}` : tracked.reason ?? ""}
+          else
+            .topup-status(data-status="pending")
+              strong Registering
+              span Sent — telling the server about it…
+          a.topup-link(href={explorerTx(chainId ?? 1, sentHash ?? "")} target="_blank" rel="noreferrer") View transaction ↗
+          button.sim-submit.sim-close(type="button" onClick={() => { setSentHash(null); setError(null); }}) #{tracked?.status === "pending" ? "Top up again" : "Done"}
+      else
+        .topup-step
+          .topup-field
+            span Network
+            .sim-chips
+              each c in chains key c.chainId
+                button(type="button" className={cn("sim-chip", c.chainId === chainId && "is-active")} onClick={() => setChainId(c.chainId)}) #{c.name}
+          .topup-field
+            span Token
+            .sim-chips
+              each t in chain?.tokens ?? [] key t.symbol
+                button(type="button" className={cn("sim-chip", token?.symbol === t.symbol && "is-active")} onClick={() => setSymbol(t.symbol)}) #{t.symbol}
+          label.sim-field
+            span Amount (USD)
+            .sim-input
+              span $
+              input(
+                ~ type="number"
+                ~ inputMode="decimal"
+                ~ min={MIN_TOPUP_USD}
+                ~ step="0.01"
+                ~ value={amount}
+                ~ onInput={(e: Event) => setAmount((e.target as HTMLInputElement).value)}
+                ~ )
+              span #{token?.symbol ?? ""}
+          .sim-chips
+            each q in [25, 50, 100, 250] key q
+              button(type="button" className={cn("sim-chip", value === q && "is-active")} onClick={() => setAmount(String(q))}) $#{q}
+          dl.sim-rows
+            .sim-row
+              dt From
+              dd #{short(address)}
+            .sim-row
+              dt Wallet balance
+              dd(className={insufficient ? "is-down" : undefined}) #{balance === null ? "—" : `${usd(balance)} ${token?.symbol ?? ""}`}
+            .sim-row
+              dt To (deposit address)
+              dd(title={config.data.address}) #{short(config.data.address)}
+            .sim-row
+              dt Credited after
+              dd #{chain ? `${chain.confirmations} confirmations` : "—"}
+          if !valid
+            p.sim-error Minimum top-up is #{usd(MIN_TOPUP_USD)} (whole cents).
+          elseif insufficient
+            p.sim-error Not enough #{token?.symbol} on #{chain?.name}.
+          if !onChain
+            button.sim-submit.sim-close(type="button" disabled={busy !== null || !chain} onClick={switchNetwork}) #{busy === "switch" ? "Check your wallet…" : `Switch wallet to ${chain?.name ?? "network"}`}
+          else
+            button.sim-submit.is-up(type="button" disabled={busy !== null || !valid || insufficient || !token} onClick={send}) #{busy === "send" ? "Confirm in your wallet…" : `Send ${valid ? usd(value) : ""} ${token?.symbol ?? ""}`}
+          if chain?.testnet
+            p.topup-note Testnet: enabled for development only.
+
+      if error
+        p.wallet-modal-error(role="alert") #{error}
+
+      if signedIn && deposits.data && deposits.data.page.length > 0
+        .topup-history
+          span.pos-label Recent top-ups
+          each d in deposits.data.page key d._id
+            a.topup-row(href={explorerTx(d.chainId, d.txHash)} target="_blank" rel="noreferrer" data-status={d.status})
+              span #{d.amountUsd !== undefined ? usd(d.amountUsd) : short(d.txHash)}
+              span #{STATUS_LABEL[d.status]}
+
+props { open, onClose }: ModalProps
+if open
+  | #{createPortal(createElement(Dialog, { onClose }), document.body)}

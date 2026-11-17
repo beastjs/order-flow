@@ -1,0 +1,26 @@
+import { Link } from "@octanejs/tanstack-router";
+import { useAvailableBalance } from "@/hooks/usePaperAccount";
+import { cn } from "@/lib/utils";
+// ─── Available balance pill ─────────────────────────────────────
+// Free paper trading balance (signed in: your account; signed out:
+// practice). Links to your open positions.
+module
+  const full = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const compact = (v: number) =>
+    `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: v >= 1000 ? 1 : 2 }).format(v)}`
+
+setup
+  const { mode, balance } = useAvailableBalance();
+  const title = mode === "cloud" ? "Available paper balance · your account" : "Available practice balance · sign in to save";
+
+Link(
+  ~ to="/predictions"
+  ~ search={{ tab: "positions" }}
+  ~ className={cn("balance-pill", mode === "cloud" && "is-cloud")}
+  ~ title={title}
+  ~ aria-label={balance === null ? "Available balance loading" : `Available balance ${full(balance)}`}
+  ~ )
+  span.balance-pill-dot(aria-hidden)
+  span.balance-pill-label Available
+  span.balance-pill-value.is-full #{balance === null ? "—" : full(balance)}
+  span.balance-pill-value.is-compact #{balance === null ? "—" : compact(balance)}

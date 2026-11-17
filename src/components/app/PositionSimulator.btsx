@@ -1,7 +1,7 @@
-import { useEffect, useState } from "octane";
+import { useEffect, useRef, useState } from "octane";
 import type { OkxTicker } from "@/lib/okx";
 import { MAINT_MARGIN, TAKER_FEE, liquidationPrice, metrics, openPosition, type PaperSide } from "@/lib/paper/math";
-import { usePaperAccount, type SimResult } from "@/hooks/usePaperAccount";
+import { maxMargin, usePaperAccount, type SimResult } from "@/hooks/usePaperAccount";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,13 @@ setup
   const account = usePaperAccount(instId);
   const position = account.position;
   const [side, setSide] = useState<PaperSide>("up");
-  const [amount, setAmount] = useState("100");
+  const [amount, setAmount] = useState("");
+  // Until the user types an amount, it follows the available balance.
+  const touched = useRef(false);
+  const typeAmount = (value: string) => {
+    touched.current = true;
+    setAmount(value);
+  };
   const [leverage, setLeverage] = useState(Math.min(10, maxLeverage));
   const [error, setError] = useState<string | null>(null);
   const [lastFill, setLastFill] = useState<SimResult | null>(null);
@@ -40,6 +46,9 @@ setup
   const exitFor = (s: PaperSide) => (s === "up" ? quote.bid : quote.ask);
 
   const margin = Number(amount);
+  const available = account.balance;
+  const affordable = available === null ? null : maxMargin(available, leverage);
+  const overBalance = affordable !== null && margin > affordable;
   const entryEst = entryFor(side);
   const preview = margin > 0 && entryEst ? openPosition(instId, side, margin, leverage, entryEst) : null;
   const live = position && mark ? metrics(position, mark) : null;
@@ -79,16 +88,23 @@ setup
       return err;
     });
   const setFraction = (f: number) => {
-    const max = (account.balance ?? 0) / (1 + leverage * TAKER_FEE);
-    setAmount(String(Math.floor(max * f * 100) / 100));
+    const max = maxMargin(account.balance ?? 0, leverage);
+    typeAmount(String(f === 1 ? max : Math.floor(max * f * 100) / 100));
   };
+
+  // Default the amount to 10% of what's available once the balance is known
+  // (and again after signing in/out), unless the user has typed one.
+  useEffect(() => {
+    if (account.balance === null || touched.current) return;
+    const tenth = Math.floor(maxMargin(account.balance, leverage) * 0.1);
+    setAmount(tenth >= 1 ? String(tenth) : "");
+  }, [account.balance === null, account.mode]);
 
 section.sim(data-side={position?.side ?? side} data-mode={account.mode})
   header.sim-head
     h2 Simulate a position
     span.sim-balance
-      | Paper balance #{usd(account.balance)}
-      button.sim-link(type="button" disabled={busy !== null} onClick={reset}) Reset
+      button.sim-link(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset balance
   p(className={cn("sim-mode", account.mode === "cloud" && "is-cloud")})
     span.sim-mode-dot
     | #{account.mode === "cloud" ? "Saved to your account · priced by the server" : account.loading ? "Checking your account…" : "Practice mode · sign in to save positions"}
@@ -136,9 +152,13 @@ section.sim(data-side={position?.side ?? side} data-mode={account.mode})
             ~ min="0"
             ~ step="any"
             ~ value={amount}
-            ~ onInput={(e: Event) => setAmount((e.target as HTMLInputElement).value)}
+            ~ placeholder="0.00"
+            ~ onInput={(e: Event) => typeAmount((e.target as HTMLInputElement).value)}
             ~ )
           span USDT
+      button.sim-available(type="button" disabled={!affordable} onClick={() => setFraction(1)} title="Use the maximum at this multiplier")
+        span Available #{usd(available)}
+        span Max #{usd(affordable)} at #{leverage}×
       .sim-chips
         each f in [0.1, 0.25, 0.5, 1] key f
           button.sim-chip(type="button" onClick={() => setFraction(f)}) #{f === 1 ? "Max" : `${f * 100}%`}
@@ -174,7 +194,9 @@ section.sim(data-side={position?.side ?? side} data-mode={account.mode})
           dt Fee (#{(TAKER_FEE * 100).toFixed(2)}%)
           dd #{preview ? usd(preview.openFee) : "—"}
 
-      button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={!preview || busy !== null} onClick={submit})
+      if overBalance
+        p.sim-error Exceeds your available balance — max #{usd(affordable)} at #{leverage}× (amount + #{(TAKER_FEE * 100).toFixed(2)}% fee on the position).
+      button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={!preview || overBalance || busy !== null} onClick={submit})
         | #{busy === "open" ? "Placing…" : `${side === "up" ? "Go Up" : "Go Down"} ${leverage}× · ${preview ? usd(margin) : ""}`}
 
   if error
