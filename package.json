@@ -10,7 +10,9 @@
     "typecheck": "tsrx-tsc --noEmit",
     "check": "bun run typecheck && bun run build",
     "icons:build": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts",
-    "icons:check": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts --check"
+    "icons:check": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts --check",
+    "fb:claims": "bun run scripts/firebase/seed-claims.ts",
+    "fb:check": "bunx @beastjs/auth --check"
   },
   "dependencies": {
     "@nktkas/hyperliquid": "^0.33.3",
@@ -22,6 +24,9 @@
     "beast-tsrx": "0.16.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "convex": "^1.50.0",
+    "firebase": "^13.4.0",
+    "firebase-admin": "^14.5.1",
     "octane": "0.16.0",
     "tailwind-merge": "^3.7.0",
     "viem": "^2.57.17"

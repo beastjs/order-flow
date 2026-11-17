@@ -1,62 +1,9 @@
 import { useRef, useState } from "octane";
 import { okxChangePct, useInView, useOkxSparkline, useOkxTicker } from "@/hooks/useOkx";
-import { CRYPTO_SYMBOLS } from "@/lib/config/instruments";
-import type { OkxPerpCategory, OkxTicker } from "@/lib/okx";
+import { Link } from "@octanejs/tanstack-router";
+import type { OkxTicker } from "@/lib/okx";
+import { assetIdOf, CATEGORY_LABEL, fmtCompact, fmtPrice, sparkPaths, type AssetIndexItem } from "./assetFormat";
 import { cn } from "@/lib/utils";
-
-module
-  export interface AssetIndexItem {
-    instId: string
-    base: string
-    category: OkxPerpCategory
-    tickSz?: number
-    maxLeverage?: number
-    preMarket?: boolean
-  }
-
-  const CATEGORY_LABEL: Record<OkxPerpCategory, string> = {
-    crypto: "Crypto",
-    stock: "Equity",
-    commodity: "Commodity",
-    other: "Perp",
-  }
-
-  function decimalsFor(price: number, tickSz?: number): number {
-    if (tickSz && tickSz > 0) return Math.min(8, Math.max(0, Math.round(-Math.log10(tickSz))))
-    if (!(price > 0)) return 2
-    return price >= 1000 ? 1 : price >= 1 ? 2 : Math.min(8, 2 - Math.floor(Math.log10(price)) + 1)
-  }
-
-  function fmtPrice(price: number, tickSz?: number): string {
-    if (!Number.isFinite(price)) return "—"
-    const d = decimalsFor(price, tickSz)
-    return price.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })
-  }
-
-  function fmtCompact(value: number): string {
-    if (!Number.isFinite(value) || value <= 0) return "—"
-    return Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)
-  }
-
-  /** SVG line + area for a list of closes, scaled into a w×h box. */
-  function sparkPaths(values: number[], w: number, h: number): { line: string; area: string } | null {
-    const pts = values.filter(Number.isFinite)
-    if (pts.length < 2) return null
-    const lo = Math.min(...pts)
-    const hi = Math.max(...pts)
-    const span = hi - lo || hi * 0.001 || 1
-    const step = w / (pts.length - 1)
-    const xy = pts.map((v, i) => [i * step, h - 2 - ((v - lo) / span) * (h - 4)] as const)
-    const line = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
-    return { line, area: `${line} L${w},${h} L0,${h} Z` }
-  }
-
-  export function terminalHref(item: AssetIndexItem): string | null {
-    const symbol = `${item.base}USDT`
-    return item.category === "crypto" && CRYPTO_SYMBOLS.includes(symbol)
-      ? `/terminal?market=perpetual&symbol=${symbol}&venue=okx-futures`
-      : null
-  }
 
 component AssetGlyph
   props { base }: { base: string }
@@ -88,35 +35,32 @@ setup
   const change = okxChangePct(ticker, "24h");
   const up = (change ?? 0) >= 0;
   const turnover = ticker ? ticker.volCcy24h * ticker.last : NaN;
-  const href = terminalHref(item);
   const gradId = `spark-${item.instId}`;
 
-article.asset-index(ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
-  header.asset-index-head
-    AssetGlyph(base={item.base})
-    .asset-index-name
-      strong #{item.base}
-      span #{CATEGORY_LABEL[item.category]} · Perp
-    if item.preMarket
-      span.asset-index-tag Pre-IPO
-    elseif item.maxLeverage
-      span.asset-index-tag #{item.maxLeverage}×
-  .asset-index-price
-    span.asset-index-last #{ticker ? fmtPrice(ticker.last, item.tickSz) : "—"}
-    span(className={cn("asset-index-change", up ? "is-up" : "is-down")})
-      | #{change === null ? "" : `${up ? "+" : ""}${change.toFixed(2)}%`}
-  svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
-    defs
-      linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")
-        stop(offset="0%" stop-color="currentColor" stop-opacity="0.22")
-        stop(offset="100%" stop-color="currentColor" stop-opacity="0")
-    if paths
-      g
-        path(d={paths.area} fill={`url(#${gradId})`})
-        path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
-  footer.asset-index-foot
-    span Vol #{fmtCompact(turnover)}
-    if href
-      a.asset-index-link(href={href}) Open in terminal →
-    else
+Link.asset-index-link(to="/predictions/$assetId" params={{ assetId: assetIdOf(item) }} aria-label={`${item.base} perpetual`})
+  article.asset-index(ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
+    header.asset-index-head
+      AssetGlyph(base={item.base})
+      .asset-index-name
+        strong #{item.base}
+        span #{CATEGORY_LABEL[item.category]} · Perp
+      if item.preMarket
+        span.asset-index-tag Pre-IPO
+      elseif item.maxLeverage
+        span.asset-index-tag #{item.maxLeverage}×
+    .asset-index-price
+      span.asset-index-last #{ticker ? fmtPrice(ticker.last, item.tickSz) : "—"}
+      span(className={cn("asset-index-change", up ? "is-up" : "is-down")})
+        | #{change === null ? "" : `${up ? "+" : ""}${change.toFixed(2)}%`}
+    svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
+      defs
+        linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")
+          stop(offset="0%" stop-color="currentColor" stop-opacity="0.22")
+          stop(offset="100%" stop-color="currentColor" stop-opacity="0")
+      if paths
+        g
+          path(d={paths.area} fill={`url(#${gradId})`})
+          path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
+    footer.asset-index-foot
+      span Vol #{fmtCompact(turnover)}
       span #{ticker ? `H ${fmtPrice(ticker.high24h, item.tickSz)} · L ${fmtPrice(ticker.low24h, item.tickSz)}` : ""}

@@ -1,0 +1,155 @@
+import { useEffect, useState, useSyncExternalStore } from "octane";
+import type { OkxTicker } from "@/lib/okx";
+import { MAINT_MARGIN, TAKER_FEE, liquidationPrice, metrics, openPosition, paperStore, type PaperFill, type PaperSide } from "@/lib/paper/paper";
+import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
+import { cn } from "@/lib/utils";
+
+module
+  const usd = (v: number, signed = false) =>
+    `${signed && v > 0 ? "+" : v < 0 ? "−" : ""}$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  function leverageStops(max: number): number[] {
+    return [...new Set([1, 2, 5, 10, 20, 50, 100].filter((x) => x < max).concat(max))]
+  }
+
+props { instId, base, tickSz, maxLeverage, ticker, markPx }: { instId: string; base: string; tickSz?: number; maxLeverage: number; ticker: OkxTicker | null; markPx?: number }
+setup
+  const paper = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  const position = paper.positions[instId];
+  const [side, setSide] = useState<PaperSide>("up");
+  const [amount, setAmount] = useState("100");
+  const [leverage, setLeverage] = useState(Math.min(10, maxLeverage));
+  const [error, setError] = useState<string | null>(null);
+  const [lastFill, setLastFill] = useState<PaperFill | null>(null);
+
+  useEffect(() => {
+    setLeverage((l) => Math.min(Math.max(1, l), maxLeverage));
+  }, [maxLeverage]);
+
+  const last = ticker?.last;
+  const mark = markPx ?? last;
+  // Market orders cross the spread: buy at ask, sell at bid.
+  const entryFor = (s: PaperSide) => (s === "up" ? ticker?.askPx : ticker?.bidPx) || last;
+  const exitFor = (s: PaperSide) => (s === "up" ? ticker?.bidPx : ticker?.askPx) || last;
+
+  const margin = Number(amount);
+  const entryEst = entryFor(side);
+  const preview = margin > 0 && entryEst ? openPosition(instId, side, margin, leverage, entryEst) : null;
+  const live = position && mark ? metrics(position, mark) : null;
+
+  // Simulated exchange risk engine: liquidate when mark crosses the liq price.
+  useEffect(() => {
+    if (!position || !mark) return;
+    const liq = liquidationPrice(position);
+    if (position.side === "up" ? mark <= liq : mark >= liq) setLastFill(paperStore.close(instId, liq, true));
+  }, [position, mark, instId]);
+
+  const submit = () => {
+    const err = paperStore.open(instId, side, margin, leverage, entryFor(side) ?? 0);
+    setError(err);
+    if (!err) setLastFill(null);
+  };
+  const close = () => {
+    if (!position) return;
+    setLastFill(paperStore.close(instId, exitFor(position.side) ?? 0));
+  };
+  const setFraction = (f: number) => {
+    const max = paper.balance / (1 + leverage * TAKER_FEE);
+    setAmount(String(Math.floor(max * f * 100) / 100));
+  };
+
+section.sim(data-side={position?.side ?? side})
+  header.sim-head
+    h2 Simulate a position
+    span.sim-balance
+      | Paper balance #{usd(paper.balance)}
+      button.sim-link(type="button" onClick={() => { paperStore.reset(); setLastFill(null); setError(null); }}) Reset
+
+  if position && live
+    .sim-open
+      .sim-open-top
+        span(className={cn("sim-badge", position.side === "up" ? "is-up" : "is-down")}) #{position.side === "up" ? "▲ Up" : "▼ Down"} #{position.leverage}×
+        span.sim-muted #{fmtSize(position.size)} #{base} · #{usd(position.margin)} margin
+      .sim-pnl
+        strong(className={live.pnl >= 0 ? "is-up" : "is-down"}) #{usd(live.pnl, true)}
+        span(className={live.roe >= 0 ? "is-up" : "is-down"}) #{fmtPct(live.roe)} ROE
+      dl.sim-rows
+        .sim-row
+          dt Entry
+          dd #{fmtPrice(position.entry, tickSz)}
+        .sim-row
+          dt Mark
+          dd #{fmtPrice(mark, tickSz)}
+        .sim-row
+          dt Liq. price (est.)
+          dd.is-down #{fmtPrice(live.liq, tickSz)}
+        .sim-row
+          dt Notional
+          dd #{usd(live.notional)}
+      .sim-risk(title="Distance from liquidation")
+        .sim-risk-bar(style={{ width: `${live.safety * 100}%` }} data-danger={live.safety < 0.25 ? "1" : "0"})
+      button.sim-submit.sim-close(type="button" onClick={close}) Close position · #{usd(live.pnl - position.openFee - position.size * (exitFor(position.side) ?? 0) * TAKER_FEE, true)}
+  else
+    .sim-form
+      .sim-sides(role="radiogroup" aria-label="Direction")
+        button(type="button" role="radio" aria-checked={side === "up"} className={cn("sim-side is-up", side === "up" && "is-active")} onClick={() => setSide("up")}) ▲ Up
+        button(type="button" role="radio" aria-checked={side === "down"} className={cn("sim-side is-down", side === "down" && "is-active")} onClick={() => setSide("down")}) ▼ Down
+
+      label.sim-field
+        span Amount (margin)
+        .sim-input
+          span $
+          input(
+            ~ type="number"
+            ~ inputMode="decimal"
+            ~ min="0"
+            ~ step="any"
+            ~ value={amount}
+            ~ onInput={(e: Event) => setAmount((e.target as HTMLInputElement).value)}
+            ~ )
+          span USDT
+      .sim-chips
+        each f in [0.1, 0.25, 0.5, 1] key f
+          button.sim-chip(type="button" onClick={() => setFraction(f)}) #{f === 1 ? "Max" : `${f * 100}%`}
+
+      label.sim-field
+        span.sim-field-head
+          | Multiplier
+          strong #{leverage}×
+        input.sim-range(
+          ~ type="range"
+          ~ min="1"
+          ~ max={maxLeverage}
+          ~ step="1"
+          ~ value={leverage}
+          ~ style={{ "--fill": `${maxLeverage > 1 ? ((leverage - 1) / (maxLeverage - 1)) * 100 : 100}%` }}
+          ~ onInput={(e: Event) => setLeverage(Number((e.target as HTMLInputElement).value))}
+          ~ )
+      .sim-chips
+        each x in leverageStops(maxLeverage) key x
+          button(type="button" className={cn("sim-chip", leverage === x && "is-active")} onClick={() => setLeverage(x)}) #{x}×
+
+      dl.sim-rows
+        .sim-row
+          dt Position size
+          dd #{preview ? `${fmtSize(preview.size)} ${base}` : "—"}
+        .sim-row
+          dt Entry (est.)
+          dd #{fmtPrice(entryEst, tickSz)}
+        .sim-row
+          dt Liq. price (est.)
+          dd #{preview ? fmtPrice(liquidationPrice(preview), tickSz) : "—"}
+        .sim-row
+          dt Fee (#{(TAKER_FEE * 100).toFixed(2)}%)
+          dd #{preview ? usd(preview.openFee) : "—"}
+
+      button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={!preview} onClick={submit})
+        | #{side === "up" ? "Go Up" : "Go Down"} #{leverage}× · #{preview ? usd(margin) : ""}
+      if error
+        p.sim-error #{error}
+
+  if lastFill
+    p(className={cn("sim-result", lastFill.realized >= 0 ? "is-up" : "is-down")})
+      | #{lastFill.liquidated ? "Liquidated" : "Closed"} #{lastFill.side === "up" ? "Up" : "Down"} #{lastFill.leverage}× at #{fmtPrice(lastFill.exit, tickSz)} · #{usd(lastFill.realized, true)} (#{fmtPct((lastFill.realized / lastFill.margin) * 100)})
+
+  p.sim-note Simulated with live OKX prices · fills cross the spread · #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin · no real funds.

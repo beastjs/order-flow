@@ -6,7 +6,7 @@ import { fetchPerps, type OkxPerpCategory, type OkxPerpInstrument } from "@/lib/
 import { cn } from "@/lib/utils";
 
 module
-  import type { AssetIndexItem } from "@/components/app/AssetIndex.btsx"
+  import type { AssetIndexItem } from "@/components/app/assetFormat"
 
   type Filter = "all" | OkxPerpCategory
   type Sort = "volume" | "gainers" | "losers" | "name"

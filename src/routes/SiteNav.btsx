@@ -1,10 +1,11 @@
 import { Link } from "@octanejs/tanstack-router";
-import { Wordmark, GitHubIcon, REPO_URL } from "@/components/Logo.btsx";
+import { Wordmark } from "@/components/Logo.btsx";
+import WalletButton from "@/components/WalletButton.btsx";
 header.site-nav
   Link.site-brand(to="/")
     Wordmark(size={24})
   nav.site-links
     Link(to="/predictions" activeProps={{ className: "is-active" }}) Markets
     Link(to="/terminal" activeProps={{ className: "is-active" }}) Terminal
-    a.site-icon-link(href={REPO_URL} target="_blank" rel="noreferrer" aria-label="GitHub")
-      GitHubIcon(size={16})
+    .site-wallet
+      WalletButton

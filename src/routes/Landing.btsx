@@ -5,11 +5,18 @@ import { okxChangePct, useOkxPerps, useOkxTickers } from "@/hooks/useOkx";
 import { REPO_URL } from "@/components/Logo.btsx";
 
 module
-  import type { AssetIndexItem } from "@/components/app/AssetIndex.btsx"
+  import type { AssetIndexItem } from "@/components/app/assetFormat"
 
   const TAPE = [
     "BTC", "ETH", "NVDA", "SOL", "AAPL", "TSLA", "XAU", "HYPE", "MSFT", "DOGE", "META", "AMZN", "CL", "XRP", "GOOGL",
   ].map((base) => `${base}-USDT-SWAP`)
+
+  // Fixed decimals per magnitude, so a symbol's text width never changes tick to tick.
+  function tapePrice(last: number | undefined): string {
+    if (last === undefined || !Number.isFinite(last)) return "—"
+    const d = last >= 1000 ? 1 : last >= 10 ? 2 : 4
+    return last.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })
+  }
 
   const SHOWCASE: AssetIndexItem[] = [
     { instId: "BTC-USDT-SWAP", base: "BTC", category: "crypto", tickSz: 0.1, maxLeverage: 100 },
@@ -39,7 +46,6 @@ setup
   const tickers = useOkxTickers(TAPE, 1000);
   const stocks = useOkxPerps("stock").perps.length;
   const crypto = useOkxPerps("crypto").perps.length;
-  const tape = TAPE.filter((id) => tickers[id]);
 
 .site
   SiteNav
@@ -63,15 +69,15 @@ setup
   .lp-tape(aria-label="Live prices")
     .lp-tape-track
       each round in [0, 1] key round
-        each id in tape key `${round}-${id}`
+        each id in TAPE key `${round}-${id}`
           scope
             setup
               const t = tickers[id];
-              const pct = okxChangePct(t, "24h") ?? 0;
-            span.lp-tape-item
+              const pct = okxChangePct(t, "24h");
+            span.lp-tape-item(aria-hidden={round === 1 ? true : undefined})
               b #{id.split("-")[0]}
-              span #{t.last.toLocaleString("en-US", { maximumFractionDigits: t.last < 10 ? 4 : 2 })}
-              span(className={pct >= 0 ? "is-up" : "is-down"}) #{pct >= 0 ? "+" : ""}#{pct.toFixed(2)}%
+              span.lp-tape-px #{tapePrice(t?.last)}
+              span(className={pct === null ? "lp-tape-pct" : pct >= 0 ? "lp-tape-pct is-up" : "lp-tape-pct is-down"}) #{pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}
 
   section.lp-showcase
     each item in SHOWCASE key item.instId

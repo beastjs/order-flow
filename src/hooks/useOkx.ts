@@ -11,6 +11,11 @@ import {
   type OkxBook,
   type OkxCandle,
   type OkxEndpoint,
+  type OkxFundingRate,
+  type OkxIndexTicker,
+  type OkxMarkPrice,
+  type OkxOpenInterest,
+  type OkxTrade,
   type OkxPerpCategory,
   type OkxPerpInstrument,
   type OkxSocketStatus,
@@ -251,4 +256,54 @@ export function useInView<T extends Element>(rootMargin = '200px'): { ref: { cur
     return () => io.disconnect()
   }, [rootMargin])
   return { ref, visible, seen }
+}
+
+/** Latest value from any single-value OKX channel helper (funding, mark, OI, index…). */
+function useOkxLatest<T>(
+  subscribe: (id: string, cb: (v: T) => void) => () => void,
+  id: string | null | undefined,
+  throttleMs: number
+): T | null {
+  const [value, setValue] = useState<T | null>(null)
+  useEffect(() => {
+    setValue(null)
+    if (!id) return
+    const t = throttled(setValue, throttleMs)
+    const off = subscribe(id, t.push)
+    return () => {
+      off()
+      t.cancel()
+    }
+  }, [id, throttleMs])
+  return value
+}
+
+export const useOkxFunding = (instId: string | null | undefined, throttleMs = 1000) =>
+  useOkxLatest<OkxFundingRate>(okx.fundingRate, instId, throttleMs)
+export const useOkxMarkPrice = (instId: string | null | undefined, throttleMs = 500) =>
+  useOkxLatest<OkxMarkPrice>(okx.markPrice, instId, throttleMs)
+export const useOkxOpenInterest = (instId: string | null | undefined, throttleMs = 1000) =>
+  useOkxLatest<OkxOpenInterest>(okx.openInterest, instId, throttleMs)
+/** Index id is the family: "AAPL-USDT". */
+export const useOkxIndexTicker = (indexId: string | null | undefined, throttleMs = 500) =>
+  useOkxLatest<OkxIndexTicker>(okx.indexTicker, indexId, throttleMs)
+
+/** Most recent individual fills (business `trades-all`), newest first. */
+export function useOkxTrades(instId: string | null | undefined, max = 40, throttleMs = 200): OkxTrade[] {
+  const [trades, setTrades] = useState<OkxTrade[]>([])
+  useEffect(() => {
+    setTrades([])
+    if (!instId) return
+    let buf: OkxTrade[] = []
+    const t = throttled(setTrades, throttleMs)
+    const off = okx.tradesAll(instId, (trade) => {
+      buf = [trade, ...buf].slice(0, max)
+      t.push(buf)
+    })
+    return () => {
+      off()
+      t.cancel()
+    }
+  }, [instId, max, throttleMs])
+  return trades
 }
