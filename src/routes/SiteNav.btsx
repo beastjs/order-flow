@@ -1,6 +1,7 @@
 import { Link } from "@octanejs/tanstack-router";
 import { Wordmark } from "@/components/Logo.btsx";
 import WalletButton from "@/components/WalletButton.btsx";
+import SignButton from "@/components/SignButton.btsx";
 header.site-nav
   Link.site-brand(to="/")
     Wordmark(size={24})
@@ -9,3 +10,4 @@ header.site-nav
     Link(to="/terminal" activeProps={{ className: "is-active" }}) Terminal
     .site-wallet
       WalletButton
+      SignButton

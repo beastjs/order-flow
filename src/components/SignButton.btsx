@@ -1,0 +1,102 @@
+import { createElement, useState } from "octane";
+import { Icon } from "@/lib/icons";
+import Menu, { MenuSection } from "./ui/Menu.btsx";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
+import { getAccountLabel } from "@/lib/firebase/accounts";
+// ─── Sign-in button ─────────────────────────────────────────────
+// Signed out: an icon-only button that opens Google sign-in.
+// Signed in: the user's avatar, opening a menu with the account,
+// previously used accounts to switch to, and sign out.
+module
+  // Closing the Google popup is the user changing their mind, not an error.
+  const QUIET_ERRORS = new Set(["auth/popup-closed-by-user", "auth/cancelled-popup-request"])
+
+  function errorMessage(error: unknown): string | null {
+    const code = (error as { code?: string })?.code
+    if (code && QUIET_ERRORS.has(code)) return null
+    if (code === "auth/popup-blocked") return "Allow pop-ups for this site to sign in."
+    return error instanceof Error ? error.message : "Sign-in failed."
+  }
+
+  function initials(name: string | null | undefined, email: string | null | undefined): string {
+    const source = (name || email || "?").trim()
+    const parts = source.split(/[\s@._-]+/).filter(Boolean)
+    return ((parts[0]?.[0] ?? "?") + (name && parts[1] ? parts[1][0] : "")).toUpperCase()
+  }
+
+component Avatar
+  props { photoURL, name, email, size = 28 }: { photoURL: string | null; name: string | null; email: string | null; size?: number }
+  setup const [failed, setFailed] = useState(false);
+  span.account-avatar(style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }} aria-hidden)
+    if photoURL && !failed
+      // Google profile photos 403 when a Referer is sent.
+      img(src={photoURL} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)})
+    else
+      span #{initials(name, email)}
+
+component Item
+  props { label, hint, disabled, onClick }: { label: string; hint?: string; disabled?: boolean; onClick: VoidFunction }
+  button(className="menu-item menu-action" type="button" role="menuitem" disabled={disabled} onClick={onClick})
+    span.menu-item-text
+      span #{label}
+      if hint
+        small #{hint}
+
+component AccountItems
+  props { onError }: { onError: (message: string | null) => void }
+  setup
+    const { user } = useFirebaseUser();
+    const accounts = useRememberedAccounts();
+    const others = accounts.filter((a) => a.uid !== user?.uid && a.email);
+    const run = (task: Promise<unknown>) => task.then(() => onError(null), (e) => onError(errorMessage(e)));
+  .account-menu
+    if user
+      .account-menu-head
+        Avatar(photoURL={user.photoURL} name={user.displayName} email={user.email} size={36})
+        .account-menu-id
+          strong #{user.displayName ?? user.email ?? "Signed in"}
+          if user.displayName && user.email
+            span #{user.email}
+    if others.length
+      MenuSection(title="Switch account")
+        each a in others key a.uid
+          Item(label={getAccountLabel(a)} hint={a.displayName ? a.email ?? undefined : undefined} onClick={() => run(signInWithGoogle(a.email ?? undefined))})
+    MenuSection(title="Session")
+      Item(label="Use another account" onClick={() => run(signInWithGoogle())})
+      Item(label="Sign out" onClick={() => run(signOutUser())})
+
+setup
+  const { user, isLoading } = useFirebaseUser();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const signIn = () => {
+    setBusy(true);
+    setError(null);
+    signInWithGoogle()
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => setBusy(false));
+  };
+  const label = !isFirebaseConfigured ? "Sign-in unavailable" : error ?? (busy ? "Signing in…" : "Sign in with Google");
+
+fragment
+  if user
+    Menu(
+      ~ hint="Account"
+      ~ buttonClassName="account-trigger"
+      ~ label={createElement(Avatar, { photoURL: user.photoURL, name: user.displayName, email: user.email })}
+      ~ )
+      AccountItems(onError={setError})
+  else
+    button(
+      ~ className="ui-button account-signin"
+      ~ type="button"
+      ~ aria-label={label}
+      ~ title={label}
+      ~ data-hint={label}
+      ~ data-error={error ? "1" : undefined}
+      ~ aria-busy={busy || isLoading}
+      ~ disabled={!isFirebaseConfigured || busy}
+      ~ onClick={signIn}
+      ~ )
+      Icon(name="user" size={18})
