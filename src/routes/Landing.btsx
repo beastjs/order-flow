@@ -1,0 +1,112 @@
+import { Link } from "@octanejs/tanstack-router";
+import SiteNav from "./SiteNav.btsx";
+import AssetIndex from "@/components/app/AssetIndex.btsx";
+import { okxChangePct, useOkxPerps, useOkxTickers } from "@/hooks/useOkx";
+import { REPO_URL } from "@/components/Logo.btsx";
+
+module
+  import type { AssetIndexItem } from "@/components/app/AssetIndex.btsx"
+
+  const TAPE = [
+    "BTC", "ETH", "NVDA", "SOL", "AAPL", "TSLA", "XAU", "HYPE", "MSFT", "DOGE", "META", "AMZN", "CL", "XRP", "GOOGL",
+  ].map((base) => `${base}-USDT-SWAP`)
+
+  const SHOWCASE: AssetIndexItem[] = [
+    { instId: "BTC-USDT-SWAP", base: "BTC", category: "crypto", tickSz: 0.1, maxLeverage: 100 },
+    { instId: "NVDA-USDT-SWAP", base: "NVDA", category: "stock", tickSz: 0.01, maxLeverage: 20 },
+    { instId: "XAU-USDT-SWAP", base: "XAU", category: "commodity", tickSz: 0.01 },
+  ]
+
+  const FEATURES = [
+    {
+      k: "01",
+      title: "Footprint, not candles",
+      body: "Every bar opened up: bid × ask volume at each price, delta, imbalances and the point of control — as it prints.",
+    },
+    {
+      k: "02",
+      title: "Liquidity you can see",
+      body: "A resting-book heatmap and depth ladder show where size is waiting, pulled or spoofed before price gets there.",
+    },
+    {
+      k: "03",
+      title: "One tape, every venue",
+      body: "Binance, Bybit, OKX, Bitget, Hyperliquid and Deribit merged into a single stream, with liquidations, OI and funding.",
+    },
+  ]
+
+setup
+  const tickers = useOkxTickers(TAPE, 1000);
+  const stocks = useOkxPerps("stock").perps.length;
+  const crypto = useOkxPerps("crypto").perps.length;
+  const tape = TAPE.filter((id) => tickers[id]);
+
+.site
+  SiteNav
+
+  section.lp-hero
+    p.lp-eyebrow
+      span.lp-live-dot
+      | Live order flow · crypto & equity perpetuals
+    h1.lp-hero-title
+      | Read the tape,
+      br
+      em not the noise.
+    p.lp-hero-sub
+      | A footprint terminal for traders who want to see who is actually buying.
+      | Trades, books, liquidations and funding from six venues — and every OKX
+      | perpetual, from Bitcoin to Apple — streamed straight to your browser.
+    .lp-hero-cta
+      Link.lp-btn.lp-btn-primary(to="/terminal") Open the terminal
+      Link.lp-btn.lp-btn-ghost(to="/predictions") Browse #{stocks + crypto > 0 ? `${stocks + crypto} ` : ""}markets
+
+  .lp-tape(aria-label="Live prices")
+    .lp-tape-track
+      each round in [0, 1] key round
+        each id in tape key `${round}-${id}`
+          scope
+            setup
+              const t = tickers[id];
+              const pct = okxChangePct(t, "24h") ?? 0;
+            span.lp-tape-item
+              b #{id.split("-")[0]}
+              span #{t.last.toLocaleString("en-US", { maximumFractionDigits: t.last < 10 ? 4 : 2 })}
+              span(className={pct >= 0 ? "is-up" : "is-down"}) #{pct >= 0 ? "+" : ""}#{pct.toFixed(2)}%
+
+  section.lp-showcase
+    each item in SHOWCASE key item.instId
+      AssetIndex(item={item})
+
+  section.lp-stats
+    .lp-stat
+      strong #{crypto || "290"}
+      span Crypto perpetuals
+    .lp-stat
+      strong #{stocks || "230"}
+      span US equity perpetuals
+    .lp-stat
+      strong 6
+      span Venues, one tape
+    .lp-stat
+      strong 0
+      span Accounts required
+
+  section.lp-features
+    each f in FEATURES key f.k
+      article.lp-feature
+        span.lp-feature-k #{f.k}
+        h3 #{f.title}
+        p #{f.body}
+
+  section.lp-closing
+    h2
+      | The market is talking.
+      br
+      em Start listening.
+    .lp-hero-cta
+      Link.lp-btn.lp-btn-primary(to="/terminal") Open the terminal
+      a.lp-btn.lp-btn-ghost(href={REPO_URL} target="_blank" rel="noreferrer") View source
+
+  footer.site-foot
+    span Market data streamed from public exchange APIs. Not investment advice.
+    span © #{new Date().getFullYear()} SuperCEX

@@ -13,5 +13,6 @@ export default defineConfig({
     },
   },
   html: { template: "./index.html" },
+  server: { historyApiFallback: true },
   plugins: [pluginTailwindcss(), ...beastOctane({ octane: { profile: process.env.NODE_ENV !== "production" } }), beastDevtools(), beastPageBuilder()],
 });

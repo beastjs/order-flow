@@ -1,17 +1,122 @@
-a(
-  ~ href="https://trench.io/markets/AAPL"
-  ~ class="flex box-border w-[233.602px] h-[129.5px] min-w-[auto] min-h-[auto] pt-[16px] pr-[16px] pb-[16px] pl-[16px] flex-col gap-y-[24px] gap-x-[24px] text-[rgb(255,_255,_255)] [font-family:Inter,_Inter_Fallback,_Noto_Sans_KR,_Noto_Sans_KR_Fallback,_ui-sans-serif,_system-ui,_-apple-system,_Segoe_UI,_Roboto,_Helvetica,_Arial,_sans-serif] leading-[24px] [font-feature-settings:calt_0,_cv09,_liga_0,_ss11] bg-[rgb(19,_19,_19)] [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)] rounded-tl-[16px] rounded-tr-[16px] rounded-br-[16px] rounded-bl-[16px] shadow-[rgba(0,_0,_0,_0)_0px_0px_0px_0px,_rgba(0,_0,_0,_0)_0px_0px_0px_0px,_rgba(11,_11,_11,_0.424)_0px_1.89679px_3.69038px_0px_inset] opacity-[0.935243]"
-  ~ )
-  div(class="flex box-border w-[201.602px] h-[40.5px] items-center gap-y-[8px] gap-x-[8px] [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)]")
-    span(class="flex box-border w-[32px] h-[32px] overflow-x-hidden overflow-y-hidden shrink-0 justify-center items-center bg-[rgb(28,_28,_28)] [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)] rounded-tl-[9999px] rounded-tr-[9999px] rounded-br-[9999px] rounded-bl-[9999px]")
+import { useRef, useState } from "octane";
+import { okxChangePct, useInView, useOkxSparkline, useOkxTicker } from "@/hooks/useOkx";
+import { CRYPTO_SYMBOLS } from "@/lib/config/instruments";
+import type { OkxPerpCategory, OkxTicker } from "@/lib/okx";
+import { cn } from "@/lib/utils";
+
+module
+  export interface AssetIndexItem {
+    instId: string
+    base: string
+    category: OkxPerpCategory
+    tickSz?: number
+    maxLeverage?: number
+    preMarket?: boolean
+  }
+
+  const CATEGORY_LABEL: Record<OkxPerpCategory, string> = {
+    crypto: "Crypto",
+    stock: "Equity",
+    commodity: "Commodity",
+    other: "Perp",
+  }
+
+  function decimalsFor(price: number, tickSz?: number): number {
+    if (tickSz && tickSz > 0) return Math.min(8, Math.max(0, Math.round(-Math.log10(tickSz))))
+    if (!(price > 0)) return 2
+    return price >= 1000 ? 1 : price >= 1 ? 2 : Math.min(8, 2 - Math.floor(Math.log10(price)) + 1)
+  }
+
+  function fmtPrice(price: number, tickSz?: number): string {
+    if (!Number.isFinite(price)) return "—"
+    const d = decimalsFor(price, tickSz)
+    return price.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })
+  }
+
+  function fmtCompact(value: number): string {
+    if (!Number.isFinite(value) || value <= 0) return "—"
+    return Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)
+  }
+
+  /** SVG line + area for a list of closes, scaled into a w×h box. */
+  function sparkPaths(values: number[], w: number, h: number): { line: string; area: string } | null {
+    const pts = values.filter(Number.isFinite)
+    if (pts.length < 2) return null
+    const lo = Math.min(...pts)
+    const hi = Math.max(...pts)
+    const span = hi - lo || hi * 0.001 || 1
+    const step = w / (pts.length - 1)
+    const xy = pts.map((v, i) => [i * step, h - 2 - ((v - lo) / span) * (h - 4)] as const)
+    const line = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
+    return { line, area: `${line} L${w},${h} L0,${h} Z` }
+  }
+
+  export function terminalHref(item: AssetIndexItem): string | null {
+    const symbol = `${item.base}USDT`
+    return item.category === "crypto" && CRYPTO_SYMBOLS.includes(symbol)
+      ? `/terminal?market=perpetual&symbol=${symbol}&venue=okx-futures`
+      : null
+  }
+
+component AssetGlyph
+  props { base }: { base: string }
+  setup const [failed, setFailed] = useState(false);
+  span.asset-glyph
+    if failed
+      span.asset-glyph-mono #{base.slice(0, base.length > 3 ? 2 : 3)}
+    else
       img(
+        ~ src={`https://static.okx.com/cdn/oksupport/asset/currency/icon/${base.toLowerCase()}.png`}
         ~ alt=""
-        ~ src="https://trench.io/brand/ticker-aapl.svg"
-        ~ class="box-border w-[19.1953px] h-[19.1953px] max-w-full align-middle [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)] [transform-origin:9.59766px_9.59766px] object-contain"
+        ~ loading="lazy"
+        ~ width={22}
+        ~ height={22}
+        ~ onError={() => setFailed(true)}
         ~ )
-    div(class="box-border w-[39.6016px] h-[40.5px] min-w-0 [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)]")
-      div(class="box-border w-[39.6016px] h-[22.5px] text-[15px] font-medium leading-[22.5px] [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)]") AAPL
-      div(class="box-border w-[39.6016px] h-[18px] overflow-x-hidden overflow-y-hidden text-[rgb(191,_191,_191)] text-[12px] leading-[18px] [white-space-collapse:collapse] [text-wrap-mode:nowrap] text-ellipsis [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)]") Apple
-  div(class="flex box-border w-[201.602px] h-[33px] justify-between items-end [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)] [transform-origin:100.801px_16.5px]")
-    span(class="box-border w-[85.2812px] h-[33px] text-[22px] font-medium leading-[33px] tracking-[-0.5px] [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)] [transform-origin:42.6406px_16.5px]") $358.06
-    span(class="box-border w-[48.2734px] h-[19.5px] text-[rgb(0,_236,_75)] text-[13px] leading-[19.5px] [border-top-style:solid] [border-right-style:solid] [border-bottom-style:solid] [border-left-style:solid] [border-top-color:rgb(229,_231,_235)] [border-right-color:rgb(229,_231,_235)] [border-bottom-color:rgb(229,_231,_235)] [border-left-color:rgb(229,_231,_235)] [transform-origin:24.1367px_9.75px]") +0.27%
+
+props { item, initial, live = true }: { item: AssetIndexItem; initial?: OkxTicker; live?: boolean }
+setup
+  const { ref, visible, seen } = useInView<HTMLElement>("300px");
+  // Stream only while on screen; keep the last live print when scrolled away.
+  const streamed = useOkxTicker(live && visible ? item.instId : null, 1000);
+  const last = useRef<OkxTicker | undefined>(undefined);
+  if (streamed) last.current = streamed;
+  const ticker = streamed ?? last.current ?? initial;
+  const closes = useOkxSparkline(item.instId, seen);
+  const series = ticker && closes.length ? [...closes.slice(0, -1), ticker.last] : closes;
+  const paths = sparkPaths(series, 240, 56);
+  const change = okxChangePct(ticker, "24h");
+  const up = (change ?? 0) >= 0;
+  const turnover = ticker ? ticker.volCcy24h * ticker.last : NaN;
+  const href = terminalHref(item);
+  const gradId = `spark-${item.instId}`;
+
+article.asset-index(ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
+  header.asset-index-head
+    AssetGlyph(base={item.base})
+    .asset-index-name
+      strong #{item.base}
+      span #{CATEGORY_LABEL[item.category]} · Perp
+    if item.preMarket
+      span.asset-index-tag Pre-IPO
+    elseif item.maxLeverage
+      span.asset-index-tag #{item.maxLeverage}×
+  .asset-index-price
+    span.asset-index-last #{ticker ? fmtPrice(ticker.last, item.tickSz) : "—"}
+    span(className={cn("asset-index-change", up ? "is-up" : "is-down")})
+      | #{change === null ? "" : `${up ? "+" : ""}${change.toFixed(2)}%`}
+  svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
+    defs
+      linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")
+        stop(offset="0%" stop-color="currentColor" stop-opacity="0.22")
+        stop(offset="100%" stop-color="currentColor" stop-opacity="0")
+    if paths
+      g
+        path(d={paths.area} fill={`url(#${gradId})`})
+        path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
+  footer.asset-index-foot
+    span Vol #{fmtCompact(turnover)}
+    if href
+      a.asset-index-link(href={href}) Open in terminal →
+    else
+      span #{ticker ? `H ${fmtPrice(ticker.high24h, item.tickSz)} · L ${fmtPrice(ticker.low24h, item.tickSz)}` : ""}

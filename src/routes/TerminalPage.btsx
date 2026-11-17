@@ -1,0 +1,5 @@
+import Terminal from "@/components/Terminal.btsx";
+import { NuqsAdapter } from "@octanejs/nuqs/adapters/react";
+main
+  NuqsAdapter
+    Terminal

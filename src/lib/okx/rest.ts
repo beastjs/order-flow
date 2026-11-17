@@ -3,8 +3,8 @@
 // and candle history to seed live charts.
 // ============================================================
 
-import { parseCandle } from './channels'
-import type { OkxBar, OkxCandle } from './types'
+import { parseCandle, parseTicker } from './channels'
+import type { OkxBar, OkxCandle, OkxInstType, OkxTicker } from './types'
 
 const REST = 'https://www.okx.com'
 
@@ -108,4 +108,57 @@ export async function fetchCandles(
     `/api/v5/market/${path}?instId=${encodeURIComponent(instId)}&bar=${bar}&limit=${Math.min(limit, 300)}`
   )
   return rows.map(parseCandle).reverse()
+}
+
+/** One-shot snapshot of every ticker of an instrument type, keyed by instId. */
+export async function fetchTickers(instType: OkxInstType = 'SWAP'): Promise<Record<string, OkxTicker>> {
+  const rows = await get<Record<string, string>>(`/api/v5/market/tickers?instType=${instType}`)
+  const out: Record<string, OkxTicker> = {}
+  for (const row of rows) out[row.instId] = parseTicker(row)
+  return out
+}
+
+// ─── rate-limited candle queue ────────────────────────────────
+// OKX allows 40 candle requests / 2s per IP. Grids of hundreds of cards
+// go through this queue so scrolling never trips the limit.
+
+const QUEUE_PER_SECOND = 12
+const queue: Array<() => void> = []
+let tokens = QUEUE_PER_SECOND
+let refill: ReturnType<typeof setInterval> | null = null
+
+function drain() {
+  while (tokens > 0 && queue.length) {
+    tokens--
+    queue.shift()!()
+  }
+  if (queue.length === 0 && refill && tokens === QUEUE_PER_SECOND) {
+    clearInterval(refill)
+    refill = null
+  }
+}
+
+function schedule<T>(task: () => Promise<T>): Promise<T> {
+  refill ??= setInterval(() => {
+    tokens = QUEUE_PER_SECOND
+    drain()
+  }, 1000)
+  return new Promise<T>((resolve, reject) => {
+    queue.push(() => task().then(resolve, reject))
+    drain()
+  })
+}
+
+const sparkCache = new Map<string, Promise<number[]>>()
+
+/** Close prices for a compact sparkline (default: last 24 hourly bars). Cached per session. */
+export function fetchSparkline(instId: string, bar: OkxBar = '1H', points = 24): Promise<number[]> {
+  const key = `${instId}|${bar}|${points}`
+  let p = sparkCache.get(key)
+  if (!p) {
+    p = schedule(() => fetchCandles(instId, bar, { limit: points })).then((c) => c.map((x) => x.close))
+    p.catch(() => sparkCache.delete(key))
+    sparkCache.set(key, p)
+  }
+  return p
 }

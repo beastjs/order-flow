@@ -1,6 +1,7 @@
 import { createRoot } from 'octane'
 import App from './App.btsx'
 import './style.css'
+import './styles/site.css'
 import { useUIStore } from './lib/store/uiStore'
 import { applyTheme } from './lib/theme'
 

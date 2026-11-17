@@ -1,0 +1,4 @@
+import { Outlet } from "@octanejs/tanstack-router";
+import WalletProvider from "@/wallet/provider.btsx";
+WalletProvider
+  Outlet

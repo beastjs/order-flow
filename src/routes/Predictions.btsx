@@ -1,0 +1,119 @@
+import { useEffect, useMemo, useState } from "octane";
+import SiteNav from "./SiteNav.btsx";
+import AssetIndex from "@/components/app/AssetIndex.btsx";
+import { useOkxTickerSnapshot } from "@/hooks/useOkx";
+import { fetchPerps, type OkxPerpCategory, type OkxPerpInstrument } from "@/lib/okx";
+import { cn } from "@/lib/utils";
+
+module
+  import type { AssetIndexItem } from "@/components/app/AssetIndex.btsx"
+
+  type Filter = "all" | OkxPerpCategory
+  type Sort = "volume" | "gainers" | "losers" | "name"
+
+  const FILTERS: { value: Filter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "crypto", label: "Crypto" },
+    { value: "stock", label: "Equities" },
+    { value: "commodity", label: "Commodities" },
+  ]
+
+  const SORTS: { value: Sort; label: string }[] = [
+    { value: "volume", label: "Volume" },
+    { value: "gainers", label: "Gainers" },
+    { value: "losers", label: "Losers" },
+    { value: "name", label: "A–Z" },
+  ]
+
+  function toItem(p: OkxPerpInstrument): AssetIndexItem {
+    return {
+      instId: p.instId,
+      base: p.base,
+      category: p.category,
+      tickSz: p.tickSz,
+      maxLeverage: p.maxLeverage,
+      preMarket: p.ruleType === "pre_market",
+    }
+  }
+
+setup
+  const [perps, setPerps] = useState<OkxPerpInstrument[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<Sort>("volume");
+  const [query, setQuery] = useState("");
+  const snapshot = useOkxTickerSnapshot();
+
+  useEffect(() => {
+    let alive = true;
+    fetchPerps()
+      .then((all) => alive && setPerps(all.filter((p) => p.settleCcy === "USDT" && p.state === "live")))
+      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
+    return () => { alive = false };
+  }, []);
+
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { all: perps.length, crypto: 0, stock: 0, commodity: 0, other: 0 };
+    for (const p of perps) c[p.category]++;
+    return c;
+  }, [perps]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toUpperCase();
+    const turnover = (id: string) => { const t = snapshot[id]; return t ? t.volCcy24h * t.last : 0 };
+    const change = (id: string) => { const t = snapshot[id]; return t && t.open24h > 0 ? t.last / t.open24h - 1 : 0 };
+    const list = perps.filter((p) => (filter === "all" || p.category === filter) && (!q || p.base.includes(q)));
+    const by: Record<Sort, (a: OkxPerpInstrument, b: OkxPerpInstrument) => number> = {
+      volume: (a, b) => turnover(b.instId) - turnover(a.instId),
+      gainers: (a, b) => change(b.instId) - change(a.instId),
+      losers: (a, b) => change(a.instId) - change(b.instId),
+      name: (a, b) => a.base.localeCompare(b.base),
+    };
+    return list.sort(by[sort]);
+  }, [perps, filter, sort, query, snapshot]);
+
+.site
+  SiteNav
+  section.lp-page-head
+    p.lp-eyebrow
+      span.lp-live-dot
+      | Streaming from OKX · public & business WebSocket
+    h1.lp-page-title
+      | #{"Every perpetual, "}
+      em live.
+    p.lp-page-sub #{counts.all ? `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals.` : "Loading the OKX instrument catalog…"} Prices stream only for the cards on screen.
+
+  .lp-toolbar
+    .lp-segmented(role="tablist")
+      each f in FILTERS key f.value
+        button(
+          ~ type="button"
+          ~ role="tab"
+          ~ aria-selected={filter === f.value}
+          ~ className={cn("lp-seg", filter === f.value && "is-active")}
+          ~ onClick={() => setFilter(f.value)}
+          ~ )
+          | #{f.label}
+          span.lp-seg-count #{counts[f.value] || ""}
+    .lp-toolbar-right
+      input.lp-search(
+        ~ type="search"
+        ~ placeholder="Search AAPL, BTC, XAU…"
+        ~ value={query}
+        ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
+        ~ )
+      .lp-segmented
+        each s in SORTS key s.value
+          button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => setSort(s.value)}) #{s.label}
+
+  if error
+    p.lp-grid-empty Couldn’t load OKX instruments: #{error}
+  else
+    section.lp-asset-grid
+      each p in visible key p.instId
+        AssetIndex(item={toItem(p)} initial={snapshot[p.instId]})
+      empty
+        p.lp-grid-empty #{perps.length ? "No markets match your search." : "Loading markets…"}
+
+  footer.site-foot
+    span Data: OKX public market data. Perpetual swaps are leveraged derivatives. Not investment advice.

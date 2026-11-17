@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'octane'
+import { useEffect, useRef, useState } from 'octane'
 import {
   fetchCandles,
+  fetchSparkline,
+  fetchTickers,
   fetchPerpsByCategory,
   okx,
   okxStream,
@@ -190,4 +192,63 @@ export function useOkxStatus(): Record<OkxEndpoint, OkxSocketStatus> {
     []
   )
   return status
+}
+
+/** Shared one-shot REST snapshot of all SWAP tickers (seed for big grids). */
+let snapshotPromise: Promise<Record<string, OkxTicker>> | null = null
+export function useOkxTickerSnapshot(): Record<string, OkxTicker> {
+  const [snap, setSnap] = useState<Record<string, OkxTicker>>({})
+  useEffect(() => {
+    let alive = true
+    snapshotPromise ??= fetchTickers('SWAP').catch((e) => {
+      snapshotPromise = null
+      throw e
+    })
+    snapshotPromise.then((s) => alive && setSnap(s)).catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  return snap
+}
+
+/** Hourly close prices for a sparkline, fetched through the rate-limited queue once `enabled`. */
+export function useOkxSparkline(instId: string, enabled = true, bar: OkxBar = '1H', points = 24): number[] {
+  const [closes, setCloses] = useState<number[]>([])
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    fetchSparkline(instId, bar, points)
+      .then((c) => alive && setCloses(c))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [instId, enabled, bar, points])
+  return closes
+}
+
+/** True once the element has been near the viewport; `visible` tracks it live. */
+export function useInView<T extends Element>(rootMargin = '200px'): { ref: { current: T | null }; visible: boolean; seen: boolean } {
+  const ref = useRef<T | null>(null)
+  const [visible, setVisible] = useState(false)
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisible(true)
+      setSeen(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        setVisible(entry.isIntersecting)
+        if (entry.isIntersecting) setSeen(true)
+      },
+      { rootMargin }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [rootMargin])
+  return { ref, visible, seen }
 }
