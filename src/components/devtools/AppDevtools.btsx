@@ -1,0 +1,251 @@
+import { useEffect, useMemo, useRef, useState } from "octane";
+import type { OctaneNode } from "octane";
+import Toast from "../ui/Toast.btsx";
+import Icon from "@/lib/icons/Icon.btsx";
+import type { IconName } from "@/lib/icons/icons";
+import { creditToastContent } from "../CreditToasts.btsx";
+import { cn } from "@/lib/utils";
+// ─── App Devtools (⌘K / Ctrl+K) ──────────────────────────────────
+// A dev-only command palette for poking at app UI. RootLayout mounts it
+// only when import.meta.env.DEV, so production bundles drop it entirely.
+// Add a tool: append to TOOLS and render its panel below.
+module
+  type ToolId = "toast"
+  type View = "home" | ToolId
+  type Fuse = "bottom" | "top" | "none"
+
+  interface Tool {
+    id: ToolId
+    label: string
+    hint: string
+    icon: IconName
+  }
+
+  const TOOLS: Tool[] = [
+    { id: "toast", label: "Toast", hint: "Fire every toast variant and tweak its options", icon: "bell-ring" },
+  ]
+
+  /** One previewable toast. Options in the panel override fuse / duration / close button. */
+  interface ToastPreset {
+    id: string
+    label: string
+    build: () => {
+      title: OctaneNode
+      description?: OctaneNode
+      icon?: OctaneNode
+      actionLabel?: OctaneNode
+      onAction?: VoidFunction
+      fuseColor?: string
+      duration?: number
+      closeButton?: boolean
+    }
+  }
+
+  const TOAST_PRESETS: ToastPreset[] = [
+    {
+      id: "credited",
+      label: "Funds credited",
+      // The real production toast, fed a sample deposit.
+      build: () => creditToastContent({ id: "demo", amountUsd: 50.24, token: "ETH", chainId: 42161, txHash: `0x${"ab".repeat(32)}` }),
+    },
+    { id: "title", label: "Title only", build: () => ({ title: "Settings saved" }) },
+    {
+      id: "description",
+      label: "With description",
+      build: () => ({ title: "Wallet linked", description: "Top-ups from 0x12ab…9f3c now credit you.", icon: <Icon name="wallet" size={18} /> }),
+    },
+    {
+      id: "action",
+      label: "With action",
+      build: () => ({ title: "Position closed", description: "BTC long · +$128.40", actionLabel: "Undo", onAction: () => console.info("[devtools] toast action") }),
+    },
+    {
+      id: "error",
+      label: "Error",
+      build: () => ({ title: "Top-up rejected", description: "Sent from a wallet that isn't linked to your account.", icon: <Icon name="shield" size={18} />, fuseColor: "#ef4444", closeButton: true }),
+    },
+    {
+      id: "sticky",
+      label: "Sticky (no timeout)",
+      build: () => ({ title: "Reconnecting to OKX…", description: "Live prices resume as soon as the socket is back.", duration: 0, closeButton: true }),
+    },
+    {
+      id: "overflow",
+      label: "Long text",
+      // Deliberately too long: every toast must keep one height and truncate.
+      build: () => ({
+        title: "A very long toast title that cannot possibly fit on a single line",
+        description: "And an equally long description that keeps going well past the edge of the card.",
+        icon: <Icon name="bell" size={18} />,
+        actionLabel: "Action",
+        closeButton: true,
+      }),
+    },
+  ]
+
+  const DURATIONS = [2000, 4000, 8000]
+  const FUSES: Fuse[] = ["bottom", "top", "none"]
+
+  const isToggleKey = (e: KeyboardEvent) => (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k"
+
+component ToastPanel
+  props { onFire }: { onFire: (preset: ToastPreset, opts: { fuse: Fuse; duration: number | null; closeButton: boolean | null }) => void }
+  setup
+    const [fuse, setFuse] = useState<Fuse>("bottom");
+    // null = use the preset's own value.
+    const [duration, setDuration] = useState<number | null>(null);
+    const [closeButton, setCloseButton] = useState<boolean | null>(null);
+  .devtools-panel
+    .devtools-presets
+      each p in TOAST_PRESETS key p.id
+        button.devtools-preset(type="button" onClick={() => onFire(p, { fuse, duration, closeButton })})
+          Icon(name="play" size={12})
+          span #{p.label}
+    .devtools-options
+      .devtools-option
+        span Fuse
+        .devtools-seg
+          each f in FUSES key f
+            button(type="button" className={cn("devtools-seg-btn", fuse === f && "is-active")} onClick={() => setFuse(f)}) #{f}
+      .devtools-option
+        span Duration
+        .devtools-seg
+          button(type="button" className={cn("devtools-seg-btn", duration === null && "is-active")} onClick={() => setDuration(null)}) preset
+          each d in DURATIONS key d
+            button(type="button" className={cn("devtools-seg-btn", duration === d && "is-active")} onClick={() => setDuration(d)}) #{d / 1000}s
+      .devtools-option
+        span Close button
+        .devtools-seg
+          button(type="button" className={cn("devtools-seg-btn", closeButton === null && "is-active")} onClick={() => setCloseButton(null)}) preset
+          button(type="button" className={cn("devtools-seg-btn", closeButton === true && "is-active")} onClick={() => setCloseButton(true)}) on
+          button(type="button" className={cn("devtools-seg-btn", closeButton === false && "is-active")} onClick={() => setCloseButton(false)}) off
+    p.devtools-note Toasts render above this panel, bottom-right. Swipe down, hover to pause, Esc on a focused toast to dismiss.
+
+setup
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<View>("home");
+  const [query, setQuery] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [demo, setDemo] = useState<{ key: number; fuse: Fuse; props: ReturnType<ToastPreset["build"]> } | null>(null);
+
+  const tools = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? TOOLS.filter((t) => `${t.label} ${t.hint}`.toLowerCase().includes(q)) : TOOLS;
+  }, [query]);
+
+  const close = () => {
+    setOpen(false);
+    setView("home");
+    setQuery("");
+    setCursor(0);
+  };
+  const choose = (tool: Tool | undefined) => tool && setView(tool.id);
+
+  // ⌘K / Ctrl+K toggles from anywhere; Esc steps back, then closes.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isToggleKey(e)) {
+        e.preventDefault();
+        if (open) close();
+        else setOpen(true);
+        return;
+      }
+      if (open && e.key === "Escape") {
+        e.preventDefault();
+        if (view !== "home") setView("home");
+        else close();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, view]);
+
+  useEffect(() => {
+    if (open && view === "home") inputRef.current?.focus();
+  }, [open, view]);
+
+  useEffect(() => setCursor(0), [query]);
+
+  const onListKey = (e: KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCursor((c) => Math.min(tools.length - 1, c + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCursor((c) => Math.max(0, c - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      choose(tools[cursor]);
+    }
+  };
+
+  const fire = (preset: ToastPreset, opts: { fuse: Fuse; duration: number | null; closeButton: boolean | null }) => {
+    const base = preset.build();
+    setDemo({
+      key: Date.now(),
+      fuse: opts.fuse,
+      props: {
+        ...base,
+        duration: opts.duration ?? base.duration ?? 4000,
+        closeButton: opts.closeButton ?? base.closeButton ?? false,
+      },
+    });
+  };
+  const current = TOOLS.find((t) => t.id === view);
+
+fragment
+  if open
+    .devtools-backdrop(role="presentation" onMouseDown={(e: MouseEvent) => { if (e.target === e.currentTarget) close() }})
+      section.devtools(role="dialog" aria-modal="true" aria-label="App devtools")
+        header.devtools-head
+          if current
+            fragment
+              button.devtools-back(type="button" aria-label="Back" onClick={() => setView("home")}) ←
+              strong #{current.label}
+          else
+            input.devtools-search(
+              ~ ref={inputRef}
+              ~ type="text"
+              ~ placeholder="Search devtools…"
+              ~ value={query}
+              ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
+              ~ onKeyDown={onListKey}
+              ~ aria-label="Search devtools"
+              ~ )
+          kbd.devtools-kbd esc
+        if view === "toast"
+          ToastPanel(onFire={fire})
+        else
+          ul.devtools-list(role="listbox" aria-label="Tools")
+            each t, i in tools key t.id
+              li(role="option" aria-selected={i === cursor})
+                button(type="button" className={cn("devtools-item", i === cursor && "is-active")} onMouseEnter={() => setCursor(i)} onClick={() => choose(t)})
+                  span.devtools-item-icon
+                    Icon(name={t.icon} size={16})
+                  span.devtools-item-text
+                    strong #{t.label}
+                    small #{t.hint}
+                  span.devtools-item-go ↵
+            empty
+              li.devtools-empty No tools match “#{query}”.
+        footer.devtools-foot
+          span App Devtools · dev only
+          span
+            kbd ⌘K
+            |  toggle
+  if demo
+    Toast(
+      ~ key={demo.key}
+      ~ open={true}
+      ~ title={demo.props.title}
+      ~ description={demo.props.description}
+      ~ icon={demo.props.icon}
+      ~ actionLabel={demo.props.actionLabel}
+      ~ onAction={demo.props.onAction}
+      ~ fuseColor={demo.props.fuseColor}
+      ~ duration={demo.props.duration}
+      ~ closeButton={demo.props.closeButton}
+      ~ fuse={demo.fuse}
+      ~ onClose={() => setDemo((d) => (d && d.key === demo.key ? null : d))}
+      ~ )

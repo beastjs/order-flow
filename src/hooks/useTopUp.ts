@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'octane'
 import { createPublicClient, erc20Abi, http, type Address } from 'viem'
-import { PUBLIC_RPC, STABLE_DECIMALS } from '@/lib/deposits/config'
+import { NATIVE_DECIMALS, PRICE_FEED_ABI, PRICE_FEED_DECIMALS, PUBLIC_RPC, STABLE_DECIMALS } from '@/lib/deposits/config'
 
 /** Explorer link for a transaction on a supported chain. */
 export function explorerTx(chainId: number, hash: string): string {
@@ -30,4 +30,49 @@ export function useStableBalance(chainId: number | null, token: Address | null, 
     }
   }, [chainId, token, owner, refreshKey])
   return balance
+}
+
+/** The wallet's native-coin balance on a chain, in whole coins (null while loading or unknown). */
+export function useNativeBalance(chainId: number | null, owner: Address | undefined, enabled: boolean, refreshKey = 0): number | null {
+  const [balance, setBalance] = useState<number | null>(null)
+  useEffect(() => {
+    setBalance(null)
+    if (!enabled || !chainId || !owner || !PUBLIC_RPC[chainId]) return
+    let alive = true
+    const client = createPublicClient({ transport: http(PUBLIC_RPC[chainId], { timeout: 10_000 }) })
+    client
+      .getBalance({ address: owner })
+      .then((wei) => alive && setBalance(Number(wei) / 10 ** NATIVE_DECIMALS))
+      .catch(() => alive && setBalance(null))
+    return () => {
+      alive = false
+    }
+  }, [chainId, owner, enabled, refreshKey])
+  return balance
+}
+
+/**
+ * The native coin's Chainlink USD price, for the send estimate (the server reads
+ * its own price when crediting). Refreshes every 30s while `feed` is set.
+ */
+export function useNativePrice(chainId: number | null, feed: Address | null): number | null {
+  const [price, setPrice] = useState<number | null>(null)
+  useEffect(() => {
+    setPrice(null)
+    if (!chainId || !feed || !PUBLIC_RPC[chainId]) return
+    let alive = true
+    const client = createPublicClient({ transport: http(PUBLIC_RPC[chainId], { timeout: 10_000 }) })
+    const read = () =>
+      client
+        .readContract({ address: feed, abi: PRICE_FEED_ABI, functionName: 'latestRoundData' })
+        .then(([, answer]) => alive && answer > 0n && setPrice(Number(answer) / 10 ** PRICE_FEED_DECIMALS))
+        .catch(() => {})
+    read()
+    const id = setInterval(read, 30_000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [chainId, feed])
+  return price
 }

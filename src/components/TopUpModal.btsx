@@ -4,8 +4,8 @@ import { useWallet } from "@/wallet/context.btsx";
 import { api } from "../../convex/_generated/api";
 import { convex } from "@/lib/convex/client";
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
-import { explorerTx, useStableBalance } from "@/hooks/useTopUp";
-import { MIN_TOPUP_USD, linkWalletMessage, usdToUnits } from "@/lib/deposits/config";
+import { explorerTx, useNativeBalance, useNativePrice, useStableBalance } from "@/hooks/useTopUp";
+import { MIN_TOPUP_USD, linkWalletMessage, usdToNativeUnits, usdToUnits, type DepositSymbol } from "@/lib/deposits/config";
 import { cn } from "@/lib/utils";
 // ─── Top up ──────────────────────────────────────────────────────
 // Sends USDC/USDT from the connected (and linked) wallet to the
@@ -16,6 +16,9 @@ module
 
   const usd = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
+  /** Native coin amounts: up to 6 decimals, trailing zeros dropped. */
+  const coin = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 6 })
+  const isNativeSymbol = (s: DepositSymbol) => s === "ETH" || s === "POL"
 
   function walletErrorMessage(e: unknown): string {
     const code = (e as { code?: number })?.code
@@ -47,7 +50,7 @@ component Dialog
 
     const chains = config.data?.chains ?? [];
     const [chainId, setChainId] = useState<number | null>(null);
-    const [symbol, setSymbol] = useState<"USDC" | "USDT">("USDC");
+    const [symbol, setSymbol] = useState<DepositSymbol>("USDC");
     const [amount, setAmount] = useState(String(MIN_TOPUP_USD));
     const [busy, setBusy] = useState<"link" | "switch" | "send" | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -68,14 +71,25 @@ component Dialog
     }, [onClose]);
 
     const chain = chains.find((c) => c.chainId === chainId) ?? null;
-    const token = chain?.tokens.find((t) => t.symbol === symbol) ?? chain?.tokens[0] ?? null;
+    // Picking the native coin follows the network: ETH on Ethereum/Arbitrum, POL on Polygon.
+    // `native` is absent when the backend predates native top-ups; then only stables are offered.
+    const native = chain?.native ?? null;
+    const isNative = native !== null && isNativeSymbol(symbol);
+    const token = isNative ? null : chain?.tokens.find((t) => t.symbol === symbol) ?? chain?.tokens[0] ?? null;
+    const assetSymbol = isNative ? native!.symbol : token?.symbol ?? "";
     const address = wallet.address;
     const isLinked = Boolean(address && linked.data?.some((a) => a.toLowerCase() === address.toLowerCase()));
     const onChain = wallet.chainId === chainId && wallet.isChainSupported;
-    const balance = useStableBalance(chainId, (token?.address as Address) ?? null, address, refresh);
+    const balance = useStableBalance(chainId, isNative ? null : ((token?.address as Address) ?? null), address, refresh);
+    const nativeBalance = useNativeBalance(chainId, address, isNative, refresh);
+    const price = useNativePrice(isNative ? chainId : null, isNative ? (native!.priceFeed as Address) : null);
     const value = Number(amount);
     const valid = Number.isFinite(value) && value >= MIN_TOPUP_USD && Math.round(value * 100) === value * 100;
-    const insufficient = balance !== null && valid && value > balance;
+    const nativeUnits = isNative && valid && price ? usdToNativeUnits(value, price) : null;
+    const nativeAmount = nativeUnits === null ? null : Number(nativeUnits) / 1e18;
+    const insufficient = isNative
+      ? nativeBalance !== null && nativeAmount !== null && nativeAmount > nativeBalance
+      : balance !== null && valid && value > balance;
     const tracked = sentHash ? deposits.data?.page.find((d) => d.txHash === sentHash.toLowerCase()) : undefined;
 
     const run = async (kind: "link" | "switch" | "send", task: () => Promise<void>) => {
@@ -107,14 +121,21 @@ component Dialog
 
     const send = () =>
       run("send", async () => {
-        if (!address || !chain || !token || !config.data) return;
+        if (!address || !chain || !config.data) return;
         const viemChain = wallet.chains.find((c) => c.id === chain.chainId);
-        const data = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: "transfer",
-          args: [config.data.address as Address, usdToUnits(value)],
-        });
-        const hash: Hex = await wallet.sendTransaction({ account: address, chain: viemChain, to: token.address as Address, data });
+        let hash: Hex;
+        if (isNative) {
+          if (nativeUnits === null) return;
+          hash = await wallet.sendTransaction({ account: address, chain: viemChain, to: config.data.address as Address, value: nativeUnits });
+        } else {
+          if (!token) return;
+          const data = encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "transfer",
+            args: [config.data.address as Address, usdToUnits(value)],
+          });
+          hash = await wallet.sendTransaction({ account: address, chain: viemChain, to: token.address as Address, data });
+        }
         setSentHash(hash);
         try {
           await convex!.mutation(api.deposits.submit, { chainId: chain.chainId, txHash: hash });
@@ -173,7 +194,9 @@ component Dialog
             span Token
             .sim-chips
               each t in chain?.tokens ?? [] key t.symbol
-                button(type="button" className={cn("sim-chip", token?.symbol === t.symbol && "is-active")} onClick={() => setSymbol(t.symbol)}) #{t.symbol}
+                button(type="button" className={cn("sim-chip", !isNative && token?.symbol === t.symbol && "is-active")} onClick={() => setSymbol(t.symbol)}) #{t.symbol}
+              if native
+                button(type="button" className={cn("sim-chip", isNative && "is-active")} onClick={() => setSymbol(native.symbol)}) #{native.symbol}
           label.sim-field
             span Amount (USD)
             .sim-input
@@ -186,7 +209,7 @@ component Dialog
                 ~ value={amount}
                 ~ onInput={(e: Event) => setAmount((e.target as HTMLInputElement).value)}
                 ~ )
-              span #{token?.symbol ?? ""}
+              span #{isNative ? "USD" : assetSymbol}
           .sim-chips
             each q in [25, 50, 100, 250] key q
               button(type="button" className={cn("sim-chip", value === q && "is-active")} onClick={() => setAmount(String(q))}) $#{q}
@@ -196,7 +219,14 @@ component Dialog
               dd #{short(address)}
             .sim-row
               dt Wallet balance
-              dd(className={insufficient ? "is-down" : undefined}) #{balance === null ? "—" : `${usd(balance)} ${token?.symbol ?? ""}`}
+              if isNative
+                dd(className={insufficient ? "is-down" : undefined}) #{nativeBalance === null ? "—" : `${coin(nativeBalance)} ${assetSymbol}${price ? ` · ${usd(nativeBalance * price)}` : ""}`}
+              else
+                dd(className={insufficient ? "is-down" : undefined}) #{balance === null ? "—" : `${usd(balance)} ${assetSymbol}`}
+            if isNative
+              .sim-row
+                dt You send
+                dd #{nativeAmount === null ? (price ? "—" : "Loading price…") : `≈ ${coin(nativeAmount)} ${assetSymbol} at ${usd(price ?? 0)}`}
             // .sim-row
             //   dt To (deposit address)
             //   dd(title={config.data.address}) #{short(config.data.address)}
@@ -207,14 +237,16 @@ component Dialog
           if !onChain
             button.sim-submit.sim-close(type="button" disabled={busy !== null || !chain} onClick={switchNetwork}) #{busy === "switch" ? "Check your wallet…" : `Switch wallet to ${chain?.name ?? "network"}`}
           else
-            button.sim-submit.is-up(type="button" disabled={busy !== null || !valid || insufficient || !token} onClick={send}) #{busy === "send" ? "Confirm in your wallet…" : `Send ${valid ? usd(value) : ""} ${token?.symbol ?? ""}`}
+            button.sim-submit.is-up(type="button" disabled={busy !== null || !valid || insufficient || (isNative ? nativeUnits === null : !token)} onClick={send}) #{busy === "send" ? "Confirm in your wallet…" : isNative ? `Send ${nativeAmount === null ? "" : coin(nativeAmount)} ${assetSymbol}` : `Send ${valid ? usd(value) : ""} ${assetSymbol}`}
+          if isNative
+            p.topup-note Credited at the Chainlink #{assetSymbol}/USD price when the server first sees your mined transaction. Gas is paid on top.
           div(className='h-7')
             if chain?.testnet
               p.topup-note Testnet: enabled for development only.
             if !valid
               p.sim-error Minimum top-up is #{usd(MIN_TOPUP_USD)} (whole cents).
             elseif insufficient
-              p.sim-error Not enough #{token?.symbol} on #{chain?.name}.
+              p.sim-error Not enough #{assetSymbol} on #{chain?.name}.
 
       if error
         p.wallet-modal-error(role="alert") #{error}

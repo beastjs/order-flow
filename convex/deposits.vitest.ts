@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { linkWalletMessage, usdToUnits } from "../src/lib/deposits/config";
+import { DEPOSIT_CHAINS, linkWalletMessage, nativeUnitsToUsd, usdToNativeUnits, usdToUnits } from "../src/lib/deposits/config";
+import { matchNativeDeposit } from "./lib/depositMatch";
 
 const modules = import.meta.glob("./**/*.ts");
 const DEST = "0x000000000000000000000000000000000000bEEF";
@@ -45,6 +46,13 @@ describe("config", () => {
 
     process.env.DEPOSIT_ALLOW_TESTNET = "true";
     expect((await t.query(api.deposits.config, {}))!.chains.map((c) => c.chainId)).toContain(11155111);
+  });
+
+  it("offers each network's native coin, and USDT on Sepolia", async () => {
+    process.env.DEPOSIT_ALLOW_TESTNET = "true";
+    const chains = (await convexTest(schema, modules).query(api.deposits.config, {}))!.chains;
+    expect(Object.fromEntries(chains.map((c) => [c.chainId, c.native.symbol]))).toEqual({ 1: "ETH", 42161: "ETH", 137: "POL", 11155111: "ETH" });
+    expect(chains.find((c) => c.chainId === 11155111)!.tokens.map((t) => t.symbol)).toEqual(["USDC", "USDT"]);
   });
 });
 
@@ -134,11 +142,51 @@ describe("submit + settle", () => {
     expect(row.status).toBe("under_minimum");
   });
 
+  it("credits native coins at the locked Chainlink price, rounded down to the cent", async () => {
+    const { t, alice, wallet } = await linked();
+    const id = await alice.mutation(api.deposits.submit, { chainId: 1, txHash: hash(21) });
+    // First sighting locks $2000; a later (different) price must not replace it.
+    await t.mutation(internal.deposits.retry, { depositId: id, note: "confirming", priceUsd: 2000 });
+    await t.mutation(internal.deposits.retry, { depositId: id, note: "confirming", priceUsd: 1500 });
+    const wei = 25_123_456_789_000_000n; // 0.025123456789 ETH × $2000 = $50.246…
+    await t.mutation(internal.deposits.settle, { depositId: id, token: "ETH", from: wallet, amountUnits: wei.toString(), priceUsd: 1500, blockNumber: 5, confirmations: 6 });
+    expect(await alice.query(api.funds.usd, {})).toBe(50.24);
+    const [row] = (await alice.query(api.deposits.listMine, { paginationOpts: { numItems: 5, cursor: null } })).page;
+    expect(row).toMatchObject({ status: "credited", token: "ETH", priceUsd: 2000, amountUsd: 50.24 });
+  });
+
+  it("refuses to credit a native deposit with no price", async () => {
+    const { t, alice, wallet } = await linked();
+    const id = await alice.mutation(api.deposits.submit, { chainId: 137, txHash: hash(22) });
+    await expect(
+      t.mutation(internal.deposits.settle, { depositId: id, token: "POL", from: wallet, amountUnits: (10n ** 21n).toString(), blockNumber: 5, confirmations: 40 }),
+    ).rejects.toThrow(/no USD price/);
+    expect(await alice.query(api.funds.usd, {})).toBe(0);
+  });
+
   it("a rejected deposit can never be credited afterwards", async () => {
     const { alice, wallet } = await linked();
     const id = await alice.mutation(api.deposits.submit, { chainId: 1, txHash: hash(12) });
     await alice.mutation(internal.deposits.finish, { depositId: id, status: "rejected", reason: "test" });
     await alice.mutation(internal.deposits.settle, { depositId: id, token: "USDC", from: wallet, amountUnits: usdToUnits(100).toString(), blockNumber: 1, confirmations: 6 });
     expect(await alice.query(api.funds.usd, {})).toBe(0);
+  });
+});
+
+describe("native matching + conversion", () => {
+  const eth = DEPOSIT_CHAINS[0];
+  const me = "0x1111111111111111111111111111111111111111";
+  it("matches only a plain value transfer to the deposit address from a linked wallet", () => {
+    expect(matchNativeDeposit({ from: me, to: DEST, value: 5n }, eth, DEST, [me])).toMatchObject({ kind: "ok", token: "ETH", units: 5n });
+    expect(matchNativeDeposit({ from: me, to: DEST, value: 5n }, eth, DEST, [])).toEqual({ kind: "unlinked" });
+    expect(matchNativeDeposit({ from: me, to: DEST, value: 0n }, eth, DEST, [me])).toEqual({ kind: "none" });
+    expect(matchNativeDeposit({ from: me, to: me, value: 5n }, eth, DEST, [me])).toEqual({ kind: "none" });
+    expect(matchNativeDeposit({ from: me, to: null, value: 5n }, eth, DEST, [me])).toEqual({ kind: "none" });
+  });
+
+  it("sends enough coin to reach the USD amount at the quoted price", () => {
+    for (const price of [0.0806, 1762.35, 65_000]) {
+      for (const usd of [25, 50, 99.99, 250]) expect(nativeUnitsToUsd(usdToNativeUnits(usd, price), price)).toBeGreaterThanOrEqual(usd);
+    }
   });
 });

@@ -13,6 +13,9 @@ export const positionStatus = v.union(v.literal("open"), v.literal("closed"), v.
 export const currency = v.union(v.literal("USDT"), v.literal("USD"));
 export const fundsMode = v.union(v.literal("paper"), v.literal("live"));
 export const stableSymbol = v.union(v.literal("USDC"), v.literal("USDT"));
+export const nativeSymbol = v.union(v.literal("ETH"), v.literal("POL"));
+/** Anything a top-up can be paid in: a stablecoin or the chain's native coin. */
+export const depositSymbol = v.union(stableSymbol, nativeSymbol);
 export const depositStatus = v.union(
   v.literal("pending"),
   v.literal("credited"),
@@ -133,10 +136,12 @@ export default defineSchema({
     txHash: v.string(),
     status: depositStatus,
     reason: v.optional(v.string()),
-    token: v.optional(stableSymbol),
+    token: v.optional(depositSymbol),
     from: v.optional(v.string()),
-    /** Token base units as a decimal string (bigint-safe). */
+    /** Token base units as a decimal string (bigint-safe): 6dp stables, 18dp (wei) native. */
     amountUnits: v.optional(v.string()),
+    /** Native coins only: Chainlink USD price locked when the mined tx was first seen. */
+    priceUsd: v.optional(v.number()),
     amountUsd: v.optional(v.number()),
     blockNumber: v.optional(v.number()),
     confirmations: v.optional(v.number()),

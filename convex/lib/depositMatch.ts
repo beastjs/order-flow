@@ -1,5 +1,5 @@
 import { erc20Abi, getAddress, isAddressEqual, parseEventLogs, type Log } from "viem";
-import type { DepositChain, StableSymbol } from "../../src/lib/deposits/config";
+import type { DepositChain, NativeSymbol, StableSymbol } from "../../src/lib/deposits/config";
 
 export type MatchResult =
   | { kind: "none" }
@@ -28,4 +28,25 @@ export function matchDeposit(
     .filter((l) => isAddressEqual(l.address, mine[0].address))
     .reduce((sum, l) => sum + l.args.value, 0n);
   return { kind: "ok", token, from: getAddress(mine[0].args.from), units };
+}
+
+export type NativeMatchResult =
+  | { kind: "none" }
+  | { kind: "unlinked" }
+  | { kind: "ok"; token: NativeSymbol; from: string; units: bigint };
+
+/**
+ * A plain native-coin transfer: the transaction itself sends `value` to `dest`
+ * from one of `wallets`. Transfers made inside a contract call (e.g. from a
+ * smart-contract wallet) leave no top-level value to `dest` and don't match.
+ */
+export function matchNativeDeposit(
+  tx: { from: string; to: string | null; value: bigint },
+  chain: Pick<DepositChain, "native">,
+  dest: `0x${string}`,
+  wallets: readonly string[],
+): NativeMatchResult {
+  if (!tx.to || tx.value <= 0n || !isAddressEqual(tx.to as `0x${string}`, dest)) return { kind: "none" };
+  if (!wallets.some((w) => isAddressEqual(w as `0x${string}`, tx.from as `0x${string}`))) return { kind: "unlinked" };
+  return { kind: "ok", token: chain.native.symbol, from: getAddress(tx.from), units: tx.value };
 }

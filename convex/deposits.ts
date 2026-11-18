@@ -11,11 +11,11 @@ import {
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { TransactionReceiptNotFoundError, getAddress, isAddress, verifyMessage, type Hex } from "viem";
-import schema, { stableSymbol } from "./schema";
+import schema, { depositSymbol, nativeSymbol, stableSymbol } from "./schema";
 import { currentUser, requireUser } from "./lib/auth";
 import { writeLog } from "./lib/log";
-import { chainClient } from "./lib/chain";
-import { matchDeposit } from "./lib/depositMatch";
+import { chainClient, readNativePrice } from "./lib/chain";
+import { matchDeposit, matchNativeDeposit } from "./lib/depositMatch";
 import { creditUsd } from "./funds";
 import {
   DEPOSIT_CHAINS,
@@ -23,6 +23,7 @@ import {
   MIN_TOPUP_USD,
   depositChain,
   linkWalletMessage,
+  nativeUnitsToUsd,
   unitsToUsd,
   type DepositChain,
 } from "../src/lib/deposits/config";
@@ -60,6 +61,7 @@ export const config = query({
           confirmations: v.number(),
           testnet: v.boolean(),
           tokens: v.array(v.object({ symbol: stableSymbol, address: v.string() })),
+          native: v.object({ symbol: nativeSymbol, priceFeed: v.string() }),
         }),
       ),
     }),
@@ -73,6 +75,7 @@ export const config = query({
       confirmations: c.confirmations,
       testnet: c.testnet,
       tokens: c.tokens.map((t) => ({ symbol: t.symbol, address: t.address as string })),
+      native: { symbol: c.native.symbol, priceFeed: c.native.priceFeed as string },
     }));
     return { address, minUsd: MIN_TOPUP_USD, chains };
   },
@@ -223,6 +226,7 @@ export const forVerify = internalQuery({
       status: schema.tables.deposits.validator.fields.status,
       required: v.number(),
       wallets: v.array(v.string()),
+      priceUsd: v.union(v.number(), v.null()),
     }),
   ),
   handler: async (ctx, { depositId }) => {
@@ -238,6 +242,7 @@ export const forVerify = internalQuery({
       status: d.status,
       required: d.requiredConfirmations,
       wallets: wallets.map((w) => w.address),
+      priceUsd: d.priceUsd ?? null,
     };
   },
 });
@@ -273,18 +278,29 @@ export const verify = internalAction({
         return null;
       }
 
-      const match = matchDeposit(receipt.logs, chain, dest, d.wallets);
+      // A stablecoin Transfer log wins; otherwise look for a plain native-coin send.
+      let match: ReturnType<typeof matchDeposit> | ReturnType<typeof matchNativeDeposit> = matchDeposit(receipt.logs, chain, dest, d.wallets);
+      if (match.kind === "none") {
+        const tx = await client.getTransaction({ hash: d.txHash as Hex });
+        match = matchNativeDeposit(tx, chain, dest, d.wallets);
+      }
       if (match.kind !== "ok") {
+        const accepted = [...chain.tokens.map((t) => t.symbol), chain.native.symbol].join("/");
         await ctx.runMutation(internal.deposits.finish, {
           depositId,
           status: "rejected",
           reason:
             match.kind === "unlinked"
               ? "Sent from a wallet that isn't linked to your account."
-              : "No USDC/USDT transfer to the deposit address in this transaction.",
+              : `No ${accepted} transfer to the deposit address in this transaction.`,
         });
         return null;
       }
+
+      // Native coins: lock the USD price the first time the mined tx is seen, so
+      // the credit doesn't drift with the market while confirmations accrue.
+      const isNative = match.token === chain.native.symbol;
+      const priceUsd = isNative ? (d.priceUsd ?? (await readNativePrice(client, chain.native))) : undefined;
 
       const head = await client.getBlockNumber();
       const confirmations = Number(head - receipt.blockNumber + 1n);
@@ -295,6 +311,7 @@ export const verify = internalAction({
           note: `Waiting for confirmations (${Math.max(0, confirmations)}/${d.required}).`,
           confirmations: Math.max(0, confirmations),
           blockNumber,
+          priceUsd,
         });
         return null;
       }
@@ -304,6 +321,7 @@ export const verify = internalAction({
         token: match.token,
         from: match.from,
         amountUnits: match.units.toString(),
+        priceUsd,
         blockNumber,
         confirmations,
       });
@@ -324,9 +342,11 @@ export const retry = internalMutation({
     note: v.string(),
     confirmations: v.optional(v.number()),
     blockNumber: v.optional(v.number()),
+    /** Native deposits: the price to lock, if none is locked yet. */
+    priceUsd: v.optional(v.number()),
   },
   returns: v.null(),
-  handler: async (ctx, { depositId, note, confirmations, blockNumber }) => {
+  handler: async (ctx, { depositId, note, confirmations, blockNumber, priceUsd }) => {
     const d = await ctx.db.get("deposits", depositId);
     if (!d || d.status !== "pending") return null;
     const attempts = d.attempts + 1;
@@ -338,7 +358,13 @@ export const retry = internalMutation({
       });
       return null;
     }
-    await ctx.db.patch("deposits", depositId, { attempts, reason: note, confirmations, blockNumber });
+    await ctx.db.patch("deposits", depositId, {
+      attempts,
+      reason: note,
+      confirmations,
+      blockNumber,
+      ...(d.priceUsd === undefined && priceUsd !== undefined ? { priceUsd } : {}),
+    });
     await ctx.scheduler.runAfter(retryDelayMs(attempts), internal.deposits.verify, { depositId });
     return null;
   },
@@ -367,9 +393,11 @@ export const finish = internalMutation({
 export const settle = internalMutation({
   args: {
     depositId: v.id("deposits"),
-    token: stableSymbol,
+    token: depositSymbol,
     from: v.string(),
     amountUnits: v.string(),
+    /** Required for native coins (ETH/POL); ignored for stablecoins. */
+    priceUsd: v.optional(v.number()),
     blockNumber: v.number(),
     confirmations: v.number(),
   },
@@ -377,12 +405,19 @@ export const settle = internalMutation({
   handler: async (ctx, args) => {
     const d = await ctx.db.get("deposits", args.depositId);
     if (!d || d.status !== "pending") return null;
-    const amountUsd = unitsToUsd(BigInt(args.amountUnits));
+    const isStable = args.token === "USDC" || args.token === "USDT";
+    // A price locked earlier on the row wins over one passed in.
+    const priceUsd = isStable ? undefined : (d.priceUsd ?? args.priceUsd);
+    if (!isStable && !(priceUsd !== undefined && priceUsd > 0)) {
+      throw new Error(`settle: no USD price for ${args.token} deposit ${d._id}.`);
+    }
+    const amountUsd = isStable ? unitsToUsd(BigInt(args.amountUnits)) : nativeUnitsToUsd(BigInt(args.amountUnits), priceUsd!);
     const base = {
       token: args.token,
       from: args.from,
       amountUnits: args.amountUnits,
       amountUsd,
+      priceUsd,
       blockNumber: args.blockNumber,
       confirmations: args.confirmations,
     };
