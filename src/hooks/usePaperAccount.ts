@@ -128,7 +128,7 @@ export function usePaperAccount(instId: string): PaperAccount {
   }
 }
 
-// ─── all open positions (the /predictions Positions tab) ─────────
+// ─── all open positions (the /perps Positions tab) ─────────
 
 export interface OpenPositionRow {
   key: string

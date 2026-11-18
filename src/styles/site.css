@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────────
-   Marketing site: landing (/) and markets (/predictions).
+   Marketing site: landing (/) and markets (/perps).
    Built on the app's theme tokens so the theme switcher still applies.
    ─────────────────────────────────────────────────────────────── */
 
@@ -536,7 +536,7 @@
   }
 }
 
-/* ─── asset page (/predictions/$assetId) ─── */
+/* ─── asset page (/perps/$assetId) ─── */
 .ap-head {
   display: flex;
   flex-wrap: wrap;
@@ -1148,7 +1148,7 @@
   cursor: not-allowed;
 }
 
-/* ─── /predictions tabs ─── */
+/* ─── /perps tabs ─── */
 .lp-tabs {
   display: flex;
   gap: 24px;
@@ -1633,4 +1633,70 @@ button.mobile-menu-row:active {
   .site-nav .balance-pill-label {
     display: none;
   }
+}
+
+/* ─── simulator: Paper | Live venue switch + real-order confirm ─── */
+.sim-venue {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-muted);
+}
+.sim-venue-opt {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sim-venue-opt.is-active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+.sim-venue-opt.is-live.is-active {
+  background: color-mix(in oklab, var(--warn) 22%, transparent);
+  color: var(--warn);
+}
+.sim-venue-opt:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.sim-mode.is-live .sim-mode-dot {
+  background: var(--warn);
+}
+.sim[data-mode='live'] {
+  border-color: color-mix(in oklab, var(--warn) 35%, var(--border-muted));
+}
+.sim-reset-inline {
+  align-self: flex-start;
+  margin: -8px 0 0;
+}
+.sim-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--warn) 45%, transparent);
+  background: color-mix(in oklab, var(--warn) 8%, transparent);
+}
+.sim-confirm strong {
+  font-size: 14px;
+}
+.sim-confirm p {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.sim-confirm-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+}
+.sim-confirm-actions .sim-chip {
+  height: 46px;
+  padding: 0 16px;
 }

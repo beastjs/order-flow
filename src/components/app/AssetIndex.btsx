@@ -40,7 +40,7 @@ setup
   const turnover = ticker ? ticker.volCcy24h * ticker.last : NaN;
   const gradId = `spark-${item.instId}`;
 
-Link.asset-index-link(to="/predictions/$assetId" params={{ assetId: assetIdOf(item) }} aria-label={`${item.base} perpetual`})
+Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf(item) }} aria-label={`${item.base} perpetual`})
   article.asset-index(ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
     header.asset-index-head
       AssetGlyph(base={item.base})

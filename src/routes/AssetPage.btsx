@@ -88,13 +88,13 @@ setup
   if inst === null
     section.lp-page-head
       p.lp-eyebrow
-        Link(to="/predictions") ← All markets
+        Link(to="/perps") ← All markets
       h1.lp-page-title #{assetId.toUpperCase()}
       p.lp-page-sub OKX doesn’t list a live USDT perpetual for “#{assetId}”.
   else
     .ap-body
       section.ap-head
-        Link.ap-back(to="/predictions") ← All markets
+        Link.ap-back(to="/perps") ← All markets
         .ap-title
           Glyph(base={inst?.base ?? assetId.toUpperCase()})
           div

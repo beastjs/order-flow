@@ -64,7 +64,7 @@ setup
       | perpetual, from Bitcoin to Apple — streamed straight to your browser.
     .lp-hero-cta
       Link.lp-btn.lp-btn-primary(to="/terminal") Open the terminal
-      Link.lp-btn.lp-btn-ghost(to="/predictions") Browse #{stocks + crypto > 0 ? `${stocks + crypto} ` : ""}markets
+      Link.lp-btn.lp-btn-ghost(to="/perps") Browse #{stocks + crypto > 0 ? `${stocks + crypto} ` : ""}markets
 
   .lp-tape(aria-label="Live prices")
     .lp-tape-track

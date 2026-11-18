@@ -94,11 +94,11 @@ setup
         em live.
     p.lp-page-sub #{tab === "positions" ? "Open positions marked to the live OKX mark price. Close any of them at market." : counts.all ? `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.` : "Loading the OKX instrument catalog…"}
 
-  nav.lp-tabs(aria-label="Predictions")
-    Link(to="/predictions" search={{}} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
+  nav.lp-tabs(aria-label="Perpetuals")
+    Link(to="/perps" search={{}} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
       | Markets
       span.lp-seg-count #{counts.all || ""}
-    Link(to="/predictions" search={{ tab: "positions" }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
+    Link(to="/perps" search={{ tab: "positions" }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
       | Positions
       span.lp-seg-count #{openCount || ""}
 

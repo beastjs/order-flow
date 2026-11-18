@@ -28,6 +28,25 @@ export const activityKind = v.union(
   v.literal("funds_reset"),
   v.literal("wallet_linked"),
   v.literal("deposit_credited"),
+  v.literal("live_position_opened"),
+  v.literal("live_position_closed"),
+  v.literal("live_position_liquidated"),
+  v.literal("live_order_failed"),
+);
+// Real-order positions on the platform OKX account (ledger per user).
+export const livePositionStatus = v.union(
+  v.literal("opening"),
+  v.literal("open"),
+  v.literal("closing"),
+  v.literal("closed"),
+  v.literal("liquidated"),
+);
+export const liveOrderKind = v.union(v.literal("open"), v.literal("close"), v.literal("liquidation"));
+export const liveOrderStatus = v.union(
+  v.literal("pending"),
+  v.literal("filled"),
+  v.literal("rejected"),
+  v.literal("failed"),
 );
 export const logLevel = v.union(v.literal("debug"), v.literal("info"), v.literal("warn"), v.literal("error"));
 /** Small, flat, typed context for log lines (no `any`). */
@@ -127,6 +146,70 @@ export default defineSchema({
   })
     .index("by_chainId_and_txHash", ["chainId", "txHash"])
     .index("by_userId", ["userId"]),
+
+  // REAL positions, held in the platform's OKX account. OKX nets every user's
+  // orders on an instrument into one exchange position; this ledger is each
+  // user's share: their margin (from the USD balance), entry, size and PnL.
+  livePositions: defineTable({
+    userId: v.id("users"),
+    instId: v.string(),
+    base: v.string(),
+    category,
+    side,
+    /** Ledger leverage the user chose (exchange leverage is platform-wide). */
+    leverage: v.number(),
+    /** Base units per contract. */
+    ctVal: v.number(),
+    /** Filled contracts as OKX's exact `sz` string (used for the closing order). */
+    contractsSz: v.string(),
+    /** Base units (contracts × ctVal). */
+    size: v.number(),
+    entry: v.number(),
+    /** USD locked from the user's balance. */
+    margin: v.number(),
+    /** Actual opening fee paid on OKX (positive). */
+    openFee: v.number(),
+    status: livePositionStatus,
+    exit: v.optional(v.number()),
+    closeFee: v.optional(v.number()),
+    /** Net PnL after both fees (what the user gained/lost). */
+    realized: v.optional(v.number()),
+    openedAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+  })
+    .index("by_userId_and_status", ["userId", "status"])
+    .index("by_userId_and_instId_and_status", ["userId", "instId", "status"])
+    .index("by_status_and_instId", ["status", "instId"]),
+
+  // Every order sent (or about to be sent) to OKX. Written BEFORE placement
+  // with a unique clOrdId so a crash can always be reconciled.
+  liveOrders: defineTable({
+    userId: v.id("users"),
+    positionId: v.id("livePositions"),
+    instId: v.string(),
+    kind: liveOrderKind,
+    side,
+    clOrdId: v.string(),
+    /** Requested contracts (OKX sz). */
+    sz: v.string(),
+    status: liveOrderStatus,
+    /** Open orders: USD moved from balance to locked until settlement. */
+    reservedUsd: v.optional(v.number()),
+    /** Open orders: the margin the user asked for. */
+    margin: v.optional(v.number()),
+    leverage: v.optional(v.number()),
+    ordId: v.optional(v.string()),
+    filledSz: v.optional(v.number()),
+    avgPx: v.optional(v.number()),
+    /** Fee charged (positive USD). */
+    fee: v.optional(v.number()),
+    error: v.optional(v.string()),
+    attempts: v.number(),
+  })
+    .index("by_clOrdId", ["clOrdId"])
+    .index("by_status", ["status"])
+    .index("by_userId", ["userId"])
+    .index("by_positionId", ["positionId"]),
 
   // Server-side operational log. Written only by backend code.
   logs: defineTable({

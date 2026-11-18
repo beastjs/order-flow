@@ -25,7 +25,7 @@ component PositionRow
     const exit = p.side === "up" ? ticker?.bidPx || ticker?.last : ticker?.askPx || ticker?.last;
     const net = m && exit ? m.pnl - p.openFee - p.size * exit * TAKER_FEE : null;
   article.pos-row(data-side={p.side})
-    Link.pos-asset(to="/predictions/$assetId" params={{ assetId: row.base }})
+    Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
       AssetGlyph(base={row.base})
       span.pos-asset-name
         strong #{row.base}
@@ -115,4 +115,4 @@ section.pos
       empty
         .pos-empty
           p No open positions.
-          Link.lp-btn.lp-btn-ghost(to="/predictions") Browse markets
+          Link.lp-btn.lp-btn-ghost(to="/perps") Browse markets

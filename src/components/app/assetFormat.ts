@@ -65,7 +65,7 @@ export function terminalHref(item: Pick<AssetIndexItem, 'base' | 'category'>): s
     : null
 }
 
-/** Route param ↔ instrument: /predictions/AAPL ↔ AAPL-USDT-SWAP. */
+/** Route param ↔ instrument: /perps/AAPL ↔ AAPL-USDT-SWAP. */
 export const assetIdOf = (item: Pick<AssetIndexItem, 'base'>) => item.base
 export const instIdFromAssetId = (assetId: string) => `${assetId.toUpperCase()}-USDT-SWAP`
 

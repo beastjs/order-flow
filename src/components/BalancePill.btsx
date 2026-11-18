@@ -14,7 +14,7 @@ setup
   const title = mode === "cloud" ? "Available paper balance · your account" : "Available practice balance · sign in to save";
 
 Link(
-  ~ to="/predictions"
+  ~ to="/perps"
   ~ search={{ tab: "positions" }}
   ~ className={cn("balance-pill", mode === "cloud" && "is-cloud")}
   ~ title={title}

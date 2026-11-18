@@ -25,8 +25,8 @@ component Panel
   props { onClose, onConnectWallet, onTopUp }: { onClose: () => void; onConnectWallet: () => void; onTopUp: () => void }
   setup
     const location = useLocation();
-    const onPositions = location.pathname === "/predictions" && (location.search as { tab?: string }).tab === "positions";
-    const onMarkets = location.pathname.startsWith("/predictions") && !onPositions;
+    const onPositions = location.pathname === "/perps" && (location.search as { tab?: string }).tab === "positions";
+    const onMarkets = location.pathname.startsWith("/perps") && !onPositions;
     const onTerminal = location.pathname.startsWith("/terminal");
     const openCount = useOpenPositions().rows.length;
     const available = useAvailableBalance();
@@ -51,15 +51,15 @@ component Panel
     };
   .mobile-menu(ref={panelRef} role="menu" aria-label="Menu" tabIndex={-1})
     nav.mobile-menu-links
-      Link(to="/predictions" search={{}} className={cn("mobile-menu-link", onMarkets && "is-active")} onClick={onClose}) Markets
-      Link(to="/predictions" search={{ tab: "positions" }} className={cn("mobile-menu-link", onPositions && "is-active")} onClick={onClose})
+      Link(to="/perps" search={{}} className={cn("mobile-menu-link", onMarkets && "is-active")} onClick={onClose}) Markets
+      Link(to="/perps" search={{ tab: "positions" }} className={cn("mobile-menu-link", onPositions && "is-active")} onClick={onClose})
         | Positions
         if openCount > 0
           span.site-link-badge #{openCount}
       Link(to="/terminal" className={cn("mobile-menu-link", onTerminal && "is-active")} onClick={onClose}) Terminal
 
     .mobile-menu-section
-      Link.mobile-menu-row(to="/predictions" search={{ tab: "positions" }} onClick={onClose})
+      Link.mobile-menu-row(to="/perps" search={{ tab: "positions" }} onClick={onClose})
         span
           | Available
           small #{available.mode === "cloud" ? "Paper balance · your account" : "Practice balance"}

@@ -26,6 +26,13 @@ export async function requireUser(ctx: QueryCtx | MutationCtx): Promise<Doc<"use
   return user;
 }
 
+/** Non-throwing admin check (role or Firebase `admin`/`god` claim). */
+export async function isAdmin(ctx: QueryCtx | MutationCtx, user: Doc<"users">): Promise<boolean> {
+  const identity = await ctx.auth.getUserIdentity();
+  const claims = (identity ?? {}) as unknown as Record<string, unknown>;
+  return user.role === "admin" || claims.admin === true || claims.god === true;
+}
+
 /** Admins: `role: "admin"` in Convex, or Firebase custom claim `admin`/`god` on the token. */
 export async function requireAdmin(ctx: QueryCtx | MutationCtx): Promise<Doc<"users">> {
   const identity = await requireIdentity(ctx);

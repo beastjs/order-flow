@@ -23,6 +23,12 @@ export interface OkxSwap {
   base: string;
   category: "crypto" | "stock" | "commodity" | "other";
   maxLeverage: number;
+  /** Contract spec (strings as OKX sends them, for exact lot math). */
+  ctVal: number;
+  lotSz: string;
+  minSz: string;
+  /** "pre_market" for pre-IPO perps. */
+  ruleType: string;
 }
 
 /** A live USDT-margined perpetual, or throw. */
@@ -37,6 +43,10 @@ export async function fetchSwap(instId: string): Promise<OkxSwap> {
     base: row.ctValCcy || instId.split("-")[0],
     category: CATEGORY[row.instCategory] ?? "other",
     maxLeverage: Number(row.lever) || 1,
+    ctVal: Number(row.ctVal) || 1,
+    lotSz: row.lotSz || "1",
+    minSz: row.minSz || row.lotSz || "1",
+    ruleType: row.ruleType || "normal",
   };
 }
 
