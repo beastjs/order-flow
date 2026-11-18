@@ -1,5 +1,5 @@
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
-import { useEffect, useMemo, useState } from "octane";
+import { useEffect, useMemo, useRef, useState } from "octane";
 import { Link, useSearch } from "@octanejs/tanstack-router";
 import { debounce, useQueryStates } from "@octanejs/nuqs";
 import { perpsParams, type PerpsFilter, type PerpsSort } from "@/lib/url/perpsParams";
@@ -79,6 +79,22 @@ setup
   const chooseFilter = (f: Filter) => void setParams({ cat: f }, { history: "replace" });
   const chooseSort = (s: Sort) => void setParams({ sort: s }, { history: "replace" });
   // Typing updates the input at once; the URL catches up 300ms after the last key.
+  // "/" focuses the search from anywhere on the page (unless you're already typing somewhere).
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      const input = searchRef.current;
+      if (!input) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const typeQuery = (q: string) =>
     void setParams({ q }, { history: "replace", limitUrlUpdates: q ? debounce(300) : undefined });
   const snapshot = useOkxTickerSnapshot();
@@ -165,10 +181,14 @@ setup
     .lp-markets
       .lp-toolbar
         input.lp-search(
+          ~ ref={searchRef}
           ~ type="search"
           ~ placeholder="Search markets"
+          ~ title="Search markets (/)"
+          ~ aria-keyshortcuts="/"
           ~ value={query}
           ~ onInput={(e: Event) => typeQuery((e.target as HTMLInputElement).value)}
+          ~ onKeyDown={(e: KeyboardEvent) => { if (e.key === "Escape") (e.target as HTMLInputElement).blur() }}
           ~ )
         .lp-toolbar-right
           .lp-segmented(aria-label="Data source")
