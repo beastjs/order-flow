@@ -142,7 +142,7 @@ section.hero(aria-label="Session statistics")
           else
             | #{`${base}/USDT`}
         small #{assetName ?? venueLabel} · #{marketType === "perpetual" ? "Perp" : marketType === "spot" ? "Spot" : "FX"}
-    span(className={`hero-price-value ${change >= 0 ? "is-up" : "is-down"}`}) #{px(last || undefined)}
+    span(className={`hero-price-value ${change >= 0 ? "is-up" : "is-down"}`}) $#{px(last || undefined)}
     span(className={`change-pill ${change >= 0 ? "up" : "down"}`}) #{change >= 0 ? "▲" : "▼"} #{formatPercent(Math.abs(changePct), 2, false)}
   .hero-stats
     Stat(

@@ -58,7 +58,9 @@
   font-size: 13px;
   padding: 6px 12px;
   border-radius: 999px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
 }
 .site-links a:hover,
 .site-links a.is-active {
@@ -149,7 +151,10 @@
   border-radius: 999px;
   font-size: 14px;
   text-decoration: none;
-  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  transition:
+    transform 0.15s,
+    background 0.15s,
+    border-color 0.15s;
 }
 .lp-btn:active {
   transform: scale(0.98);
@@ -253,7 +258,9 @@
   border-radius: var(--radius-card);
   background: linear-gradient(180deg, var(--bg-panel), var(--bg-surface));
   border: 1px solid var(--border-muted);
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
   min-width: 0;
 }
 .asset-index[data-up='0'] {
@@ -318,7 +325,7 @@
   gap: 8px;
 }
 .asset-index-last {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: clamp(22px, 2.4vw, 28px);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -563,8 +570,8 @@
 }
 .ap-title h1 {
   font-family: var(--font-news), Georgia, serif;
-  font-weight: 300;
-  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 350;
+  font-size: clamp(40px, 6vw, 56px);
   letter-spacing: -0.03em;
   line-height: 1;
 }
@@ -588,7 +595,7 @@
   gap: 2px;
 }
 .ap-last {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: clamp(32px, 4.5vw, 48px);
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -596,7 +603,7 @@
 }
 .ap-change {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .ap-chart-card,
@@ -903,7 +910,9 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .sim-side.is-up.is-active {
   background: var(--buy-bg);
@@ -1032,7 +1041,9 @@
   font-weight: 600;
   cursor: pointer;
   color: var(--on-accent);
-  transition: transform 0.12s, opacity 0.15s;
+  transition:
+    transform 0.12s,
+    opacity 0.15s;
 }
 .sim-submit:active {
   transform: scale(0.985);
@@ -1094,7 +1105,9 @@
 .sim-risk-bar {
   height: 100%;
   background: var(--buy);
-  transition: width 0.3s, background 0.3s;
+  transition:
+    width 0.3s,
+    background 0.3s;
 }
 .sim-risk-bar[data-danger='1'] {
   background: var(--sell);
@@ -1165,7 +1178,9 @@
   color: var(--text-muted);
   text-decoration: none;
   font-size: 14px;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 .lp-tab:hover {
   color: var(--text-primary);
@@ -1280,7 +1295,9 @@
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .pos-close:hover:not(:disabled) {
   background: var(--bg-hover);
@@ -1316,7 +1333,6 @@
     justify-self: end;
   }
 }
-
 
 /* ─── top-up modal (rendered in a portal; uses wallet-modal chrome) ─── */
 .topup {
@@ -1465,7 +1481,9 @@
   background: var(--bg-panel);
   color: var(--text-primary);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .mobile-menu-trigger.has-avatar {
   border-color: transparent;
