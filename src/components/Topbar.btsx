@@ -1,13 +1,12 @@
-
 module "use client";
 import { useMarketUrlState } from "@/hooks/useMarketUrlState";
-import type { PanelVisibility, TimeValue, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
+import type { TimeValue, ToolProfile, Venue, VenueSelection } from "@/lib/types/market";
 import { FOREX_SYMBOLS } from "@/lib/config/venues";
 import { venueSupports } from "@/lib/adapters/capabilities";
 import { CRYPTO_ASSETS } from "@/lib/config/instruments";
 import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
-import { REPO_URL, Wordmark } from "@/components/Logo.btsx";
-import { Icon, IconName } from "@/lib/icons";
+import { Wordmark } from "@/components/Logo.btsx";
+import { IconName } from "@/lib/icons";
 import { useMemo } from "octane";
 import Segmented from "./ui/Segmented.btsx";
 import WalletButton from "./WalletButton.btsx";
@@ -26,10 +25,11 @@ module
     value: ToolProfile;
     label: string;
     title: string;
+    url?: string
   }[] = [
-    { value: "order-flow", label: "Order Flow", title: "Footprint, tape, CVD and volume z-score" },
-    { value: "liquidity", label: "Liquidity", title: "Order book, depth, imbalance and traded-volume heatmap" },
-    { value: "volatility", label: "Volatility", title: "Realized volatility, volume z-score and tape" },
+    { value: "order-flow", label: "Order Flow", title: "Footprint, tape, CVD and volume z-score", url: './order-flow.svg' },
+    { value: "liquidity", label: "Liquidity", title: "Order book, depth, imbalance and traded-volume heatmap", url: './liquidity.svg'  },
+    { value: "volatility", label: "Volatility", title: "Realized volatility, volume z-score and tape", url: './volatility.svg'  },
   ];
   const VENUES: Record<"perpetual" | "spot", {
     value: Venue;

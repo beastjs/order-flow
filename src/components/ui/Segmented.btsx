@@ -1,11 +1,12 @@
 import { type OctaneNode } from 'octane';
 module
-  type SegmentedProps<T> = { value: string | number;
+  type SegmentedProps<T> = { value: T;
     ~ options: readonly {
     ~   value: T;
     ~   label: OctaneNode;
     ~   title?: string;
-    ~   hint?: string
+    ~   hint?: string;
+    ~   url?: string;
     ~   }[];
     ~ onChange: (value: T) => void;
     ~ size?: "xs" | "sm" | "md";
@@ -23,9 +24,12 @@ div(
       ~ type="button"
       ~ role="radio"
       ~ aria-checked={value === option.value}
-      ~ data-hint={option.hint}
+      ~ data-hint={option.hint ?? option.title}
       ~ title={option.title}
-      ~ className={value === option.value ? "is-active" : ""}
+      ~ className={value === option.value ? "is-active" : "opacity-70 grayscale"}
       ~ onClick={() => onChange(option.value)}
       ~ )
-      | #{option.label}
+      if option.url
+        img(src={option.url} alt={option.url} className='h-4 w-full aspect-auto')
+      else
+        span #{option.label}

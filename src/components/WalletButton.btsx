@@ -77,13 +77,13 @@ fragment
       WalletItems
   else
     button(
-      ~ className="connect-wallet-button is-primary"
+      ~ className="connect-wallet-button is-primary flex items-center gap-2"
       ~ type="button"
       ~ aria-label="Connect wallet"
       ~ aria-haspopup="dialog"
       ~ data-hint="Connect wallet"
       ~ onClick={() => setModalOpen(true)}
       ~ )
-      Icon(name='wallet' size={20})
+      Icon(name='wallet' size={18})
       span.connect-label #{wallet.isConnecting ? "Connecting…" : "Connect"}
   WalletModal(open={modalOpen && !wallet.isConnected} onClose={closeModal})

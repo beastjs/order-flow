@@ -371,7 +371,7 @@ input {
   color: var(--text-primary);
 }
 .segmented button.is-active {
-  background: var(--bg-active);
+  background: var(--bg-base);
   color: var(--text-primary);
 }
 .segmented-accent button.is-active {
