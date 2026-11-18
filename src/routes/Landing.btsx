@@ -61,9 +61,9 @@ setup
       br
       em not the noise.
     p.lp-hero-sub
-      | A footprint terminal for traders who want to see who is actually buying.
       | Trades, books, liquidations and funding from six venues — and every OKX
-      | perpetual, from Bitcoin to Apple — streamed straight to your browser.
+      | perpetual, from AMZN to ZEC — streamed straight to your browser.
+      // | A footprint terminal for traders who want to see who is actually buying.
     .lp-hero-cta
       Link.lp-btn.lp-btn-primary(to="/terminal") Open the terminal
       Link.lp-btn.lp-btn-ghost(to="/perps") Browse #{stocks + crypto > 0 ? `${stocks + crypto} ` : ""}markets

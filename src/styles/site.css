@@ -224,6 +224,7 @@
   display: inline-block;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-sans);
 }
 .lp-tape-px {
   min-width: 9ch;
