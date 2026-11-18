@@ -41,12 +41,12 @@ setup
   const gradId = `spark-${item.instId}`;
 
 Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf(item) }} aria-label={`${item.base} perpetual`})
-  article.asset-index(ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
+  article.asset-index(className='hover:bg-[#111] hover:shadow-[inset_0px_1px_1px_0px_rgba(255,255,255,0.18)] ' ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
     header.asset-index-head
       AssetGlyph(base={item.base})
       .asset-index-name
         strong #{item.base}
-        span #{CATEGORY_LABEL[item.category]} · Perp
+        span #{CATEGORY_LABEL[item.category]}
       if item.preMarket
         span.asset-index-tag Pre-IPO
       elseif item.maxLeverage
@@ -66,4 +66,4 @@ Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf(item) }}
           path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
     footer.asset-index-foot
       span(className='text-(--text-secondary)') Vol #{fmtCompact(turnover)}
-      span #{ticker ? `H ${fmtPrice(ticker.high24h, item.tickSz)} · L ${fmtPrice(ticker.low24h, item.tickSz)}` : ""}
+      span(className='tracking-tightest') #{ticker ? `H ${fmtPrice(ticker.high24h, item.tickSz)} · L ${fmtPrice(ticker.low24h, item.tickSz)}` : ""}

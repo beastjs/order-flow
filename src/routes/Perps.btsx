@@ -85,7 +85,7 @@ setup
   section.lp-page-head
     p.lp-eyebrow
       span.lp-live-dot
-      | Streaming from OKX · public & business WebSocket
+      | Streaming Live from OKX
     if tab === "positions"
       h1.lp-page-title
         | #{"Your positions, "}
@@ -109,24 +109,24 @@ setup
   else
     .lp-markets
       .lp-toolbar
-        .lp-segmented(role="tablist")
-          each f in FILTERS key f.value
-            button(
-              ~ type="button"
-              ~ role="tab"
-              ~ aria-selected={filter === f.value}
-              ~ className={cn("lp-seg", filter === f.value && "is-active")}
-              ~ onClick={() => setFilter(f.value)}
-              ~ )
-              | #{f.label}
-              span.lp-seg-count #{counts[f.value] || ""}
+        input.lp-search(
+          ~ type="search"
+          ~ placeholder="Search markets"
+          ~ value={query}
+          ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
+          ~ )
         .lp-toolbar-right
-          input.lp-search(
-            ~ type="search"
-            ~ placeholder="Search AAPL, BTC, XAU…"
-            ~ value={query}
-            ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
-            ~ )
+          .lp-segmented(role="tablist")
+            each f in FILTERS key f.value
+              button(
+                ~ type="button"
+                ~ role="tab"
+                ~ aria-selected={filter === f.value}
+                ~ className={cn("lp-seg", filter === f.value && "is-active")}
+                ~ onClick={() => setFilter(f.value)}
+                ~ )
+                | #{f.label}
+                span.lp-seg-count #{counts[f.value] || ""}
           .lp-segmented
             each s in SORTS key s.value
               button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => setSort(s.value)}) #{s.label}
@@ -141,4 +141,4 @@ setup
             p.lp-grid-empty #{perps.length ? "No markets match your search." : "Loading markets…"}
 
   footer.site-foot
-    span Data: OKX public market data. Perpetual swaps are leveraged derivatives. Not investment advice.
+    span OKX public market data on perpetual swaps are leveraged derivatives. Not investment advice.

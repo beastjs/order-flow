@@ -40,7 +40,7 @@ component PositionRow
       span.pos-label Mark
       span #{fmtPrice(price)}
     .pos-cell
-      span.pos-label Liq. (est.)
+      span.pos-label Liquidation (est)
       span.is-down #{m ? fmtPrice(m.liq) : "—"}
     .pos-cell
       span.pos-label Margin

@@ -136,13 +136,13 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
         button(type="button" role="radio" aria-checked={isLive} className={cn("sim-venue-opt is-live", isLive && "is-active")} disabled={busy !== null} onClick={() => setVenue("live")}) Live
     elseif !isLive
       span.sim-balance
+        span.sim-mode-dot
         button.sim-link(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset balance
   p(className={cn("sim-mode", (account.mode === "cloud" || isLive) && "is-cloud", isLive && "is-live")})
-    span.sim-mode-dot
     if isLive
       | #{liveCfg?.mode === "demo" ? "OKX demo trading · simulated funds on OKX · your USD balance" : "LIVE on OKX · real funds · your USD balance"}
-    else
-      | #{account.mode === "cloud" ? "Saved to your account · priced by the server" : account.loading ? "Checking your account…" : "Practice mode · sign in to save positions"}
+    // else
+    //   | #{account.mode === "cloud" ? "Saved to your account · priced by the server" : account.loading ? "Checking your account…" : "Practice mode · sign in to save positions"}
   if canLive && !isLive && account.mode === "cloud"
     button.sim-link.sim-reset-inline(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset paper balance
 
@@ -182,9 +182,9 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
         button(type="button" role="radio" aria-checked={side === "down"} className={cn("sim-side is-down", side === "down" && "is-active")} onClick={() => setSide("down")}) ▼ Down
 
       label.sim-field
-        span Amount (margin)
+        // span Amount (margin)
         .sim-input
-          span $
+          span(className='font-[450] text-xl') $
           input(
             ~ type="number"
             ~ inputMode="decimal"
@@ -194,10 +194,10 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
             ~ placeholder="0.00"
             ~ onInput={(e: Event) => typeAmount((e.target as HTMLInputElement).value)}
             ~ )
-          span #{isLive ? "USD" : "USDT"}
-      button.sim-available(type="button" disabled={!affordable} onClick={() => setFraction(1)} title="Use the maximum at this multiplier")
-        span Available #{usd(available)}
-        span Max #{usd(affordable)} at #{leverage}×
+          span #{isLive ? "USD" : "Amount"}
+      // button.sim-available(type="button" disabled={!affordable} onClick={() => setFraction(1)} title="Use the maximum at this multiplier")
+      //   span Available #{usd(available)}
+      //   span Max #{usd(affordable)} at #{leverage}×
       .sim-chips
         each f in [0.1, 0.25, 0.5, 1] key f
           button.sim-chip(type="button" onClick={() => setFraction(f)}) #{f === 1 ? "Max" : `${f * 100}%`}
@@ -256,5 +256,5 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
 
   if isLive
     p.sim-note Market orders on OKX #{liveCfg?.mode === "demo" ? "demo trading" : "(real funds)"} · fills, fees and size from OKX · max $#{liveCfg?.maxOrderUsd} per order · liquidated at #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin.
-  else
-    p.sim-note Live OKX prices · fills cross the spread · #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin · no real funds.
+  // else
+  //   p.sim-note Live OKX prices · fills cross the spread · #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin · no real funds.
