@@ -30,12 +30,12 @@ module
   }
 
 component Avatar
-  props { photoURL, name, email, size = 28 }: { photoURL: string | null; name: string | null; email: string | null; size?: number }
+  props { photoURL, name, email, size = 30 }: { photoURL: string | null; name: string | null; email: string | null; size?: number }
   setup const [failed, setFailed] = useState(false);
-  span.account-avatar(style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }} aria-hidden)
+  div.account-avatar(style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }} aria-hidden)
     if photoURL && !failed
       // Google profile photos 403 when a Referer is sent.
-      img(src={photoURL} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)})
+      img(src={photoURL} alt="user-avatar" referrerPolicy="no-referrer" onError={() => setFailed(true)})
     else
       span #{initials(name, email)}
 
@@ -99,7 +99,7 @@ fragment
       AccountItems(onError={setError} onTopUp={() => setTopUpOpen(true)})
   else
     button(
-      ~ className="ui-button account-signin"
+      ~ className="account-signin"
       ~ type="button"
       ~ aria-label={label}
       ~ title={label}
@@ -109,5 +109,5 @@ fragment
       ~ disabled={!isFirebaseConfigured || busy}
       ~ onClick={signIn}
       ~ )
-      Icon(name="user" size={18})
+      Icon(name="user-settings" size={24})
   TopUpModal(open={topUpOpen && Boolean(user)} onClose={() => setTopUpOpen(false)})

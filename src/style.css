@@ -252,7 +252,7 @@ input {
   justify-content: center;
   gap: 7px;
   height: 24px;
-  border-radius: 999px;
+  border-radius: 18px;
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
@@ -260,10 +260,10 @@ input {
   white-space: nowrap;
   text-decoration: none;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s,
-    transform 0.15s;
+    background 0.18s,
+    border-color 0.18s,
+    color 0.18s,
+    transform 0.18s;
 }
 
 .ui-button:hover {
@@ -2682,11 +2682,15 @@ body.is-resizing-row,
 
 /* ─── account (sign-in) button ─── */
 .account-signin {
-  width: 30px;
-  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   padding: 0;
   flex-shrink: 0;
-  border: 1px solid var(--border);
+  border: 1px dashed var(--text-muted);
   background: var(--bg-panel);
   color: var(--text-secondary);
   transition:
@@ -2710,25 +2714,26 @@ body.is-resizing-row,
   opacity: 0.45;
 }
 .account-trigger {
-  padding: 0 !important;
-  border-radius: 50% !important;
+  /*padding: 0 !important;*/
+  /*border-radius: 50% !important;*/
   background: transparent !important;
   border: 0 !important;
 }
 .account-avatar {
-  display: inline-grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: 14%;
   overflow: hidden;
   background: var(--bg-active);
   color: var(--text-primary);
   font-weight: 600;
-  box-shadow: 0 0 0 1px var(--border);
+  /*box-shadow: 0 0 0 1px var(--border);*/
 }
-.account-trigger:hover .account-avatar,
+/*.account-trigger:hover .account-avatar,*/
 .account-trigger[aria-expanded='true'] .account-avatar {
-  box-shadow: 0 0 0 2px var(--text-muted);
+  box-shadow: 0 0 0 0px var(--text-muted);
 }
 .account-avatar img {
   width: 100%;
@@ -2768,19 +2773,19 @@ body.is-resizing-row,
 /* The terminal topbar is denser: match the 24px wallet button. */
 .topbar .account-signin,
 .topbar .account-trigger .account-avatar {
-  width: 24px !important;
-  height: 24px !important;
+  width: 30px !important;
+  height: 30px !important;
 }
 
 /* ─── available balance pill (site nav + terminal topbar) ─── */
 .balance-pill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 30px;
+  gap: 8px;
+  height: 32px;
   padding: 0 12px;
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text-primary);
@@ -2812,7 +2817,7 @@ body.is-resizing-row,
   display: none;
 }
 .topbar .balance-pill {
-  height: 32px;
+  height: 36px;
   padding: 0 10px;
   gap: 6px;
   font-size: 11.5px;
@@ -2859,7 +2864,6 @@ body.is-resizing-row,
     padding-right: 0;
   }
   .topbar > .balance-pill,
-  .topbar > .connect-wallet-button,
   .topbar > .account-signin,
   .topbar > .menu {
     order: -2;

@@ -56,8 +56,9 @@
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 13px;
+  font-family: var(--font-sans);
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: 6px;
   transition:
     color 0.15s,
     background 0.15s;
@@ -501,16 +502,19 @@
   min-width: 50%;
   padding: 0 16px;
   /*border-radius: 6px;*/
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 300;
-  letter-spacing: 0.05em;
+  font-family: var(--font-news);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   border-bottom: 1px solid var(--border-muted);
   /*background: var(--bg-panel);*/
   outline: none;
 }
 .lp-search::placeholder {
-  color: color-mix(in srgb, var(--text-muted), 60% transparent);
+  color: color-mix(in srgb, var(--text-muted), 40% transparent);
+  font-weight: 200;
+  letter-spacing: 0.06em;
 }
 .lp-search:focus {
   border-color: var(--border);
@@ -828,14 +832,24 @@
 
 /* Wallet button in the site nav: show its label (the terminal hides it to save space). */
 .site-wallet .connect-wallet-button {
-  height: 32px;
+  display: flex;
+  align-items: center;
+  height: 30px;
   width: auto;
-  gap: 6px;
-  padding: 0 14px;
-  border-radius: 999px;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 4px;
+}
+.site-wallet .connect-wallet-button.is-primary {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .site-wallet .connect-label {
   display: inline !important;
+  font-family: var(--font-sans);
+  font-weight: 450;
+  font-size: 15px;
+  letter-spacing: -0.01em;
 }
 @media (max-width: 480px) {
   .site-wallet .connect-label {
@@ -1517,7 +1531,7 @@
   border-color: var(--text-muted);
 }
 .mobile-menu-trigger.has-avatar.is-open .account-avatar {
-  box-shadow: 0 0 0 2px var(--text-muted);
+  /*box-shadow: 0 0 0 2px var(--text-muted);*/
 }
 .mobile-menu {
   position: fixed;
