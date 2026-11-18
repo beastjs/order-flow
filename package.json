@@ -13,7 +13,10 @@
     "icons:build": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts",
     "icons:check": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts --check",
     "fb:claims": "bun run scripts/firebase/seed-claims.ts",
-    "fb:check": "bunx @beastjs/auth --check"
+    "fb:check": "bunx @beastjs/auth --check",
+    "cf:dev": "bun run build && wrangler dev",
+    "cf:check": "bun run build && wrangler deploy --dry-run",
+    "cf:deploy": "bun run build && wrangler deploy"
   },
   "dependencies": {
     "@nktkas/hyperliquid": "^0.33.3",
@@ -28,9 +31,11 @@
     "convex": "^1.50.0",
     "firebase": "^13.4.0",
     "firebase-admin": "^14.5.1",
+    "lenis": "^1.3.27",
     "octane": "0.16.0",
     "tailwind-merge": "^3.7.0",
-    "viem": "^2.57.17"
+    "viem": "^2.57.17",
+    "wrangler": "^4.164.0"
   },
   "devDependencies": {
     "@beastjs/cli": "0.3.3",

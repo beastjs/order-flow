@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "cfx-dev", "runtimeExecutable": "bun", "runtimeArgs": ["run", "dev", "--port", "3210"], "port": 3210 }
+    { "name": "cfx-dev", "runtimeExecutable": "bun", "runtimeArgs": ["run", "dev", "--port", "3210"], "port": 3210 },
+    { "name": "cfx-wrangler", "runtimeExecutable": "bunx", "runtimeArgs": ["wrangler", "dev", "--port", "8788"], "port": 8788 }
   ]
 }

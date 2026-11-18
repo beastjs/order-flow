@@ -1,3 +1,4 @@
+import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { Link } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
 import AssetIndex from "@/components/app/AssetIndex.btsx";
@@ -43,11 +44,12 @@ module
   ]
 
 setup
+  const scrollRef = useSmoothScroll<HTMLDivElement>();
   const tickers = useOkxTickers(TAPE, 1000);
   const stocks = useOkxPerps("stock").perps.length;
   const crypto = useOkxPerps("crypto").perps.length;
 
-.site
+.site(ref={scrollRef})
   SiteNav
 
   section.lp-hero

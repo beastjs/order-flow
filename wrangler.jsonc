@@ -1,0 +1,17 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	// Assets-only Worker: serves the Rsbuild output from Cloudflare's edge.
+	// No Worker script — the backend is Convex; this only hosts the SPA.
+	"name": "cfx",
+	// beastjs account (the login can reach more than one; pin it so deploys never guess).
+	"account_id": "3e5e21a8e670deeba6401b80e003df01",
+	"compatibility_date": "2026-11-18",
+	"assets": {
+		"directory": "./dist",
+		// Client-side routes (/perps, /perps/AAPL, /terminal) get index.html with 200.
+		"not_found_handling": "single-page-application"
+	},
+	"observability": {
+		"enabled": true
+	}
+}

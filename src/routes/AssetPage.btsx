@@ -1,3 +1,4 @@
+import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { useEffect, useState } from "octane";
 import { Link, useParams } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
@@ -41,6 +42,7 @@ component Stat
     strong(className={tone === "up" ? "is-up" : tone === "down" ? "is-down" : undefined}) #{value}
 
 setup
+  const scrollRef = useSmoothScroll<HTMLDivElement>();
   const { assetId } = useParams({ strict: false }) as { assetId: string };
   const instId = instIdFromAssetId(assetId);
   const [inst, setInst] = useState<OkxPerpInstrument | null | undefined>(undefined);
@@ -83,7 +85,7 @@ setup
   const spread = book && book.bids[0] && book.asks[0] ? book.asks[0].price - book.bids[0].price : null;
   const terminal = inst ? terminalHref(inst) : null;
 
-.site
+.site(ref={scrollRef})
   SiteNav
   if inst === null
     section.lp-page-head

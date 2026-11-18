@@ -1,3 +1,4 @@
+import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { useEffect, useMemo, useState } from "octane";
 import { Link, useSearch } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
@@ -40,6 +41,7 @@ module
   }
 
 setup
+  const scrollRef = useSmoothScroll<HTMLDivElement>();
   const search = useSearch({ strict: false }) as { tab?: "positions" };
   const tab = search.tab === "positions" ? "positions" : "markets";
   const openCount = useOpenPositions().rows.length;
@@ -78,7 +80,7 @@ setup
     return list.sort(by[sort]);
   }, [perps, filter, sort, query, snapshot]);
 
-.site
+.site(ref={scrollRef})
   SiteNav
   section.lp-page-head
     p.lp-eyebrow

@@ -1,0 +1,4 @@
+# Not served publicly. Copied into dist/ by the build; read by `wrangler deploy`.
+# Octane's build manifest (used by the build/dev server only, never fetched by the app):
+octane-client-build.json
+.DS_Store
