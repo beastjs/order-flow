@@ -47,8 +47,9 @@ component PositionRow
       span #{usd(p.margin)}
     .pos-cell.pos-pnl
       span.pos-label PnL
-      span(className={m && m.pnl >= 0 ? "is-up" : "is-down"}) #{m ? usd(m.pnl, true) : "—"}
-      small(className={m && m.roe >= 0 ? "is-up" : "is-down"}) #{m ? fmtPct(m.roe) : ""}
+      span.pos-pnl-val(className={m && m.pnl >= 0 ? "is-up" : "is-down"})
+        span #{m ? usd(m.pnl, true) : "—"}
+        small(className={m && m.roe >= 0 ? "is-up" : "is-down"}) #{m ? fmtPct(m.roe) : ""}
     button.pos-close(type="button" disabled={busy || net === null} onClick={() => onClose(row)} title={net === null ? "Waiting for a price" : `Close at market · ${usd(net, true)} after fees`})
       | #{busy ? "Closing…" : "Close"}
 
@@ -94,7 +95,7 @@ section.pos
       span Unrealized PnL
       strong(className={totalPnl >= 0 ? "is-up" : "is-down"}) #{open.rows.length ? usd(totalPnl, true) : "—"}
     .pos-stat
-      span Free balance
+      span Available balance
       strong #{usd(open.balance)}
   p(className={cn("sim-mode", open.mode === "cloud" && "is-cloud")})
     span.sim-mode-dot

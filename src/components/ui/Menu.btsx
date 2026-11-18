@@ -28,7 +28,7 @@ component EmptyState
 
 
 
-props { label, children, align = "right", buttonClassName = "", hint, }: MenuProps
+props { label, children, align = "right", buttonClassName = "h-full", hint, }: MenuProps
 setup
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<CSSProperties | null>(null);
