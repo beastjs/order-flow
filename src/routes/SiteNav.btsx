@@ -5,6 +5,7 @@ import SignButton from "@/components/SignButton.btsx";
 import BalancePill from "@/components/BalancePill.btsx";
 import MobileMenu from "@/components/MobileMenu.btsx";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
+import { useFirebaseUser } from "@/lib/firebase/auth";
 import { cn } from "@/lib/utils";
 
 setup
@@ -15,6 +16,7 @@ setup
   const onMarkets = location.pathname.startsWith("/perps") && !onPositions;
   const onTerminal = location.pathname.startsWith("/terminal");
   const openCount = useOpenPositions().rows.length;
+  const { user } = useFirebaseUser();
 
 header.site-nav
   Link.site-brand(to="/" aria-label="Home")
@@ -27,7 +29,8 @@ header.site-nav
       if openCount > 0
         span.site-link-badge(aria-label={`${openCount} open`}) #{openCount}
   .site-wallet
-    BalancePill
+    if user
+      BalancePill
     WalletButton
     SignButton
   // Phones: everything above collapses into this one menu (hidden on wider screens).

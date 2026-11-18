@@ -135,7 +135,7 @@ component Dialog
       header.wallet-modal-head
         div
           h2#topup-title Top up
-          p.ui-eyebrow USD balance #{usdBalance.data === undefined || usdBalance.data === null ? "—" : usd(usdBalance.data)} · USDC or USDT, min #{usd(MIN_TOPUP_USD)}
+          // p.ui-eyebrow USD balance #{usdBalance.data === undefined || usdBalance.data === null ? "—" : usd(usdBalance.data)} · USDC or USDT, min #{usd(MIN_TOPUP_USD)}
         button.wallet-modal-close(type="button" aria-label="Close" onClick={onClose}) ×
 
       if !signedIn
@@ -168,7 +168,7 @@ component Dialog
             span Network
             .sim-chips
               each c in chains key c.chainId
-                button(type="button" className={cn("sim-chip", c.chainId === chainId && "is-active")} onClick={() => setChainId(c.chainId)}) #{c.name}
+                button(type="button" className={cn("sim-chip", c.chainId === chainId && "is-active")} onClick={() => setChainId(c.chainId)}) #{c.name.split(' ')[0]}
           .topup-field
             span Token
             .sim-chips
@@ -197,22 +197,24 @@ component Dialog
             .sim-row
               dt Wallet balance
               dd(className={insufficient ? "is-down" : undefined}) #{balance === null ? "—" : `${usd(balance)} ${token?.symbol ?? ""}`}
-            .sim-row
-              dt To (deposit address)
-              dd(title={config.data.address}) #{short(config.data.address)}
+            // .sim-row
+            //   dt To (deposit address)
+            //   dd(title={config.data.address}) #{short(config.data.address)}
             .sim-row
               dt Credited after
               dd #{chain ? `${chain.confirmations} confirmations` : "—"}
-          if !valid
-            p.sim-error Minimum top-up is #{usd(MIN_TOPUP_USD)} (whole cents).
-          elseif insufficient
-            p.sim-error Not enough #{token?.symbol} on #{chain?.name}.
+
           if !onChain
             button.sim-submit.sim-close(type="button" disabled={busy !== null || !chain} onClick={switchNetwork}) #{busy === "switch" ? "Check your wallet…" : `Switch wallet to ${chain?.name ?? "network"}`}
           else
             button.sim-submit.is-up(type="button" disabled={busy !== null || !valid || insufficient || !token} onClick={send}) #{busy === "send" ? "Confirm in your wallet…" : `Send ${valid ? usd(value) : ""} ${token?.symbol ?? ""}`}
-          if chain?.testnet
-            p.topup-note Testnet: enabled for development only.
+          div(className='h-7')
+            if chain?.testnet
+              p.topup-note Testnet: enabled for development only.
+            if !valid
+              p.sim-error Minimum top-up is #{usd(MIN_TOPUP_USD)} (whole cents).
+            elseif insufficient
+              p.sim-error Not enough #{token?.symbol} on #{chain?.name}.
 
       if error
         p.wallet-modal-error(role="alert") #{error}

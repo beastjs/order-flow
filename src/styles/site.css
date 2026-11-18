@@ -1010,9 +1010,9 @@
 }
 .sim-chip {
   min-width: 0;
-  height: 26px;
+  height: 28px;
   border-radius: 7px;
-  border: 1px solid var(--bg-base);
+  border: 0.5px solid var(--bg-base);
   background: color-mix(in srgb, var(--bg-base), 80% transparent);
   color: var(--text-secondary);
   font-family: var(--font-mono);
@@ -1021,7 +1021,8 @@
 }
 .sim-chip:hover,
 .sim-chip.is-active {
-  border-color: var(--tone);
+  border-color: color-mix(in srgb, var(--tone), 15% transparent);
+  background: color-mix(in srgb, var(--tone), 95% transparent);
   color: var(--text-primary);
 }
 .sim-range {
