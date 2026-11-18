@@ -1,4 +1,6 @@
 import { Outlet } from "@octanejs/tanstack-router";
 import WalletProvider from "@/wallet/provider.btsx";
+import { NuqsTanstackAdapter } from "@/lib/url/nuqsTanstackAdapter";
 WalletProvider
-  Outlet
+  NuqsTanstackAdapter
+    Outlet

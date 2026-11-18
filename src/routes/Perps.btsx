@@ -1,6 +1,8 @@
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { useEffect, useMemo, useState } from "octane";
 import { Link, useSearch } from "@octanejs/tanstack-router";
+import { debounce, useQueryStates } from "@octanejs/nuqs";
+import { perpsParams, type PerpsFilter, type PerpsSort } from "@/lib/url/perpsParams";
 import SiteNav from "./SiteNav.btsx";
 import OpenPositions from "@/components/app/OpenPositions.btsx";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
@@ -13,11 +15,11 @@ import { VENUE_LABEL, venueSearch, type MarketVenue } from "@/components/app/ass
 import { cn } from "@/lib/utils";
 
 module
-  import type { AssetCategory, AssetIndexItem } from "@/components/app/assetFormat"
+  import type { AssetIndexItem } from "@/components/app/assetFormat"
   import type { OkxTicker } from "@/lib/okx"
 
-  type Filter = "all" | AssetCategory
-  type Sort = "volume" | "gainers" | "losers" | "name"
+  type Filter = PerpsFilter
+  type Sort = PerpsSort
 
   const FILTERS: { value: Filter; label: string }[] = [
     { value: "all", label: "All" },
@@ -60,17 +62,25 @@ module
 
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
-  const search = useSearch({ strict: false }) as { tab?: "positions"; venue?: "hyperliquid" };
+  const search = useSearch({ strict: false }) as { tab?: "positions" };
   const tab = search.tab === "positions" ? "positions" : "markets";
-  const venue: MarketVenue = search.venue === "hyperliquid" ? "hyperliquid" : "okx";
+  // Toolbar state lives in the URL: ?venue=&cat=&sort=&q= (defaults omitted).
+  const [params, setParams] = useQueryStates(perpsParams);
+  const venue: MarketVenue = params.venue;
+  const sort = params.sort;
+  const query = params.q;
   const isHl = venue === "hyperliquid";
-  const hlPerps = useHlPerps();
+  const hlPerps = useHlPerps(isHl);
   const openCount = useOpenPositions().rows.length;
   const [perps, setPerps] = useState<OkxPerpInstrument[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sort, setSort] = useState<Sort>("volume");
-  const [query, setQuery] = useState("");
+  // A new venue is a new page of results: push it. Category, sort and search carry over.
+  const chooseVenue = (v: MarketVenue) => void setParams({ venue: v }, { history: "push" });
+  const chooseFilter = (f: Filter) => void setParams({ cat: f }, { history: "replace" });
+  const chooseSort = (s: Sort) => void setParams({ sort: s }, { history: "replace" });
+  // Typing updates the input at once; the URL catches up 300ms after the last key.
+  const typeQuery = (q: string) =>
+    void setParams({ q }, { history: "replace", limitUrlUpdates: q ? debounce(300) : undefined });
   const snapshot = useOkxTickerSnapshot();
 
   useEffect(() => {
@@ -107,6 +117,8 @@ setup
     for (const m of markets) c[m.item.category]++;
     return c;
   }, [markets]);
+  // A linked category this venue doesn't list (e.g. ?cat=fx on OKX) falls back to All once loaded.
+  const filter: Filter = params.cat === "all" || !markets.length || counts[params.cat] > 0 ? params.cat : "all";
 
   const visible = useMemo(() => {
     const q = query.trim().toUpperCase();
@@ -122,7 +134,6 @@ setup
 
   // Only offer the asset classes this venue actually lists.
   const filters = FILTERS.filter((f) => f.value === "all" || counts[f.value] > 0);
-  useEffect(() => { setFilter("all") }, [venue]);
 
 .site(ref={scrollRef})
   SiteNav
@@ -157,12 +168,12 @@ setup
           ~ type="search"
           ~ placeholder="Search markets"
           ~ value={query}
-          ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
+          ~ onInput={(e: Event) => typeQuery((e.target as HTMLInputElement).value)}
           ~ )
         .lp-toolbar-right
           .lp-segmented(aria-label="Data source")
             each v in VENUES key v
-              Link(to="/perps" search={venueSearch(v)} className={cn("lp-seg", venue === v && "is-active")} aria-current={venue === v ? "page" : undefined}) #{VENUE_LABEL[v]}
+              button(type="button" className={cn("lp-seg", venue === v && "is-active")} aria-pressed={venue === v} onClick={() => chooseVenue(v)}) #{VENUE_LABEL[v]}
           .lp-segmented(role="tablist")
             each f in filters key f.value
               button(
@@ -170,13 +181,13 @@ setup
                 ~ role="tab"
                 ~ aria-selected={filter === f.value}
                 ~ className={cn("lp-seg", filter === f.value && "is-active")}
-                ~ onClick={() => setFilter(f.value)}
+                ~ onClick={() => chooseFilter(f.value)}
                 ~ )
                 | #{f.label}
                 span.lp-seg-count #{counts[f.value] || ""}
           .lp-segmented
             each s in SORTS key s.value
-              button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => setSort(s.value)}) #{s.label}
+              button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => chooseSort(s.value)}) #{s.label}
 
       if loadError
         p.lp-grid-empty Couldn’t load #{VENUE_LABEL[venue]} instruments: #{loadError}
