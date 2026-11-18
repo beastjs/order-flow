@@ -113,7 +113,7 @@ setup
       em Start listening.
     .lp-hero-cta
       Link.lp-btn.lp-btn-primary(to="/terminal") Open the terminal
-      a.lp-btn.lp-btn-ghost(href={REPO_URL} target="_blank" rel="noreferrer") View source
+      Link.lp-btn.lp-btn-ghost(to='/perps') View Markets
 
   footer.site-foot
     span Market data streamed from public exchange APIs. Not investment advice.
