@@ -1,24 +1,15 @@
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { useEffect, useState } from "octane";
-import { Link, useParams } from "@octanejs/tanstack-router";
+import { Link, useParams, useSearch } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
 import PriceChart from "@/components/app/PriceChart.btsx";
 import PositionSimulator from "@/components/app/PositionSimulator.btsx";
-import { okxChangePct, useOkxBook, useOkxCandles, useOkxFunding, useOkxIndexTicker, useOkxMarkPrice, useOkxOpenInterest, useOkxTicker, useOkxTrades } from "@/hooks/useOkx";
-import { fetchPerps, toIndexId, type OkxBar, type OkxPerpInstrument } from "@/lib/okx";
-import { CATEGORY_LABEL, fmtCompact, fmtPct, fmtPrice, fmtSize, instIdFromAssetId, terminalHref } from "@/components/app/assetFormat";
+import { RANGE_LABELS, useHlAssetView, useOkxAssetView, type RangeKey } from "@/hooks/useAssetView";
+import { toHlCoin } from "@/lib/hyperliquid";
+import { CATEGORY_LABEL, VENUE_LABEL, fmtCompact, fmtPct, fmtPrice, fmtSize, glyphSrc, instIdFromAssetId, terminalHref, venueSearch, type MarketVenue } from "@/components/app/assetFormat";
 import { cn } from "@/lib/utils";
 
 module
-  type RangeKey = "live" | "1h" | "1d" | "1w" | "1m"
-  const RANGES: { key: RangeKey; label: string; bar: OkxBar; limit: number }[] = [
-    { key: "live", label: "Live", bar: "1s", limit: 300 },
-    { key: "1h", label: "1H", bar: "1m", limit: 60 },
-    { key: "1d", label: "1D", bar: "5m", limit: 288 },
-    { key: "1w", label: "1W", bar: "1H", limit: 168 },
-    { key: "1m", label: "1M", bar: "4H", limit: 180 },
-  ]
-
   function countdown(to: number | undefined, now: number): string {
     if (!to || !now) return "—"
     const s = Math.max(0, Math.floor((to - now) / 1000))
@@ -27,13 +18,13 @@ module
   }
 
 component Glyph
-  props { base }: { base: string }
+  props { base, coin, venue }: { base: string; coin: string; venue: MarketVenue }
   setup const [failed, setFailed] = useState(false);
   span.asset-glyph.asset-glyph-lg
     if failed
       span.asset-glyph-mono #{base.slice(0, 3)}
     else
-      img(src={`https://static.okx.com/cdn/oksupport/asset/currency/icon/${base.toLowerCase()}.png`} alt="" onError={() => setFailed(true)})
+      img(src={glyphSrc(coin, venue)} alt="" onError={() => setFailed(true)})
 
 component Stat
   props { label, value, tone }: { label: string; value: string; tone?: "up" | "down" }
@@ -44,19 +35,11 @@ component Stat
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
   const { assetId } = useParams({ strict: false }) as { assetId: string };
-  const instId = instIdFromAssetId(assetId);
-  const [inst, setInst] = useState<OkxPerpInstrument | null | undefined>(undefined);
+  const search = useSearch({ strict: false }) as { venue?: "hyperliquid" };
+  const venue: MarketVenue = search.venue === "hyperliquid" ? "hyperliquid" : "okx";
+  const isHl = venue === "hyperliquid";
   const [range, setRange] = useState<RangeKey>("1d");
   const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    let alive = true;
-    setInst(undefined);
-    fetchPerps()
-      .then((all) => alive && setInst(all.find((p) => p.instId === instId) ?? null))
-      .catch(() => alive && setInst(null));
-    return () => { alive = false };
-  }, [instId]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -64,71 +47,76 @@ setup
     return () => clearInterval(id);
   }, []);
 
-  const live = inst ? instId : null;
-  const ticker = useOkxTicker(live, 250);
-  const mark = useOkxMarkPrice(live);
-  const index = useOkxIndexTicker(live ? toIndexId(instId) : null);
-  const funding = useOkxFunding(live);
-  const oi = useOkxOpenInterest(live);
-  const book = useOkxBook(live, 10, 150);
-  const trades = useOkxTrades(live, 24);
-  const r = RANGES.find((x) => x.key === range)!;
-  const chart = useOkxCandles(live, r.bar, { limit: r.limit, throttleMs: 400 });
+  // Both hooks run every render; only the active venue gets an id and subscribes.
+  const okxView = useOkxAssetView(isHl ? null : instIdFromAssetId(assetId), range);
+  const hlView = useHlAssetView(isHl ? toHlCoin(assetId) : null, range);
+  const v = isHl ? hlView : okxView;
+  const inst = v.meta;
+  const coin = isHl ? toHlCoin(assetId) : assetId.toUpperCase();
+  const title = inst?.base ?? coin;
+  // OKX only lists crypto and equity perps worth linking to.
+  const okxTwin = inst && isHl && (inst.category === "crypto" || inst.category === "stock") ? inst.base : null;
 
   const tick = inst?.tickSz;
-  const ctVal = inst?.ctVal ?? 1;
-  const change = okxChangePct(ticker, "24h");
-  const up = (change ?? 0) >= 0;
-  const basis = mark && index ? ((mark.markPx - index.idxPx) / index.idxPx) * 100 : null;
-  const fundingPct = funding ? funding.fundingRate * 100 : null;
-  const maxBook = book ? Math.max(1, ...book.bids.map((l) => l.size), ...book.asks.map((l) => l.size)) : 1;
+  const up = (v.change ?? 0) >= 0;
+  const basis = v.markPx && v.indexPx ? ((v.markPx - v.indexPx) / v.indexPx) * 100 : null;
+  const book = v.book;
+  const maxBook = book ? Math.max(1e-9, ...book.bids.map((l) => l.size), ...book.asks.map((l) => l.size)) : 1;
   const spread = book && book.bids[0] && book.asks[0] ? book.asks[0].price - book.bids[0].price : null;
-  const terminal = inst ? terminalHref(inst) : null;
+  // Hyperliquid's ctx mid lags the book; center the book on its own touch.
+  const bookMid = isHl && book && book.bids[0] && book.asks[0] ? (book.bids[0].price + book.asks[0].price) / 2 : v.last;
+  const terminal = inst ? terminalHref(inst, venue) : null;
 
 .site(ref={scrollRef})
   SiteNav
   if inst === null
     section.lp-page-head
       p.lp-eyebrow
-        Link(to="/perps") ← All markets
-      h1.lp-page-title #{assetId.toUpperCase()}
-      p.lp-page-sub OKX doesn’t list a live USDT perpetual for “#{assetId}”.
+        Link(to="/perps" search={venueSearch(venue)}) ← All markets
+      h1.lp-page-title #{title}
+      p.lp-page-sub #{VENUE_LABEL[venue]} doesn’t list a live #{isHl ? "" : "USDT "}perpetual for “#{assetId}”.
   else
     .ap-body
       section.ap-head
-        Link.ap-back(to="/perps") ← All markets
+        Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
         .ap-title
-          Glyph(base={inst?.base ?? assetId.toUpperCase()})
+          Glyph(base={title} coin={inst?.instId ?? coin} venue={venue})
           div
-            h1 #{inst?.base ?? assetId.toUpperCase()}
-            p #{inst ? `${CATEGORY_LABEL[inst.category]} perpetual · ${instId} · up to ${inst.maxLeverage}×` : "Loading…"}
-          if inst?.ruleType === "pre_market"
+            h1 #{title}
+            p #{inst ? `${CATEGORY_LABEL[inst.category]} perpetual · ${VENUE_LABEL[venue]}${inst.dex ? ` (${inst.dex} dex)` : ""} · ${inst.instId} · up to ${inst.maxLeverage}×` : "Loading…"}
+          if inst?.preMarket
             span.asset-index-tag Pre-IPO
         .ap-price
-          span.ap-last #{fmtPrice(ticker?.last, tick)}
-          span(className={cn("ap-change", up ? "is-up" : "is-down")}) #{fmtPct(change)} · 24h
+          span.ap-last #{fmtPrice(v.last, tick)}
+          span(className={cn("ap-change", up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
 
       .ap-main
         section.ap-chart-card
           .ap-ranges(role="tablist")
-            each x in RANGES key x.key
+            each x in RANGE_LABELS key x.key
               button(type="button" role="tab" aria-selected={range === x.key} className={cn("lp-seg", range === x.key && "is-active")} onClick={() => setRange(x.key)})
                 if x.key === "live"
                   span.lp-live-dot
                 | #{x.label}
-          PriceChart(candles={chart.candles} tickSz={tick} loading={chart.loading || inst === undefined})
-        if inst
-          PositionSimulator(instId={instId} base={inst.base} tickSz={tick} maxLeverage={inst.maxLeverage || 1} ticker={ticker} markPx={mark?.markPx})
+          PriceChart(candles={v.candles} tickSz={tick} loading={v.candlesLoading})
+        if inst && !isHl
+          PositionSimulator(instId={inst.instId} base={inst.base} tickSz={tick} maxLeverage={inst.maxLeverage} ticker={v.okxTicker} markPx={v.markPx})
+        elseif inst
+          aside.ap-panel.ap-venue-note
+            h2 Trade #{inst.base}
+            p.ap-muted Paper and live positions fill against OKX quotes. Hyperliquid data here is view-only.
+            if okxTwin
+              Link.lp-btn(to="/perps/$assetId" params={{ assetId: okxTwin }} search={{}}) Open #{okxTwin} on OKX →
 
       section.ap-stats
-        Stat(label="Mark price" value={fmtPrice(mark?.markPx, tick)})
-        Stat(label="Index price" value={fmtPrice(index?.idxPx, tick)})
+        Stat(label="Mark price" value={fmtPrice(v.markPx, tick)})
+        Stat(label={v.indexLabel} value={fmtPrice(v.indexPx, tick)})
         Stat(label="Basis" value={fmtPct(basis, 3)} tone={basis === null ? undefined : basis >= 0 ? "up" : "down"})
-        Stat(label="Funding / next" value={`${fmtPct(fundingPct, 4)} · ${countdown(funding?.fundingTime, now)}`} tone={fundingPct === null ? undefined : fundingPct >= 0 ? "up" : "down"})
-        Stat(label="Open interest" value={oi ? `$${fmtCompact(oi.oiUsd)}` : "—"})
-        Stat(label="24h volume" value={ticker ? `$${fmtCompact(ticker.volCcy24h * ticker.last)}` : "—"})
-        Stat(label="24h high" value={fmtPrice(ticker?.high24h, tick)})
-        Stat(label="24h low" value={fmtPrice(ticker?.low24h, tick)})
+        Stat(label={`Funding ${v.fundingHours}h / next`} value={`${fmtPct(v.fundingPct, 4)} · ${countdown(v.nextFunding, now)}`} tone={v.fundingPct === null ? undefined : v.fundingPct >= 0 ? "up" : "down"})
+        Stat(label="Open interest" value={v.oiUsd ? `$${fmtCompact(v.oiUsd)}` : "—"})
+        Stat(label="24h volume" value={v.volUsd ? `$${fmtCompact(v.volUsd)}` : "—"})
+        Stat(label="24h high" value={fmtPrice(v.high24h, tick)})
+        Stat(label="24h low" value={fmtPrice(v.low24h, tick)})
 
       section.ap-grid
         article.ap-panel
@@ -137,25 +125,25 @@ setup
             span #{spread === null ? "" : `Spread ${fmtPrice(spread, tick)}`}
           .ap-book
             .ap-book-side.is-asks
-              each l in (book?.asks ?? []).slice().reverse() key `a${l.price}`
+              each l in (book?.asks ?? []).slice(0, 10).reverse() key `a${l.price}`
                 .ap-book-row(style={{ "--depth": `${(l.size / maxBook) * 100}%` }})
                   span.is-down #{fmtPrice(l.price, tick)}
-                  span #{fmtSize(l.size * ctVal)}
-            .ap-book-mid #{fmtPrice(ticker?.last, tick)}
+                  span #{fmtSize(l.size)}
+            .ap-book-mid #{fmtPrice(bookMid, tick)}
             .ap-book-side.is-bids
-              each l in book?.bids ?? [] key `b${l.price}`
+              each l in (book?.bids ?? []).slice(0, 10) key `b${l.price}`
                 .ap-book-row(style={{ "--depth": `${(l.size / maxBook) * 100}%` }})
                   span.is-up #{fmtPrice(l.price, tick)}
-                  span #{fmtSize(l.size * ctVal)}
+                  span #{fmtSize(l.size)}
         article.ap-panel
           header.ap-panel-head
             h2 Trades
-            span Every fill · business WS
+            span #{isHl ? "Every fill · Hyperliquid WS" : "Every fill · business WS"}
           .ap-trades
-            each t in trades key t.tradeId
+            each t in v.trades key t.id
               .ap-trade-row
                 span(className={t.side === "buy" ? "is-up" : "is-down"}) #{fmtPrice(t.price, tick)}
-                span #{fmtSize(t.size * ctVal)}
+                span #{fmtSize(t.size)}
                 span.ap-trade-time #{new Date(t.ts).toLocaleTimeString("en-US", { hour12: false })}
             empty
               p.ap-muted Waiting for prints…
@@ -165,4 +153,4 @@ setup
           a.lp-btn.lp-btn-primary(href={terminal}) Open #{inst?.base} in the footprint terminal →
 
   footer.site-foot
-    span Data: OKX public & business WebSocket. Sizes shown in #{inst?.category === "stock" ? "shares" : "base units"}. Not investment advice.
+    span #{isHl ? "Data: Hyperliquid public WebSocket (api.hyperliquid.xyz)." : "Data: OKX public & business WebSocket."} Sizes shown in #{inst?.category === "stock" ? "shares" : "base units"}. Not investment advice.

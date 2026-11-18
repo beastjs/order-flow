@@ -1,22 +1,32 @@
 import { useRef, useState } from "octane";
 import { okxChangePct, useInView, useOkxSparkline, useOkxTicker } from "@/hooks/useOkx";
+import { useHlAssetCtx, useHlSparkline } from "@/hooks/useHyperliquid";
 import { Link } from "@octanejs/tanstack-router";
 import type { OkxTicker } from "@/lib/okx";
-import { assetIdOf, CATEGORY_LABEL, fmtCompact, fmtPrice, sparkPaths, type AssetIndexItem } from "./assetFormat";
+import { hlChangePct, type HlAssetCtx } from "@/lib/hyperliquid";
+import { assetIdOf, CATEGORY_LABEL, fmtCompact, fmtPrice, glyphSrc, sparkPaths, venueSearch, type AssetIndexItem, type MarketVenue } from "./assetFormat";
 import { cn } from "@/lib/utils";
 
 module
   export { AssetGlyph }
 
+  /** What a card shows, whichever venue it streams from. */
+  interface CardQuote {
+    last?: number
+    change: number | null
+    turnover: number
+    foot: string
+  }
+
 component AssetGlyph
-  props { base }: { base: string }
+  props { base, venue = "okx", coin }: { base: string; venue?: MarketVenue; coin?: string }
   setup const [failed, setFailed] = useState(false);
   span.asset-glyph
     if failed
       span.asset-glyph-mono #{base.slice(0, base.length > 3 ? 2 : 3)}
     else
       img(
-        ~ src={`https://static.okx.com/cdn/oksupport/asset/currency/icon/${base.toLowerCase()}.png`}
+        ~ src={glyphSrc(coin ?? base, venue)}
         ~ alt=""
         ~ loading="lazy"
         ~ width={22}
@@ -24,46 +34,80 @@ component AssetGlyph
         ~ onError={() => setFailed(true)}
         ~ )
 
-props { item, initial, live = true }: { item: AssetIndexItem; initial?: OkxTicker; live?: boolean }
-setup
-  const { ref, visible, seen } = useInView<HTMLElement>("300px");
-  // Stream only while on screen; keep the last live print when scrolled away.
-  const streamed = useOkxTicker(live && visible ? item.instId : null, 1000);
-  const last = useRef<OkxTicker | undefined>(undefined);
-  if (streamed) last.current = streamed;
-  const ticker = streamed ?? last.current ?? initial;
-  const closes = useOkxSparkline(item.instId, seen);
-  const series = ticker && closes.length ? [...closes.slice(0, -1), ticker.last] : closes;
-  const paths = sparkPaths(series, 240, 56);
-  const change = okxChangePct(ticker, "24h");
-  const up = (change ?? 0) >= 0;
-  const turnover = ticker ? ticker.volCcy24h * ticker.last : NaN;
-  const gradId = `spark-${item.instId}`;
+component AssetCardView
+  props { item, quote, closes, cardRef }: { item: AssetIndexItem; quote: CardQuote; closes: number[]; cardRef: { current: HTMLElement | null } }
+  setup
+    const venue = item.venue ?? "okx";
+    const series = quote.last !== undefined && closes.length ? [...closes.slice(0, -1), quote.last] : closes;
+    const paths = sparkPaths(series, 240, 56);
+    const up = (quote.change ?? 0) >= 0;
+    const gradId = `spark-${venue}-${item.instId}`;
+  Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf({ ...item, venue }) }} search={venueSearch(venue)} aria-label={`${item.base} perpetual`})
+    article.asset-index(className='hover:bg-[#111] hover:shadow-[inset_0px_1px_1px_0px_rgba(255,255,255,0.18)] ' ref={cardRef} data-up={up ? "1" : "0"} data-category={item.category})
+      header.asset-index-head
+        AssetGlyph(base={item.base} venue={venue} coin={item.instId})
+        .asset-index-name
+          strong #{item.base}
+          span #{item.dex ? `${CATEGORY_LABEL[item.category]} · ${item.dex}` : CATEGORY_LABEL[item.category]}
+        if item.preMarket
+          span.asset-index-tag Pre-IPO
+        elseif item.maxLeverage
+          span.asset-index-tag #{item.maxLeverage}×
+      .asset-index-price
+        span.asset-index-last #{quote.last !== undefined ? fmtPrice(quote.last, item.tickSz) : "—"}
+        span(className={cn("asset-index-change", up ? "is-up" : "is-down")})
+          | #{quote.change === null ? "" : `${up ? "+" : ""}${quote.change.toFixed(2)}%`}
+      svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
+        defs
+          linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")
+            stop(offset="0%" stop-color="currentColor" stop-opacity="0.22")
+            stop(offset="100%" stop-color="currentColor" stop-opacity="0")
+        if paths
+          g
+            path(d={paths.area} fill={`url(#${gradId})`})
+            path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
+      footer.asset-index-foot
+        span(className='text-(--text-secondary)') Vol #{fmtCompact(quote.turnover)}
+        span(className='tracking-tightest') #{quote.foot}
 
-Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf(item) }} aria-label={`${item.base} perpetual`})
-  article.asset-index(className='hover:bg-[#111] hover:shadow-[inset_0px_1px_1px_0px_rgba(255,255,255,0.18)] ' ref={ref} data-up={up ? "1" : "0"} data-category={item.category})
-    header.asset-index-head
-      AssetGlyph(base={item.base})
-      .asset-index-name
-        strong #{item.base}
-        span #{CATEGORY_LABEL[item.category]}
-      if item.preMarket
-        span.asset-index-tag Pre-IPO
-      elseif item.maxLeverage
-        span.asset-index-tag #{item.maxLeverage}×
-    .asset-index-price
-      span.asset-index-last #{ticker ? fmtPrice(ticker.last, item.tickSz) : "—"}
-      span(className={cn("asset-index-change", up ? "is-up" : "is-down")})
-        | #{change === null ? "" : `${up ? "+" : ""}${change.toFixed(2)}%`}
-    svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
-      defs
-        linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")
-          stop(offset="0%" stop-color="currentColor" stop-opacity="0.22")
-          stop(offset="100%" stop-color="currentColor" stop-opacity="0")
-      if paths
-        g
-          path(d={paths.area} fill={`url(#${gradId})`})
-          path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
-    footer.asset-index-foot
-      span(className='text-(--text-secondary)') Vol #{fmtCompact(turnover)}
-      span(className='tracking-tightest') #{ticker ? `H ${fmtPrice(ticker.high24h, item.tickSz)} · L ${fmtPrice(ticker.low24h, item.tickSz)}` : ""}
+component OkxCard
+  props { item, initial, live }: { item: AssetIndexItem; initial?: OkxTicker; live: boolean }
+  setup
+    const { ref, visible, seen } = useInView<HTMLElement>("300px");
+    // Stream only while on screen; keep the last live print when scrolled away.
+    const streamed = useOkxTicker(live && visible ? item.instId : null, 1000);
+    const last = useRef<OkxTicker | undefined>(undefined);
+    if (streamed) last.current = streamed;
+    const ticker = streamed ?? last.current ?? initial;
+    const closes = useOkxSparkline(item.instId, seen);
+    const quote: CardQuote = {
+      last: ticker?.last,
+      change: okxChangePct(ticker, "24h"),
+      turnover: ticker ? ticker.volCcy24h * ticker.last : NaN,
+      foot: ticker ? `H ${fmtPrice(ticker.high24h, item.tickSz)} · L ${fmtPrice(ticker.low24h, item.tickSz)}` : "",
+    };
+  AssetCardView(item={item} quote={quote} closes={closes} cardRef={ref})
+
+component HlCard
+  props { item, initial, live }: { item: AssetIndexItem; initial?: HlAssetCtx; live: boolean }
+  setup
+    const { ref, visible, seen } = useInView<HTMLElement>("300px");
+    const streamed = useHlAssetCtx(live && visible ? item.instId : null, 1000);
+    const last = useRef<HlAssetCtx | undefined>(undefined);
+    if (streamed) last.current = streamed;
+    const ctx = streamed ?? last.current ?? initial;
+    const closes = useHlSparkline(item.instId, seen);
+    const quote: CardQuote = {
+      last: ctx ? ctx.midPx ?? ctx.markPx : undefined,
+      change: hlChangePct(ctx),
+      turnover: ctx ? ctx.dayNtlVlm : NaN,
+      foot: ctx ? `OI $${fmtCompact(ctx.openInterest * ctx.markPx)} · Fund ${(ctx.funding * 100).toFixed(4)}%` : "",
+    };
+  AssetCardView(item={item} quote={quote} closes={closes} cardRef={ref})
+
+props { item, initial, live = true }: { item: AssetIndexItem; initial?: OkxTicker | HlAssetCtx; live?: boolean }
+
+if item.venue === "hyperliquid"
+  HlCard(item={item} initial={initial as HlAssetCtx | undefined} live={live})
+else
+  OkxCard(item={item} initial={initial as OkxTicker | undefined} live={live})

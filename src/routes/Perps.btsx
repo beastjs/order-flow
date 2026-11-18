@@ -6,13 +6,17 @@ import OpenPositions from "@/components/app/OpenPositions.btsx";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
 import AssetIndex from "@/components/app/AssetIndex.btsx";
 import { useOkxTickerSnapshot } from "@/hooks/useOkx";
-import { fetchPerps, type OkxPerpCategory, type OkxPerpInstrument } from "@/lib/okx";
+import { useHlPerps } from "@/hooks/useHyperliquid";
+import { fetchPerps, type OkxPerpInstrument } from "@/lib/okx";
+import { hlTickSz, type HlAssetCtx } from "@/lib/hyperliquid";
+import { VENUE_LABEL, venueSearch, type MarketVenue } from "@/components/app/assetFormat";
 import { cn } from "@/lib/utils";
 
 module
-  import type { AssetIndexItem } from "@/components/app/assetFormat"
+  import type { AssetCategory, AssetIndexItem } from "@/components/app/assetFormat"
+  import type { OkxTicker } from "@/lib/okx"
 
-  type Filter = "all" | OkxPerpCategory
+  type Filter = "all" | AssetCategory
   type Sort = "volume" | "gainers" | "losers" | "name"
 
   const FILTERS: { value: Filter; label: string }[] = [
@@ -20,6 +24,9 @@ module
     { value: "crypto", label: "Crypto" },
     { value: "stock", label: "Equities" },
     { value: "commodity", label: "Commodities" },
+    { value: "fx", label: "FX" },
+    { value: "index", label: "Indices" },
+    { value: "other", label: "Other" },
   ]
 
   const SORTS: { value: Sort; label: string }[] = [
@@ -29,8 +36,19 @@ module
     { value: "name", label: "A–Z" },
   ]
 
+  const VENUES: MarketVenue[] = ["okx", "hyperliquid"]
+
+  /** One market row, whichever venue lists it. */
+  interface Market {
+    item: AssetIndexItem
+    initial?: OkxTicker | HlAssetCtx
+    turnover: number
+    change: number
+  }
+
   function toItem(p: OkxPerpInstrument): AssetIndexItem {
     return {
+      venue: "okx",
       instId: p.instId,
       base: p.base,
       category: p.category,
@@ -42,8 +60,11 @@ module
 
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
-  const search = useSearch({ strict: false }) as { tab?: "positions" };
+  const search = useSearch({ strict: false }) as { tab?: "positions"; venue?: "hyperliquid" };
   const tab = search.tab === "positions" ? "positions" : "markets";
+  const venue: MarketVenue = search.venue === "hyperliquid" ? "hyperliquid" : "okx";
+  const isHl = venue === "hyperliquid";
+  const hlPerps = useHlPerps();
   const openCount = useOpenPositions().rows.length;
   const [perps, setPerps] = useState<OkxPerpInstrument[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -60,32 +81,55 @@ setup
     return () => { alive = false };
   }, []);
 
+  const markets = useMemo<Market[]>(() => {
+    if (isHl) {
+      return hlPerps.perps.map(({ meta, ctx }) => ({
+        item: { venue: "hyperliquid", instId: meta.name, base: meta.base, dex: meta.dex || undefined, category: meta.category, tickSz: hlTickSz(meta.szDecimals, ctx.markPx), maxLeverage: meta.maxLeverage },
+        initial: ctx,
+        turnover: ctx.dayNtlVlm,
+        change: ctx.prevDayPx > 0 ? (ctx.midPx ?? ctx.markPx) / ctx.prevDayPx - 1 : 0,
+      }));
+    }
+    return perps.map((p) => {
+      const t = snapshot[p.instId];
+      return {
+        item: toItem(p),
+        initial: t,
+        turnover: t ? t.volCcy24h * t.last : 0,
+        change: t && t.open24h > 0 ? t.last / t.open24h - 1 : 0,
+      };
+    });
+  }, [isHl, hlPerps.perps, perps, snapshot]);
+  const loadError = isHl ? hlPerps.error : error;
+
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: perps.length, crypto: 0, stock: 0, commodity: 0, other: 0 };
-    for (const p of perps) c[p.category]++;
+    const c: Record<Filter, number> = { all: markets.length, crypto: 0, stock: 0, commodity: 0, fx: 0, index: 0, other: 0 };
+    for (const m of markets) c[m.item.category]++;
     return c;
-  }, [perps]);
+  }, [markets]);
 
   const visible = useMemo(() => {
     const q = query.trim().toUpperCase();
-    const turnover = (id: string) => { const t = snapshot[id]; return t ? t.volCcy24h * t.last : 0 };
-    const change = (id: string) => { const t = snapshot[id]; return t && t.open24h > 0 ? t.last / t.open24h - 1 : 0 };
-    const list = perps.filter((p) => (filter === "all" || p.category === filter) && (!q || p.base.includes(q)));
-    const by: Record<Sort, (a: OkxPerpInstrument, b: OkxPerpInstrument) => number> = {
-      volume: (a, b) => turnover(b.instId) - turnover(a.instId),
-      gainers: (a, b) => change(b.instId) - change(a.instId),
-      losers: (a, b) => change(a.instId) - change(b.instId),
-      name: (a, b) => a.base.localeCompare(b.base),
+    const list = markets.filter((m) => (filter === "all" || m.item.category === filter) && (!q || m.item.base.toUpperCase().includes(q)));
+    const by: Record<Sort, (a: Market, b: Market) => number> = {
+      volume: (a, b) => b.turnover - a.turnover,
+      gainers: (a, b) => b.change - a.change,
+      losers: (a, b) => a.change - b.change,
+      name: (a, b) => a.item.base.localeCompare(b.item.base),
     };
     return list.sort(by[sort]);
-  }, [perps, filter, sort, query, snapshot]);
+  }, [markets, filter, sort, query]);
+
+  // Only offer the asset classes this venue actually lists.
+  const filters = FILTERS.filter((f) => f.value === "all" || counts[f.value] > 0);
+  useEffect(() => { setFilter("all") }, [venue]);
 
 .site(ref={scrollRef})
   SiteNav
   section.lp-page-head
     p.lp-eyebrow
       span.lp-live-dot
-      | Streaming Live from OKX
+      | Streaming Live from #{VENUE_LABEL[venue]}
     if tab === "positions"
       h1.lp-page-title
         | #{"Your positions, "}
@@ -94,13 +138,13 @@ setup
       h1.lp-page-title
         | #{"Every perpetual, "}
         em live.
-    p.lp-page-sub #{tab === "positions" ? "Open positions marked to the live OKX mark price. Close any of them at market." : counts.all ? `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.` : "Loading the OKX instrument catalog…"}
+    p.lp-page-sub #{tab === "positions" ? "Open positions marked to the live OKX mark price. Close any of them at market." : !counts.all ? `Loading the ${VENUE_LABEL[venue]} instrument catalog…` : isHl ? `${counts.crypto} crypto, ${counts.stock} equity, ${counts.commodity} commodity, ${counts.fx} FX and ${counts.index} index perpetuals across Hyperliquid and its builder dexes. Prices stream only for the cards on screen.` : `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.`}
 
   nav.lp-tabs(aria-label="Perpetuals")
-    Link(to="/perps" search={{}} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
+    Link(to="/perps" search={venueSearch(venue)} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
       | Markets
       span.lp-seg-count #{counts.all || ""}
-    Link(to="/perps" search={{ tab: "positions" }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
+    Link(to="/perps" search={{ tab: "positions", ...venueSearch(venue) }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
       | Positions
       span.lp-seg-count #{openCount || ""}
 
@@ -116,8 +160,11 @@ setup
           ~ onInput={(e: Event) => setQuery((e.target as HTMLInputElement).value)}
           ~ )
         .lp-toolbar-right
+          .lp-segmented(aria-label="Data source")
+            each v in VENUES key v
+              Link(to="/perps" search={venueSearch(v)} className={cn("lp-seg", venue === v && "is-active")} aria-current={venue === v ? "page" : undefined}) #{VENUE_LABEL[v]}
           .lp-segmented(role="tablist")
-            each f in FILTERS key f.value
+            each f in filters key f.value
               button(
                 ~ type="button"
                 ~ role="tab"
@@ -131,14 +178,14 @@ setup
             each s in SORTS key s.value
               button(type="button" className={cn("lp-seg", sort === s.value && "is-active")} onClick={() => setSort(s.value)}) #{s.label}
 
-      if error
-        p.lp-grid-empty Couldn’t load OKX instruments: #{error}
+      if loadError
+        p.lp-grid-empty Couldn’t load #{VENUE_LABEL[venue]} instruments: #{loadError}
       else
         section.lp-asset-grid
-          each p in visible key p.instId
-            AssetIndex(item={toItem(p)} initial={snapshot[p.instId]})
+          each m in visible key `${venue}:${m.item.instId}`
+            AssetIndex(item={m.item} initial={m.initial})
           empty
-            p.lp-grid-empty #{perps.length ? "No markets match your search." : "Loading markets…"}
+            p.lp-grid-empty #{markets.length ? "No markets match your search." : "Loading markets…"}
 
   footer.site-foot
-    span OKX public market data on perpetual swaps are leveraged derivatives. Not investment advice.
+    span #{VENUE_LABEL[venue]} public market data. Perpetual swaps are leveraged derivatives. Not investment advice.

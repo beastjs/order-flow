@@ -1,19 +1,39 @@
 import { CRYPTO_SYMBOLS } from '@/lib/config/instruments'
 import type { OkxPerpCategory } from '@/lib/okx'
+import type { HlCategory } from '@/lib/hyperliquid'
+
+/** Asset class across venues (OKX has no fx/index perps). */
+export type AssetCategory = OkxPerpCategory | HlCategory
+
+/** Data source for the /perps pages. OKX is the default (no search param). */
+export type MarketVenue = 'okx' | 'hyperliquid'
+
+export const VENUE_LABEL: Record<MarketVenue, string> = { okx: 'OKX', hyperliquid: 'Hyperliquid' }
+
+/** `?venue=` search for links: omitted for the OKX default. */
+export const venueSearch = (venue: MarketVenue): { venue?: 'hyperliquid' } =>
+  venue === 'hyperliquid' ? { venue } : {}
 
 export interface AssetIndexItem {
+  venue?: MarketVenue
+  /** OKX instId ("BTC-USDT-SWAP") or Hyperliquid coin ("BTC", "xyz:GBP"). */
   instId: string
+  /** Display symbol ("GBP"). */
   base: string
-  category: OkxPerpCategory
+  /** Hyperliquid builder dex ("xyz") for HIP-3 markets. */
+  dex?: string
+  category: AssetCategory
   tickSz?: number
   maxLeverage?: number
   preMarket?: boolean
 }
 
-export const CATEGORY_LABEL: Record<OkxPerpCategory, string> = {
+export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   crypto: 'Crypto',
   stock: 'Equity',
   commodity: 'Commodity',
+  fx: 'FX',
+  index: 'Index',
   other: 'Perp'
 }
 
@@ -58,16 +78,23 @@ export function sparkPaths(
 }
 
 /** Terminal deep link for crypto perps the terminal supports; null otherwise. */
-export function terminalHref(item: Pick<AssetIndexItem, 'base' | 'category'>): string | null {
+export function terminalHref(item: Pick<AssetIndexItem, 'base' | 'category' | 'dex'>, venue: MarketVenue = 'okx'): string | null {
   const symbol = `${item.base}USDT`
-  return item.category === 'crypto' && CRYPTO_SYMBOLS.includes(symbol)
-    ? `/terminal?market=perpetual&symbol=${symbol}&venue=okx-futures`
+  return item.category === 'crypto' && !item.dex && CRYPTO_SYMBOLS.includes(symbol)
+    ? `/terminal?market=perpetual&symbol=${symbol}&venue=${venue === 'hyperliquid' ? 'hyperliquid' : 'okx-futures'}`
     : null
 }
 
-/** Route param ↔ instrument: /perps/AAPL ↔ AAPL-USDT-SWAP. */
-export const assetIdOf = (item: Pick<AssetIndexItem, 'base'>) => item.base
+/** Route param ↔ instrument: /perps/AAPL ↔ AAPL-USDT-SWAP; Hyperliquid uses the coin (/perps/xyz:GBP). */
+export const assetIdOf = (item: Pick<AssetIndexItem, 'base' | 'instId' | 'venue'>) =>
+  item.venue === 'hyperliquid' ? item.instId : item.base
 export const instIdFromAssetId = (assetId: string) => `${assetId.toUpperCase()}-USDT-SWAP`
+
+/** Coin icon for a venue's asset. Hyperliquid takes the full coin ("xyz:GBP"). */
+export const glyphSrc = (coin: string, venue: MarketVenue = 'okx') =>
+  venue === 'hyperliquid'
+    ? `https://app.hyperliquid.xyz/coins/${coin}.svg`
+    : `https://static.okx.com/cdn/oksupport/asset/currency/icon/${coin.toLowerCase()}.png`
 
 /** Position/trade size: compact when large, keeps precision for fractional fills. */
 export function fmtSize(value: number | undefined): string {

@@ -1,5 +1,4 @@
 import { useState } from "octane";
-import type { OkxCandle } from "@/lib/okx";
 import { fmtPct, fmtPrice, sparkPaths } from "./assetFormat";
 
 module
@@ -13,7 +12,7 @@ module
     return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
   }
 
-props { candles, tickSz, loading }: { candles: OkxCandle[]; tickSz?: number; loading?: boolean }
+props { candles, tickSz, loading }: { candles: { ts: number; close: number }[]; tickSz?: number; loading?: boolean }
 setup
   const [hover, setHover] = useState<number | null>(null);
   const closes = candles.map((c) => c.close);

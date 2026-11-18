@@ -11,8 +11,14 @@ const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', com
 const terminalRoute = createRoute({ getParentRoute: () => rootRoute, path: 'terminal', component: TerminalPage })
 
 export type PerpsTab = 'markets' | 'positions'
-const validatePerpsSearch = (search: Record<string, unknown>): { tab?: PerpsTab } =>
-  search.tab === 'positions' ? { tab: 'positions' } : {}
+type VenueSearch = { venue?: 'hyperliquid' }
+// ?venue=hyperliquid — omitted for the default OKX feed.
+const validateVenue = (search: Record<string, unknown>): VenueSearch =>
+  search.venue === 'hyperliquid' ? { venue: 'hyperliquid' } : {}
+const validatePerpsSearch = (search: Record<string, unknown>): { tab?: PerpsTab } & VenueSearch => ({
+  ...(search.tab === 'positions' ? { tab: 'positions' as const } : {}),
+  ...validateVenue(search)
+})
 
 const perpsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -21,7 +27,12 @@ const perpsRoute = createRoute({
   // ?tab=positions — omitted for the default Markets tab.
   validateSearch: validatePerpsSearch
 })
-const assetRoute = createRoute({ getParentRoute: () => rootRoute, path: 'perps/$assetId', component: AssetPage })
+const assetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'perps/$assetId',
+  component: AssetPage,
+  validateSearch: validateVenue
+})
 
 // Old /predictions URLs (bookmarks, shared links) → /perps, keeping the tab and asset.
 const legacyPerpsRoute = createRoute({

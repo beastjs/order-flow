@@ -500,7 +500,7 @@
 }
 .lp-search {
   height: 44px;
-  min-width: 50%;
+  min-width: 30%;
   padding: 0 16px;
   /*border-radius: 6px;*/
   font-family: var(--font-news);
@@ -755,6 +755,16 @@
 .ap-muted {
   color: var(--text-muted);
   font-size: 12px;
+}
+.ap-venue-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ap-venue-note h2 {
+  font-size: 16px;
+  font-weight: 500;
 }
 .ap-book-row,
 .ap-trade-row {
