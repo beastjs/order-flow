@@ -142,6 +142,11 @@ export class OkxSocket {
       this.onError?.({ msg: `Unparseable OKX frame: ${raw.slice(0, 120)}`, endpoint: this.endpoint })
       return
     }
+    // Valid JSON that isn't an object ("null", "42") would make `in` throw.
+    if (!frame || typeof frame !== 'object') {
+      this.onError?.({ msg: `Unexpected OKX frame: ${raw.slice(0, 120)}`, endpoint: this.endpoint })
+      return
+    }
     if ('event' in frame) {
       if (frame.event === 'error' || frame.event === 'channel-conn-count-error') {
         this.onError?.({ code: frame.code, msg: frame.msg ?? 'OKX error', endpoint: this.endpoint, arg: frame.arg })

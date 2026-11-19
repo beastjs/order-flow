@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { convex } from "@/lib/convex/client";
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { explorerTx, useNativeBalance, useNativePrice, useStableBalance } from "@/hooks/useTopUp";
-import { MIN_TOPUP_USD, linkWalletMessage, usdToNativeUnits, usdToUnits, type DepositSymbol } from "@/lib/deposits/config";
+import { MIN_TOPUP_USD, isWholeCents, linkWalletMessage, usdToNativeUnits, usdToUnits, type DepositSymbol } from "@/lib/deposits/config";
 import { cn } from "@/lib/utils";
 // ─── Top up ──────────────────────────────────────────────────────
 // Sends USDC/USDT from the connected (and linked) wallet to the
@@ -84,7 +84,7 @@ component Dialog
     const nativeBalance = useNativeBalance(chainId, address, isNative, refresh);
     const price = useNativePrice(isNative ? chainId : null, isNative ? (native!.priceFeed as Address) : null);
     const value = Number(amount);
-    const valid = Number.isFinite(value) && value >= MIN_TOPUP_USD && Math.round(value * 100) === value * 100;
+    const valid = isWholeCents(value) && value >= MIN_TOPUP_USD;
     const nativeUnits = isNative && valid && price ? usdToNativeUnits(value, price) : null;
     const nativeAmount = nativeUnits === null ? null : Number(nativeUnits) / 1e18;
     const insufficient = isNative

@@ -108,6 +108,16 @@ export function depositChain(chainId: number): DepositChain | undefined {
   return DEPOSIT_CHAINS.find((c) => c.chainId === chainId)
 }
 
+/**
+ * True when `usd` is a finite amount in whole cents. Float-safe: `32.02 * 100`
+ * is 3202.0000000000005, so an exact `=== Math.round(x)` test wrongly rejects it.
+ */
+export function isWholeCents(usd: number): boolean {
+  if (!Number.isFinite(usd)) return false
+  const cents = usd * 100
+  return Math.abs(cents - Math.round(cents)) < 1e-6
+}
+
 /** USD (2dp) → token base units (6dp), exactly. */
 export function usdToUnits(usd: number): bigint {
   return BigInt(Math.round(usd * 100)) * 10n ** BigInt(STABLE_DECIMALS - 2)
@@ -138,15 +148,26 @@ export const PRICE_FEED_DECIMALS = 8
 
 /** Native base units (wei) → USD, rounded down to the cent. */
 export function nativeUnitsToUsd(units: bigint, priceUsd: number): number {
-  return Math.floor((Number(units) / 10 ** NATIVE_DECIMALS) * priceUsd * 100) / 100
+  // Exact integer math: floats turn 631847.99999… cents into 631847 (a cent short).
+  const cents = (units * priceUnits(priceUsd) * 100n) / WEI_PRICE_SCALE
+  return Number(cents) / 100
 }
 
 /** USD → native base units at `priceUsd`, rounded up so the credit reaches the amount. */
 export function usdToNativeUnits(usd: number, priceUsd: number): bigint {
-  // 9 significant decimals of the coin is far below a cent at any realistic price.
-  const gwei = Math.ceil((usd / priceUsd) * 1e9)
-  return BigInt(gwei) * 10n ** BigInt(NATIVE_DECIMALS - 9)
+  const cents = BigInt(Math.round(usd * 100))
+  const num = cents * WEI_PRICE_SCALE
+  const den = 100n * priceUnits(priceUsd)
+  return (num + den - 1n) / den // ceil, so nativeUnitsToUsd(result) ≥ usd exactly
 }
+
+/** Chainlink answers are integers at 8 decimals; recover that integer from the float. */
+function priceUnits(priceUsd: number): bigint {
+  const units = BigInt(Math.round(priceUsd * 10 ** PRICE_FEED_DECIMALS))
+  if (units <= 0n) throw new Error('Price must be positive.')
+  return units
+}
+const WEI_PRICE_SCALE = 10n ** BigInt(NATIVE_DECIMALS + PRICE_FEED_DECIMALS)
 
 /** Wallets link by signing this exact text; the server rebuilds it to verify. */
 export function linkWalletMessage(accountId: string, address: string, issuedAt: string): string {

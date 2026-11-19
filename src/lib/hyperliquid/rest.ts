@@ -96,20 +96,35 @@ export async function fetchHlPerps(): Promise<{ meta: HlPerpMeta; ctx: HlAssetCt
   const now = Date.now()
   return results.flatMap((r, d) => {
     if (r.status !== 'fulfilled') return []
-    const [meta, ctxs] = r.value
-    return meta.universe.map((u, i) => ({
-      meta: {
-        name: u.name,
-        base: splitHlCoin(u.name).base,
-        dex: names[d],
-        category: hlCategory(labels.get(u.name), names[d]),
-        szDecimals: u.szDecimals,
-        maxLeverage: u.maxLeverage,
-        isDelisted: !!u.isDelisted
-      },
-      ctx: parseAssetCtx(u.name, ctxs[i], now)
-    }))
+    const dex = names[d]
+    try {
+      return parseDex(r.value, dex, labels, now)
+    } catch (error) {
+      // A malformed builder dex is dropped; a malformed main dex is fatal.
+      if (!dex) throw error
+      console.warn(`[hyperliquid] skipped malformed dex "${dex}"`, error)
+      return []
+    }
   })
+}
+
+function parseDex(value: WireMetaAndCtxs, dex: string, labels: Map<string, string>, now: number) {
+  const [meta, ctxs] = value
+  if (!Array.isArray(meta?.universe) || !Array.isArray(ctxs) || ctxs.length !== meta.universe.length) {
+    throw new Error(`metaAndAssetCtxs for "${dex || 'main'}": ${meta?.universe?.length ?? '?'} assets vs ${ctxs?.length ?? '?'} contexts`)
+  }
+  return meta.universe.map((u, i) => ({
+    meta: {
+      name: u.name,
+      base: splitHlCoin(u.name).base,
+      dex,
+      category: hlCategory(labels.get(u.name), dex),
+      szDecimals: u.szDecimals,
+      maxLeverage: u.maxLeverage,
+      isDelisted: !!u.isDelisted
+    },
+    ctx: parseAssetCtx(u.name, ctxs[i], now)
+  }))
 }
 
 /** Normalize "BTCUSDT" / "BTC-USDT-SWAP" / "btc" → "BTC"; keeps "xyz:GBP" and "kPEPE" intact. */

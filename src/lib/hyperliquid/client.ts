@@ -145,6 +145,11 @@ export class HlStream {
       this.emitError(`Unparseable Hyperliquid frame: ${raw.slice(0, 120)}`)
       return
     }
+    // Valid JSON that isn't an object ("null", "42") would throw below.
+    if (!frame || typeof frame !== 'object') {
+      this.emitError(`Unexpected Hyperliquid frame: ${raw.slice(0, 120)}`)
+      return
+    }
     if (frame.channel === 'pong' || frame.channel === 'subscriptionResponse') return
     if (frame.channel === 'error') {
       this.emitError(typeof frame.data === 'string' ? frame.data : JSON.stringify(frame.data))

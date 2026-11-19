@@ -9,6 +9,7 @@
     "preview": "rsbuild preview",
     "typecheck": "tsrx-tsc --noEmit",
     "check": "bun run typecheck && bun run build",
+    "test": "bun test && vitest run",
     "test:convex": "vitest run",
     "icons:build": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts",
     "icons:check": "bun scripts/build-icons.ts --svg src/lib/icons/svg --out src/lib/icons/icons.ts --check",
