@@ -83,7 +83,7 @@ component SessionTerminal
   .terminal
     GlobalTooltip
     HoverHint
-    BugReportDialog
+    // BugReportDialog
     Topbar
     ReplayBar
     MarketStatsBar

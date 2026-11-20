@@ -1,6 +1,6 @@
 import { CRYPTO_SYMBOLS } from '@/lib/config/instruments'
-import type { OkxPerpCategory } from '@/lib/okx'
 import type { HlCategory } from '@/lib/hyperliquid'
+import type { OkxPerpCategory } from '@/lib/okx'
 
 /** Asset class across venues (OKX has no fx/index perps). */
 export type AssetCategory = OkxPerpCategory | HlCategory
@@ -11,8 +11,7 @@ export type MarketVenue = 'okx' | 'hyperliquid'
 export const VENUE_LABEL: Record<MarketVenue, string> = { okx: 'OKX', hyperliquid: 'Hyperliquid' }
 
 /** `?venue=` search for links: omitted for the OKX default. */
-export const venueSearch = (venue: MarketVenue): { venue?: 'hyperliquid' } =>
-  venue === 'hyperliquid' ? { venue } : {}
+export const venueSearch = (venue: MarketVenue): { venue?: 'hyperliquid' } => (venue === 'hyperliquid' ? { venue } : {})
 
 export interface AssetIndexItem {
   venue?: MarketVenue
@@ -78,7 +77,10 @@ export function sparkPaths(
 }
 
 /** Terminal deep link for crypto perps the terminal supports; null otherwise. */
-export function terminalHref(item: Pick<AssetIndexItem, 'base' | 'category' | 'dex'>, venue: MarketVenue = 'okx'): string | null {
+export function terminalHref(
+  item: Pick<AssetIndexItem, 'base' | 'category' | 'dex'>,
+  venue: MarketVenue = 'okx'
+): string | null {
   const symbol = `${item.base}USDT`
   return item.category === 'crypto' && !item.dex && CRYPTO_SYMBOLS.includes(symbol)
     ? `/terminal?market=perpetual&symbol=${symbol}&venue=${venue === 'hyperliquid' ? 'hyperliquid' : 'okx-futures'}`
@@ -94,7 +96,7 @@ export const instIdFromAssetId = (assetId: string) => `${assetId.toUpperCase()}-
 export const glyphSrc = (coin: string, venue: MarketVenue = 'okx') =>
   venue === 'hyperliquid'
     ? `https://app.hyperliquid.xyz/coins/${coin}.svg`
-    : `https://static.okx.com/cdn/oksupport/asset/currency/icon/${coin.toLowerCase()}.png`
+    : `https://static.okx.com/cdn/oksupport/asset/currency/icon/${coin.split('-')[0].toLowerCase()}.png`
 
 /** Position/trade size: compact when large, keeps precision for fractional fills. */
 export function fmtSize(value: number | undefined): string {

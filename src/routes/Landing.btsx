@@ -3,7 +3,6 @@ import { Link } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
 import AssetIndex from "@/components/app/AssetIndex.btsx";
 import { okxChangePct, useOkxPerps, useOkxTickers } from "@/hooks/useOkx";
-import { REPO_URL } from "@/components/Logo.btsx";
 
 module
   import type { AssetIndexItem } from "@/components/app/assetFormat"

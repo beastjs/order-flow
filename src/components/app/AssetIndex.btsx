@@ -19,7 +19,7 @@ module
   }
 
 component AssetGlyph
-  props { base, venue = "okx", coin }: { base: string; venue?: MarketVenue; coin?: string }
+  props { base, venue = "okx", coin, size=22 }: { base: string; venue?: MarketVenue; coin?: string, size?: number }
   setup const [failed, setFailed] = useState(false);
   span.asset-glyph
     if failed
@@ -27,10 +27,11 @@ component AssetGlyph
     else
       img(
         ~ src={glyphSrc(coin ?? base, venue)}
-        ~ alt=""
+        ~ alt={base}
         ~ loading="lazy"
-        ~ width={22}
-        ~ height={22}
+        ~ width={size}
+        ~ height={size}
+        ~ className={`size-[${size}px]!`}
         ~ onError={() => setFailed(true)}
         ~ )
 
@@ -43,19 +44,19 @@ component AssetCardView
     const up = (quote.change ?? 0) >= 0;
     const gradId = `spark-${venue}-${item.instId}`;
   Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf({ ...item, venue }) }} search={venueSearch(venue)} aria-label={`${item.base} perpetual`})
-    article.asset-index(className='hover:bg-[#111] hover:shadow-[inset_0px_1px_1px_0px_rgba(255,255,255,0.18)] ' ref={cardRef} data-up={up ? "1" : "0"} data-category={item.category})
+    article.asset-index(className='hover:shadow-[inset_0px_1px_0px_0px_rgba(255,255,255,0.18)] ' ref={cardRef} data-up={up ? "1" : "0"} data-category={item.category})
       header.asset-index-head
-        AssetGlyph(base={item.base} venue={venue} coin={item.instId})
+        AssetGlyph(base={item.base} venue={venue} coin={item.instId} size={24})
         .asset-index-name
           strong #{item.base}
           span #{item.dex ? `${CATEGORY_LABEL[item.category]} · ${item.dex}` : CATEGORY_LABEL[item.category]}
         if item.preMarket
           span.asset-index-tag Pre-IPO
         elseif item.maxLeverage
-          span.asset-index-tag #{item.maxLeverage}×
+          span.asset-index-tag #{item.maxLeverage}⛌
       .asset-index-price
         span.asset-index-last #{quote.last !== undefined ? fmtPrice(quote.last, item.tickSz) : "—"}
-        span(className={cn("asset-index-change", up ? "is-up" : "is-down")})
+        span.asset-index-change(className={cn( up ? "is-up" : "is-down")})
           | #{quote.change === null ? "" : `${up ? "+" : ""}${quote.change.toFixed(2)}%`}
       svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
         defs
@@ -66,9 +67,9 @@ component AssetCardView
           g
             path(d={paths.area} fill={`url(#${gradId})`})
             path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
-      footer.asset-index-foot
-        span(className='text-(--text-secondary)') Vol #{fmtCompact(quote.turnover)}
-        span(className='tracking-tightest') #{quote.foot}
+      // footer.asset-index-foot
+      //   span(className='text-(--text-secondary)') Vol #{fmtCompact(quote.turnover)}
+      //   span(className='tracking-tightest') #{quote.foot}
 
 component OkxCard
   props { item, initial, live }: { item: AssetIndexItem; initial?: OkxTicker; live: boolean }

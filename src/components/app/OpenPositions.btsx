@@ -24,33 +24,34 @@ component PositionRow
     const m = price ? metrics(p, price) : null;
     const exit = p.side === "up" ? ticker?.bidPx || ticker?.last : ticker?.askPx || ticker?.last;
     const net = m && exit ? m.pnl - p.openFee - p.size * exit * TAKER_FEE : null;
-  article.pos-row(data-side={p.side})
-    Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
-      AssetGlyph(base={row.base})
-      span.pos-asset-name
-        strong #{row.base}
-        span(className={cn("pos-side", p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "▲ Up" : "▼ Down"} #{p.leverage}×
-    .pos-cell
-      span.pos-label Size
-      span #{fmtSize(p.size)}
-    .pos-cell
-      span.pos-label Entry
-      span #{fmtPrice(p.entry)}
-    .pos-cell
-      span.pos-label Mark
-      span #{fmtPrice(price)}
-    .pos-cell
-      span.pos-label Liquidation (est)
-      span.is-down #{m ? fmtPrice(m.liq) : "—"}
-    .pos-cell
-      span.pos-label Margin
-      span #{usd(p.margin)}
-    .pos-cell.pos-pnl
-      span.pos-label PnL
-      span.pos-pnl-val(className={m && m.pnl >= 0 ? "is-up" : "is-down"})
-        span #{m ? usd(m.pnl, true) : "—"}
-        small(className={m && m.roe >= 0 ? "is-up" : "is-down"}) #{m ? fmtPct(m.roe) : ""}
-    button.pos-close(type="button" disabled={busy || net === null} onClick={() => onClose(row)} title={net === null ? "Waiting for a price" : `Close at market · ${usd(net, true)} after fees`})
+  article.pos-article(className='portrait:flex-col!' data-side={p.side})
+    div.pos-row
+      Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
+        AssetGlyph(base={row.base} size={38})
+        span.pos-asset-name
+          strong #{row.base}
+          span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "⏶ Up" : "⏷ Down"} #{p.leverage}⛌
+      .pos-cell(className='portrait:hidden!')
+        span.pos-label Size
+        span #{fmtSize(p.size)}
+      .pos-cell(className='portrait:hidden!')
+        span.pos-label Entry
+        span #{fmtPrice(p.entry)}
+      .pos-cell(className='portrait:hidden!')
+        span.pos-label Mark
+        span #{fmtPrice(price)}
+      .pos-cell(className='portrait:hidden!')
+        span.pos-label Liquidation (est)
+        span.is-down #{m ? fmtPrice(m.liq) : "—"}
+      .pos-cell(className='portrait:hidden!')
+        span.pos-label Margin
+        span #{usd(p.margin)}
+      .pos-cell.pos-pnl(className='portrait:items-end!')
+        span.pos-label(className='portrait:hidden!') PnL
+        span.pos-pnl-val(className={cn('portrait:text-right portrait:font-[600]', m && m.pnl >= 0 ? "is-up" : "is-down")})
+          span(className='portrait:block!') #{m ? usd(m.pnl, true) : "—"}
+          small(className={m && m.roe >= 0 ? "is-up" : "is-down"}) #{m ? fmtPct(m.roe) : ""}
+    button.pos-close(className='portrait:w-full portrait:mt-4! portrait:h-[50px]!' type="button" disabled={busy || net === null} onClick={() => onClose(row)} title={net === null ? "Waiting for a price" : `Close at market · ${usd(net, true)} after fees`})
       | #{busy ? "Closing…" : "Close"}
 
 setup

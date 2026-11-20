@@ -18,13 +18,13 @@ module
   }
 
 component Glyph
-  props { base, coin, venue }: { base: string; coin: string; venue: MarketVenue }
+  props { base, coin, venue='okx' }: { base: string; coin: string; venue: MarketVenue }
   setup const [failed, setFailed] = useState(false);
   span.asset-glyph.asset-glyph-lg
     if failed
-      span.asset-glyph-mono #{base.slice(0, 3)}
+      span.asset-glyph-mono #{coin.slice(0, 3)}
     else
-      img(src={glyphSrc(coin, venue)} alt="" onError={() => setFailed(true)})
+      img(src={glyphSrc(coin, venue)} alt={base} onError={() => void setFailed(true)})
 
 component Stat
   props { label, value, tone }: { label: string; value: string; tone?: "up" | "down" }
@@ -52,7 +52,7 @@ setup
   const hlView = useHlAssetView(isHl ? toHlCoin(assetId) : null, range);
   const v = isHl ? hlView : okxView;
   const inst = v.meta;
-  const coin = isHl ? toHlCoin(assetId) : assetId.toUpperCase();
+  const coin = isHl ? toHlCoin(assetId) : assetId;
   const title = inst?.base ?? coin;
   // OKX only lists crypto and equity perps worth linking to.
   const okxTwin = inst && isHl && (inst.category === "crypto" || inst.category === "stock") ? inst.base : null;
@@ -67,7 +67,7 @@ setup
   const bookMid = isHl && book && book.bids[0] && book.asks[0] ? (book.bids[0].price + book.asks[0].price) / 2 : v.last;
   const terminal = inst ? terminalHref(inst, venue) : null;
 
-.site(ref={scrollRef})
+.site( ref={scrollRef})
   SiteNav
   if inst === null
     section.lp-page-head
@@ -80,10 +80,14 @@ setup
       section.ap-head
         Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
         .ap-title
-          Glyph(base={title} coin={inst?.instId ?? coin} venue={venue})
+          Glyph(base={title} coin={coin} venue={venue})
           div
             h1 #{title}
-            p #{inst ? `${CATEGORY_LABEL[inst.category]} perpetual · ${VENUE_LABEL[venue]}${inst.dex ? ` (${inst.dex} dex)` : ""} · ${inst.instId} · up to ${inst.maxLeverage}×` : "Loading…"}
+            if inst
+              p #{`${CATEGORY_LABEL[inst.category]} · ${VENUE_LABEL[venue]}${inst.dex ? ` (${inst.dex} dex)` : ""} ·`}
+                span #{` up to ${inst.maxLeverage}⛌`}
+            else
+              p Loading...
           if inst?.preMarket
             span.asset-index-tag Pre-IPO
         .ap-price

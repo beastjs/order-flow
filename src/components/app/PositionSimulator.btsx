@@ -153,7 +153,12 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
   elseif position && live
     .sim-open
       .sim-open-top
-        span(className={cn("sim-badge", position.side === "up" ? "is-up" : "is-down")}) #{position.side === "up" ? "▲ Up" : "▼ Down"} #{position.leverage}×
+        span(className={cn("sim-badge", position.side === "up" ? "is-up" : "is-down")})
+          span(className={cn('text-[14px]!', {'relative! -bottom-0.25!': position.side !== 'up'})}) #{position.side === "up" ? "⏶" : "⏷"}
+          span(className='px-1!') #{position.side === "up" ? "Up" : "Down"}
+          span(className='font-[700] ps-2!')
+            | #{position.leverage}
+            span(className='font-[450]') ⛌
         span.sim-muted #{fmtSize(position.size)} #{base} · #{usd(position.margin)} margin
       .sim-pnl
         strong(className={live.pnl >= 0 ? "is-up" : "is-down"}) #{usd(live.pnl, true)}
