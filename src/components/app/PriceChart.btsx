@@ -2,7 +2,7 @@ import { useState } from "octane";
 import { fmtPct, fmtPrice, sparkPaths } from "./assetFormat";
 
 module
-  const W = 1000
+  const W = 100
   const H = 320
 
   function fmtTime(ts: number, spanMs: number): string {

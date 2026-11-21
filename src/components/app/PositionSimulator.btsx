@@ -5,6 +5,7 @@ import { maxMargin, usePaperAccount, type SimResult } from "@/hooks/usePaperAcco
 import { useLiveAccount } from "@/hooks/useLiveAccount";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
+import FlameUsage from "../canvasui/flame-usage.btsx";
 
 module
   // Round first so a value like −0.001 prints "$0.00", not "−$0.00".
@@ -127,7 +128,8 @@ setup
     setAmount(tenth >= 1 ? String(tenth) : "");
   }, [available === null, account.mode, venue]);
 
-section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : account.mode})
+  // canvas#source(style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;")
+section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live" : account.mode})
   header.sim-head
     h2 #{isLive ? "Trade on OKX" : "Simulate a position"}
     if canLive
@@ -154,11 +156,11 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
     .sim-open
       .sim-open-top
         span(className={cn("sim-badge", position.side === "up" ? "is-up" : "is-down")})
-          span(className={cn('text-[14px]!', {'relative! -bottom-0.25!': position.side !== 'up'})}) #{position.side === "up" ? "⏶" : "⏷"}
+          span(className={cn('text-[14px]!', {'relative! -bottom-0.25!': position.side !== 'up'})}) #{position.side === "up" ? "↑" : "↓"}
           span(className='px-1!') #{position.side === "up" ? "Up" : "Down"}
           span(className='font-[700] ps-2!')
             | #{position.leverage}
-            span(className='font-[450]') ⛌
+            span(className='font-[450]') X
         span.sim-muted #{fmtSize(position.size)} #{base} · #{usd(position.margin)} margin
       .sim-pnl
         strong(className={live.pnl >= 0 ? "is-up" : "is-down"}) #{usd(live.pnl, true)}
@@ -234,9 +236,9 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
         .sim-row
           dt Liq. price (est.)
           dd #{preview ? fmtPrice(liquidationPrice(preview), tickSz) : "—"}
-        .sim-row
-          dt Fee (#{(TAKER_FEE * 100).toFixed(2)}%)
-          dd #{preview ? usd(preview.openFee) : "—"}
+        // .sim-row
+        //   dt Fee (#{(TAKER_FEE * 100).toFixed(2)}%)
+        //   dd #{preview ? usd(preview.openFee) : "—"}
 
       if overBalance
         p.sim-error #{isLive && available !== null && maxMargin(available, leverage) > orderCap ? `Max order is $${liveCfg?.maxOrderUsd} notional — max ${usd(affordable)} at ${leverage}×.` : `Exceeds your available balance — max ${usd(affordable)} at ${leverage}× (amount + ${(TAKER_FEE * 100).toFixed(2)}% fee on the position).`}
@@ -261,5 +263,9 @@ section.sim(data-side={position?.side ?? side} data-mode={isLive ? "live" : acco
 
   if isLive
     p.sim-note Market orders on OKX #{liveCfg?.mode === "demo" ? "demo trading" : "(real funds)"} · fills, fees and size from OKX · max $#{liveCfg?.maxOrderUsd} per order · liquidated at #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin.
-  // else
-  //   p.sim-note Live OKX prices · fills cross the spread · #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin · no real funds.
+    // else
+    //   p.sim-note Live OKX prices · fills cross the spread · #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin · no real funds.
+  // canvas#output(
+  //   ~ aria-hidden="true"
+  //   ~ style="position: absolute; width: calc(100% + 80px); height: calc(100% + 335px); pointer-events: none; opacity: 0;"
+  //   ~ )

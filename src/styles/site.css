@@ -311,14 +311,11 @@
   color: var(--text-secondary);
 }
 .asset-index-tag {
-  margin-left: auto;
-  font-size: 14px;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-weight: 450;
   color: var(--text-secondary);
-  /*border: 1px solid var(--border);*/
-  border-radius: 999px;
-  padding: 0px 16px 8px 0;
+  /*border-radius: 999px;*/
+  /*padding: 0px 0px 0;*/
   letter-spacing: 0.02em;
 }
 .asset-index-price {
@@ -462,7 +459,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 0px 0px;
+  padding: 4px 0px 4px;
   background: color-mix(in oklab, var(--bg-base) 85%, transparent);
   backdrop-filter: blur(14px);
 }
@@ -563,8 +560,9 @@
 /* ─── asset page (/perps/$assetId) ─── */
 .ap-head {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: space-between;
   justify-content: space-between;
   gap: 20px 32px;
   padding-top: 36px;
@@ -574,7 +572,9 @@
   flex-basis: 100%;
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 13px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
 }
 .ap-back:hover {
   color: var(--text-primary);
@@ -588,17 +588,28 @@
 .ap-title h1 {
   font-family: var(--font-news), Georgia, serif;
   font-weight: 350;
-  font-size: clamp(40px, 6vw, 44px);
+  font-size: clamp(24px, 4vw, 44px);
   letter-spacing: -0.03em;
   line-height: 1;
 }
-.ap-title p {
+.ap-title {
   margin-top: 6px;
-  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 13px;
 }
-.ap-title p > span {
+
+.ap-title div > p {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: -0.01em;
+}
+.ap-title div > p.asset-index-tag {
+  font-weight: 600;
+  background: var(--base);
+  padding: 0 2px;
+  border-radius: 6px;
+}
+.ap-title div > span {
   color: var(--buy);
 }
 .asset-glyph-lg {

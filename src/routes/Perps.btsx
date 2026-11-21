@@ -1,5 +1,5 @@
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
-import { useEffect, useMemo, useRef, useState } from "octane";
+import { createElement, useEffect, useMemo, useRef, useState } from "octane";
 import { Link, useSearch } from "@octanejs/tanstack-router";
 import { debounce, useQueryStates } from "@octanejs/nuqs";
 import { perpsParams, type PerpsFilter, type PerpsSort } from "@/lib/url/perpsParams";
@@ -13,7 +13,7 @@ import { fetchPerps, type OkxPerpInstrument } from "@/lib/okx";
 import { hlTickSz, type HlAssetCtx } from "@/lib/hyperliquid";
 import { VENUE_LABEL, venueSearch, type MarketVenue } from "@/components/app/assetFormat";
 import { cn } from "@/lib/utils";
-import Button from "@/components/ui/button.btsx";
+import Menu, { MenuSection } from "@/components/ui/Menu.btsx";
 import {Icon} from "@/lib/icons";
 
 module
@@ -194,8 +194,29 @@ setup
             ~ onInput={(e: Event) => typeQuery((e.target as HTMLInputElement).value)}
             ~ onKeyDown={(e: KeyboardEvent) => { if (e.key === "Escape") (e.target as HTMLInputElement).blur() }}
             ~ )
-          button(className='flex items-center justify-center size-13.5 border-b border-(--border) sm:hidden portrait:flex')
-            Icon(name='menu')
+          // Mobile: the toolbar's right side is hidden, so its venue / category / sort live in this popover.
+          div(className='flex shrink-0 sm:hidden portrait:flex portrait:items-center! border-b! border-(--border)! size-13.5')
+            Menu(
+              ~ hint="Filters"
+              ~ buttonClassName='size-13.5 rounded-none! bg-transparent! text-(--text-secondary) border-0 aria-expanded:text-(--text-primary)'
+              ~ label={createElement(Icon, { name: "menu" })}
+              ~ )
+              MenuSection(title="Source")
+                each v in VENUES key v
+                  button.menu-item.menu-action.menu-choice(type="button" role="menuitemradio" aria-checked={venue === v} onClick={() => chooseVenue(v)})
+                    span.menu-item-text
+                      span #{VENUE_LABEL[v]}
+              MenuSection(title="Category")
+                each f in filters key f.value
+                  button.menu-item.menu-action.menu-choice(type="button" role="menuitemradio" aria-checked={filter === f.value} onClick={() => chooseFilter(f.value)})
+                    span.menu-item-text
+                      span #{f.label}
+                      small #{counts[f.value] || ""}
+              MenuSection(title="Sort")
+                each s in SORTS key s.value
+                  button.menu-item.menu-action.menu-choice(type="button" role="menuitemradio" aria-checked={sort === s.value} onClick={() => chooseSort(s.value)})
+                    span.menu-item-text
+                      span #{s.label}
 
         .lp-toolbar-right(className='portrait:hidden!')
           .lp-segmented(aria-label="Data source")

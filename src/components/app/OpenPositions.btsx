@@ -30,7 +30,7 @@ component PositionRow
         AssetGlyph(base={row.base} size={38})
         span.pos-asset-name
           strong #{row.base}
-          span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "⏶ Up" : "⏷ Down"} #{p.leverage}⛌
+          span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "↑ Up" : "↓ Down"} #{p.leverage}X
       .pos-cell(className='portrait:hidden!')
         span.pos-label Size
         span #{fmtSize(p.size)}

@@ -8,6 +8,7 @@ import { RANGE_LABELS, useHlAssetView, useOkxAssetView, type RangeKey } from "@/
 import { toHlCoin } from "@/lib/hyperliquid";
 import { CATEGORY_LABEL, VENUE_LABEL, fmtCompact, fmtPct, fmtPrice, fmtSize, glyphSrc, instIdFromAssetId, terminalHref, venueSearch, type MarketVenue } from "@/components/app/assetFormat";
 import { cn } from "@/lib/utils";
+import Middot from "../components/ui/Middot.btsx";
 
 module
   function countdown(to: number | undefined, now: number): string {
@@ -20,11 +21,11 @@ module
 component Glyph
   props { base, coin, venue='okx' }: { base: string; coin: string; venue: MarketVenue }
   setup const [failed, setFailed] = useState(false);
-  span.asset-glyph.asset-glyph-lg
+  span.asset-glyph.asset-glyph-lg(className='portrait:size-12!')
     if failed
       span.asset-glyph-mono #{coin.slice(0, 3)}
     else
-      img(src={glyphSrc(coin, venue)} alt={base} onError={() => void setFailed(true)})
+    img(src={glyphSrc(coin, venue)} alt={base} onError={() => void setFailed(true)})
 
 component Stat
   props { label, value, tone }: { label: string; value: string; tone?: "up" | "down" }
@@ -69,30 +70,41 @@ setup
 
 .site( ref={scrollRef})
   SiteNav
-  if inst === null
-    section.lp-page-head
+  if inst === null || inst === undefined
+    section.lp-page-head(className='portrait:w-screen!')
       p.lp-eyebrow
         Link(to="/perps" search={venueSearch(venue)}) ← All markets
       h1.lp-page-title #{title}
       p.lp-page-sub #{VENUE_LABEL[venue]} doesn’t list a live #{isHl ? "" : "USDT "}perpetual for “#{assetId}”.
   else
     .ap-body
-      section.ap-head
-        Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
+      section.ap-head(className='portrait:-mt-6!')
+        div(className='flex items-center justify-between')
+          Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
+          div(className='')
+            if inst
+              span(className='font-mono text-sm') #{`${VENUE_LABEL[venue]}${inst.dex ? ` (${inst.dex} dex)` : ""}`}
         .ap-title
           Glyph(base={title} coin={coin} venue={venue})
-          div
-            h1 #{title}
-            if inst
-              p #{`${CATEGORY_LABEL[inst.category]} · ${VENUE_LABEL[venue]}${inst.dex ? ` (${inst.dex} dex)` : ""} ·`}
-                span #{` up to ${inst.maxLeverage}⛌`}
-            else
-              p Loading...
-          if inst?.preMarket
-            span.asset-index-tag Pre-IPO
-        .ap-price
-          span.ap-last #{fmtPrice(v.last, tick)}
-          span(className={cn("ap-change", up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
+          div(className='flex items-center justify-between w-full')
+            div(className='')
+              div(className='flex items-center gap-4')
+                h1 #{title}
+                span.asset-index-tag #{`${inst?.maxLeverage}x`}
+              if inst
+                div(className='flex items-center! gap-3 sm:gap-4 md:gap-5 text-(--text-muted)!')
+                  if !inst?.preMarket
+                    p.asset-index-tag Pre-IPO
+                  else
+                    span #{`${CATEGORY_LABEL[inst.category]}`}
+                  Middot
+                  p Info
+              else
+                p Loading...
+
+          .ap-price(className=' portrait:min-w-32 flex flex-col items-end! portrait:-space-y-1')
+            span.ap-last(className='portrait:text-3xl!') #{fmtPrice(v.last, tick)}
+            span.ap-change(className={cn('portrait:text-sm! portrait:tracking-tightest', up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
 
       .ap-main
         section.ap-chart-card
