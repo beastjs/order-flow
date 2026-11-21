@@ -570,7 +570,7 @@
 }
 .ap-back {
   flex-basis: 100%;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 12px;
   font-family: var(--font-mono);

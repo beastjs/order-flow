@@ -21,7 +21,7 @@ module
 component Glyph
   props { base, coin, venue='okx' }: { base: string; coin: string; venue: MarketVenue }
   setup const [failed, setFailed] = useState(false);
-  span.asset-glyph.asset-glyph-lg(className='portrait:size-12!')
+  span.asset-glyph.asset-glyph-lg(className='portrait:size-11!')
     if failed
       span.asset-glyph-mono #{coin.slice(0, 3)}
     else
@@ -83,7 +83,7 @@ setup
           Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
           div(className='')
             if inst
-              span(className='font-mono text-sm') #{`${VENUE_LABEL[venue]}${inst.dex ? ` (${inst.dex} dex)` : ""}`}
+              span(className='font-mono text-sm uppercase!') #{`${VENUE_LABEL[venue]}`}
         .ap-title
           Glyph(base={title} coin={coin} venue={venue})
           div(className='flex items-center justify-between w-full')
@@ -103,7 +103,7 @@ setup
                 p Loading...
 
           .ap-price(className=' portrait:min-w-32 flex flex-col items-end! portrait:-space-y-1')
-            span.ap-last(className='portrait:text-3xl!') #{fmtPrice(v.last, tick)}
+            span.ap-last(className='portrait:text-3xl! text-(--text-primary)!') #{fmtPrice(v.last, tick)}
             span.ap-change(className={cn('portrait:text-sm! portrait:tracking-tightest', up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
 
       .ap-main

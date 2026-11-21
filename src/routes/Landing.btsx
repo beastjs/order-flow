@@ -54,14 +54,14 @@ setup
   section.lp-hero
     p.lp-eyebrow
       span.lp-live-dot
-      | Live order flow · crypto & equity perpetuals
+      | Live crypto, stocks & fx perps
     h1.lp-hero-title
       | Read the tape,
       br
       em not the noise.
     p.lp-hero-sub
-      | Trades, books, liquidations and funding from six venues — and every OKX
-      | perpetual, from AMZN to ZEC — streamed straight to your browser.
+      | Venues from OKX and Hyperliquid.
+      | Perps from AMZN to ZEC.
       // | A footprint terminal for traders who want to see who is actually buying.
     .lp-hero-cta
       Link.lp-btn.lp-btn-primary(to="/terminal") Open the terminal
