@@ -1261,20 +1261,28 @@
   padding-bottom: 72px;
   min-height: 90%;
 }
+.pos-overview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 .pos-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  flex: 1;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
-  border-radius: var(--radius-card);
+  /*border-radius: var(--radius-card);*/
   overflow: hidden;
-  background: var(--border-muted);
+  border-bottom: 1px dashed var(--border);
+  /*background: var(--border-muted);*/
 }
 .pos-stat {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 16px 18px;
-  background: var(--bg-surface);
+  padding: 14px 18px;
+  /*background: var(--bg-surface);*/
   min-width: 0;
 }
 .pos-stat span {
@@ -1303,13 +1311,14 @@
   border-radius: 14px;
   background: linear-gradient(180deg, var(--bg-panel), var(--bg-surface));
   border: 1px solid var(--border-muted);
-  padding: 14px 16px;
+  overflow: hidden;
 }
 .pos-row {
   display: grid;
   width: 100%;
   grid-template-columns: minmax(150px, 1.4fr) repeat(5, minmax(0, 1fr)) minmax(0, 1.2fr) auto;
   align-items: center;
+  padding: 14px 16px;
   gap: 12px;
 }
 .pos-asset {
@@ -1389,40 +1398,27 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
-.pos-actions,
-.pos-close-confirm,
-.pos-close-confirm-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-.pos-actions,
-.pos-close-confirm {
-  justify-content: space-between;
-}
-.pos-actions .sim-mode {
-  margin: 0;
-}
-.pos-close-confirm {
-  padding: 12px 14px;
-  border: 1px solid color-mix(in oklab, var(--sell) 35%, var(--border));
-  border-radius: 12px;
-  background: var(--bg-panel);
-}
-.pos-close-confirm p {
-  color: var(--text-secondary);
-  font-size: 13px;
-}
 .pos-close-all {
-  min-height: 40px;
-  border-color: color-mix(in oklab, var(--sell) 50%, var(--border));
-  color: var(--sell);
+  height: 48px;
+  min-inline-size: 14rem;
+  border-color: var(--text-muted));
+  background: var(--border);
+  color: var(--text-primay);
+  touch-action: manipulation;
   white-space: nowrap;
+  font-size: 16px;
+  font-weight: 450;
+  text-transform: capitalize;
 }
 .pos-close-all:hover:not(:disabled) {
   background: color-mix(in oklab, var(--sell) 9%, var(--bg-panel));
   border-color: var(--sell);
+}
+.pos-close-all.is-confirming,
+.pos-close-all.is-confirming:hover:not(:disabled) {
+  background: var(--sell);
+  border-color: var(--sell);
+  color: var(--text-primary);
 }
 .pos-bulk-result {
   display: grid;
@@ -1447,8 +1443,12 @@
 }
 
 @media (max-width: 900px) {
+  .pos-overview {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .pos-summary {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .pos-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));

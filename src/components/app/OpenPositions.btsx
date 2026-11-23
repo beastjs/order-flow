@@ -1,4 +1,4 @@
-import { useState } from "octane";
+import { useEffect, useState } from "octane";
 import { Link } from "@octanejs/tanstack-router";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
@@ -7,8 +7,11 @@ import { convexErrorMessage } from "@/hooks/useConvex";
 import { estimateClosePnl, liquidationPrice, unrealizedPnl } from "@/lib/paper/math";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
+import {Icon} from "../../lib/icons";
 
 module
+  const CLOSE_ALL_CONFIRM_MS = 5_000;
+
   // Round first so a value like −0.001 prints "$0.00", not "−$0.00".
   const usd = (v: number | null | undefined, signed = false) => {
     if (v === null || v === undefined || !Number.isFinite(v)) return "—"
@@ -49,8 +52,9 @@ component PositionRow
         span.pos-pnl-val(className={cn('portrait:text-right portrait:font-[600]', pnlClass)})
           span(className='portrait:block!') #{usd(pnl, true)}
           small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100)}
-    button.pos-close(className='portrait:w-full portrait:mt-4! portrait:h-[50px]!' type="button" disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
-      | #{busy ? "Closing…" : "Close"}
+    button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-full portrait:mt-4! portrait:h-[50px]! portrait:rounded-none! portrait:hover:brightness-125! sm:rounded-xl! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
+      Icon(name={busy ? 'circle' : 'close'} className='size-6 portrait:hidden!')
+      span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}
 
 setup
   const open = useOpenPositions();
@@ -58,11 +62,17 @@ setup
   const tickers = useOkxTickers(instIds, 500);
   const marks = useOkxMarkPrices(instIds, 500);
   const [closing, setClosing, getClosing] = useState<string | null>(null);
-  const [confirmMode, setConfirmMode] = useState<typeof open.mode | null>(null);
+  const [confirmMode, setConfirmMode, getConfirmMode] = useState<typeof open.mode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFill, setLastFill] = useState<(SimResult & { base: string }) | null>(null);
   const [bulkResult, setBulkResult] = useState<Awaited<ReturnType<typeof open.closeAll>> | null>(null);
   const confirming = confirmMode === open.mode && !open.loading && open.rows.length > 0;
+
+  useEffect(() => {
+    if (!confirming) return;
+    const timer = setTimeout(() => setConfirmMode(null), CLOSE_ALL_CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [confirming]);
 
   const pricedRows = open.rows.map((row) => {
     const ticker = tickers[row.instId];
@@ -100,7 +110,11 @@ setup
   };
 
   const closeAll = async () => {
-    if (!confirming || getClosing() !== null) return;
+    if (getClosing() !== null || open.loading || open.rows.length === 0) return;
+    if (getConfirmMode() !== open.mode) {
+      setConfirmMode(open.mode);
+      return;
+    }
     setClosing("all");
     setConfirmMode(null);
     setError(null);
@@ -116,35 +130,34 @@ setup
   };
 
 section.pos
-  .pos-summary
-    .pos-stat
-      span Open positions
-      strong #{open.loading ? "—" : open.rows.length}
-    .pos-stat
-      span Margin in use
-      strong #{usd(totalMargin)}
-    .pos-stat
-      span Unrealized PnL
-      strong(className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
-    .pos-stat
-      span Available balance
-      strong #{usd(open.balance)}
-  .pos-actions
-    // p(className={cn("sim-mode", open.mode === "cloud" && "is-cloud")})
-    //   span.sim-mode-dot
-    //   | #{open.mode === "cloud" ? "Your account · positions are saved and priced by the server" : "Practice mode · positions live in this browser — sign in to save them"}
-    if (!open.loading && open.rows.length > 0) || closing === "all"
-      button.pos-close.pos-close-all(className='portrait:w-full!' type="button" disabled={closing !== null} aria-expanded={confirming} onClick={() => setConfirmMode(confirming ? null : open.mode)})
-        | #{closing === "all" ? "Closing positions…" : "Close all"}
-
-  if confirming
-    .pos-close-confirm
-      div
-        strong Close all #{open.mode === "cloud" ? "paper" : "practice"} positions?
-        p Each position will close at its market price when processed.
-      .pos-close-confirm-actions
-        button.pos-close(type="button" onClick={() => setConfirmMode(null)}) Cancel
-        button.pos-close.pos-close-all(type="button" onClick={closeAll}) Confirm close all
+  .pos-overview
+    .pos-summary(className='portait:py-2!')
+      .pos-stat
+        span Open positions
+        strong #{open.loading ? "—" : open.rows.length}
+      .pos-stat
+        span Margin in use
+        strong #{usd(totalMargin)}
+      .pos-stat
+        span Unrealized PnL
+        strong(className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
+      .pos-stat
+        span Available balance
+        strong #{usd(open.balance)}
+    div(className='border-b border-(--border) py-5!')
+      if (!open.loading && open.rows.length > 0) || closing === "all"
+        button.pos-close.pos-close-all(
+          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-64", confirming && "is-confirming")}
+          ~ type="button"
+          ~ disabled={closing !== null}
+          ~ onClick={closeAll}
+          ~ onBlur={() => setConfirmMode(null)}
+          ~ onKeyDown={(event: KeyboardEvent) => {
+            ~ if (event.key === "Escape") setConfirmMode(null);
+            ~ if (event.repeat && (event.key === "Enter" || event.key === " ")) event.preventDefault();
+          ~ }}
+          ~ )
+          | #{closing === "all" ? "Closing positions…" : confirming ? "Confirm close all" : "Close all Positions"}
 
   if error
     p.sim-error(role="alert") #{error}
