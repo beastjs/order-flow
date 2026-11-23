@@ -383,7 +383,7 @@ setup
 
 MotionDiv(
   ~ ref={chipRef}
-  ~ className={`group relative inline-flex h-[var(--sf-h)] w-[var(--sf-w)] items-center gap-1 rounded-[var(--sf-r)] px-4! leading-none select-none isolate [font-family:inherit] [font-size:var(--sf-fs)] [background:var(--sf-chip)] [box-shadow:0_0_0_1px_transparent] cursor-ew-resize touch-pan-y data-[typing=true]:cursor-text data-[disabled=true]:cursor-default [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [transition:background-color_200ms_ease,box-shadow_200ms_ease] data-[dirty=true]:[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--sf-accent)_55%,transparent)] data-[dirty=true]:[transition-duration:0ms] data-[typing=true]:[background:color-mix(in_srgb,currentColor_7%,var(--sf-chip))] data-[disabled=true]:opacity-50${className ? ` ${className}` : ""}`}
+  ~ className={`group relative inline-flex h-[var(--sf-h)] w-[var(--sf-w)] items-center gap-1 rounded-[var(--sf-r)] px-4! leading-none select-none isolate [font-family:inherit] [font-size:var(--sf-fs)] [background:var(--sf-chip)] [box-shadow:0_0_0_1px_transparent] cursor-ew-resize touch-pan-y data-[typing=true]:cursor-text data-[disabled=true]:cursor-default [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [transition:background-color_200ms_ease,box-shadow_200ms_ease] data-[dirty=true]:[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--sf-accent)_55%,transparent)] data-[dirty=true]:[transition-duration:0ms] data-[typing=true]:[background:color-mix(in_srgb,currentColor_7%,var(--sf-chip))] data-[disabled=true]:opacity-50 disabled:opacity-30 ${className ? ` ${className}` : ""}`}
   ~ data-dirty={dirty ? "true" : "false"}
   ~ data-dragging={dragging ? "true" : "false"}
   ~ data-typing={draft !== null ? "true" : "false"}
@@ -425,7 +425,7 @@ MotionDiv(
     ~ )
     | #{label}
   input(
-    ~ className="m-0 w-full min-w-0 flex-1 cursor-[inherit] border-0 bg-transparent p-0 text-right font-medium tabular-nums focus-visible:outline-0! outline-0 focus-visible:ring-0 [color:inherit] [font-family:inherit] [font-size:inherit] [transition:color_120ms_ease] group-data-[typing=true]:cursor-text group-data-[over=true]:[color:color-mix(in_srgb,currentColor_55%,transparent)]"
+    ~ className="m-0 w-full min-w-0 flex-1 cursor-[inherit] border-0 bg-transparent p-0 text-right font-medium tabular-nums focus-visible:outline-0! outline-0 focus-visible:ring-0 [color:inherit] [font-family:inherit] [font-size:inherit] [transition:color_120ms_ease] group-data-[typing=true]:cursor-text group-data-[over=true]:[color:color-mix(in_srgb,currentColor_55%,transparent)] disabled:pointer-events:none! disabled:focus-none"
     ~ ref={inputRef}
     ~ id={id}
     ~ type="text"

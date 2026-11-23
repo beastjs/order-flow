@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "octane";
 import ScrubField from "@/components/ui/scrubfield.btsx";
+import Squishy from "@/components/ui/squishy.btsx";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import type { OpenPositionRow } from "@/hooks/usePaperAccount";
 import { exitPriceForPnl, liquidationPrice, netPnlAtExit, validateExitTargets, type ExitTargets } from "@/lib/paper/math";
@@ -61,52 +62,70 @@ dialog.pos-exit-dialog(
       h2#pos-exit-title #{row.base}
         span(className='font-sans! font-[450] px-2!') Exit Strategy
     .pos-exit-target
-      label.pos-exit-toggle
-        input(type="checkbox" checked={stopEnabled} disabled={saving || minLoss === 0} onChange={(event: Event) => { setStopEnabled((event.target as HTMLInputElement).checked); setError(null); }})
-        | Stop loss
-      if stopEnabled
-        ScrubField(
-          ~ label={targetLabel(stopLoss)}
-          ~ ariaLabel="Stop loss PnL"
-          ~ suffix="USDT"
-          ~ value={stopLoss}
-          ~ min={minLoss}
-          ~ max={0}
-          ~ step={0.01}
-          ~ dragStep={dragStep}
-          ~ size="lg"
-          ~ rubberReach={0}
-          ~ showFill={false}
-          ~ accent="#ff5c74"
-          ~ chipColor="var(--bg-base)"
-          ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
-          ~ disabled={saving}
-          ~ onChange={(value: number) => { setStopLoss(value); setError(null); }}
-          ~ )
+      Squishy(
+        ~ height={24}
+        ~ width={38}
+        ~ label="Stop loss"
+        ~ className="pos-exit-toggle w-full! capitalize!"
+        ~ checked={stopEnabled}
+        ~ disabled={saving || minLoss === 0}
+        ~ trackColor="var(--bg-active)"
+        ~ trackOnColor="var(--sell)"
+        ~ thumbColor="var(--text-secondary)"
+        ~ thumbOnColor="var(--bg-base)"
+        ~ onChange={(checked: boolean) => { setStopEnabled(checked); setError(null); }}
+        ~ )
+      ScrubField(
+        ~ label={targetLabel(stopLoss)}
+        ~ ariaLabel="Stop loss PnL"
+        ~ suffix="USD"
+        ~ value={stopLoss}
+        ~ min={minLoss}
+        ~ max={0}
+        ~ step={0.01}
+        ~ dragStep={dragStep}
+        ~ size="lg"
+        ~ rubberReach={0}
+        ~ showFill={false}
+        ~ accent="#ff5c74"
+        ~ chipColor="var(--bg-base)"
+        ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
+        ~ disabled={saving || !stopEnabled}
+        ~ onChange={(value: number) => { setStopLoss(value); setError(null); }}
+        ~ )
     .pos-exit-target
-      label.pos-exit-toggle
-        input(type="checkbox" checked={profitEnabled} disabled={saving || maxProfit === 0} onChange={(event: Event) => { setProfitEnabled((event.target as HTMLInputElement).checked); setError(null); }})
-        | Take profit
-      if profitEnabled
-        ScrubField(
-          ~ label={targetLabel(takeProfit)}
-          ~ ariaLabel="Take profit PnL"
-          ~ suffix="USDT"
-          ~ value={takeProfit}
-          ~ min={0}
-          ~ max={maxProfit}
-          ~ step={0.01}
-          ~ dragStep={dragStep}
-          ~ size="lg"
-          ~ rubberReach={0}
-          ~ showFill={false}
-          ~ accent="#2fd897"
-          ~ chipColor="var(--bg-base)"
-          ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
-          ~ disabled={saving}
-          ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
-          ~ )
-    p.pos-exit-note #{mode === "cloud" ? "Paper targets are checked every 30 seconds." : "Practice targets are checked while this app is open in your browser."} Fills use the market price at the time of the check.
+      Squishy(
+        ~ height={24}
+        ~ width={38}
+        ~ label="Take profit"
+        ~ className="pos-exit-toggle"
+        ~ checked={profitEnabled}
+        ~ disabled={saving || maxProfit === 0}
+        ~ trackColor="var(--bg-active)"
+        ~ trackOnColor="var(--buy)"
+        ~ thumbColor="var(--text-secondary)"
+        ~ thumbOnColor="var(--bg-base)"
+
+        ~ )
+      ScrubField(
+        ~ label={targetLabel(takeProfit)}
+        ~ ariaLabel="Take profit PnL"
+        ~ suffix="USD"
+        ~ value={takeProfit}
+        ~ min={0}
+        ~ max={maxProfit}
+        ~ step={0.01}
+        ~ dragStep={dragStep}
+        ~ size="lg"
+        ~ rubberReach={0}
+        ~ showFill={false}
+        ~ accent="#2fd897"
+        ~ chipColor="var(--bg-base)"
+        ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
+        ~ disabled={saving || !profitEnabled}
+        ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
+        ~ )
+    // p.pos-exit-note #{mode === "cloud" ? "Paper targets are checked every 30 seconds." : "Practice targets are checked while this app is open in your browser."} Fills use the market price at the time of the check.
     if error
       p.sim-error(role="alert") #{error}
     footer

@@ -186,7 +186,7 @@ setup
   const MotionSpan = motion.span;
 span(className={`inline-flex items-center ${className ? ` ${className}` : ""}`})
   button(
-    ~ className="group relative m-0 inline-block gap-3 cursor-pointer touch-pan-y border-0 bg-transparent p-0 outline-none select-none rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] after:absolute after:-inset-2 after:content-[''] data-[held]:cursor-grabbing aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+    ~ className="group relative m-0 inline-block disabled:opacity-50! gap-3 cursor-pointer touch-pan-y border-0 bg-transparent p-0 outline-none select-none rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] after:absolute after:-inset-2 after:content-[''] data-[held]:cursor-grabbing aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
     ~ id={buttonId}
     ~ type="button"
     ~ role="switch"
@@ -235,4 +235,4 @@ span(className={`inline-flex items-center ${className ? ` ${className}` : ""}`})
         ~ style={{ x, scaleX, scaleY }}
         ~ )
   if label
-    label(className="cursor-pointer select-none ml-3" htmlFor={buttonId}) #{label}
+    label(className="cursor-pointer select-none text-base ml-4! w-full" htmlFor={buttonId}) #{label}
