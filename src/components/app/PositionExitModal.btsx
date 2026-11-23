@@ -66,15 +66,15 @@ dialog.pos-exit-dialog(
           span(className='font-sans! font-[450] px-2!') Exit Strategy
     .pos-exit-target
       Squishy(
-        ~ height={24}
-        ~ width={38}
+        ~ height={20}
+        ~ width={32}
         ~ label="Stop loss"
         ~ className="pos-exit-toggle w-full! capitalize!"
         ~ checked={stopEnabled}
         ~ disabled={saving || minLoss === 0}
-        ~ trackColor="var(--bg-active)"
-        ~ trackOnColor="var(--sell)"
-        ~ thumbColor="var(--text-secondary)"
+        ~ trackColor="var(--text-muted)"
+        ~ trackOnColor="#419cff"
+        ~ thumbColor="var(--border)"
         ~ thumbOnColor="var(--bg-base)"
         ~ onChange={(checked: boolean) => { setStopEnabled(checked); setError(null); }}
         ~ )
@@ -89,24 +89,26 @@ dialog.pos-exit-dialog(
         ~ dragStep={dragStep}
         ~ size="lg"
         ~ rubberReach={0}
-        ~ showFill={false}
-        ~ accent="#ff5c74"
-        ~ chipColor="var(--bg-base)"
-        ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
+        ~ showFill={true}
+        // ~ accent="#ff5c74"
+        ~ accent="#fafafa"
+        ~ chipColor="#ff5c74"
+        ~ className="w-full! text-white! border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"
         ~ disabled={saving || !stopEnabled}
         ~ onChange={(value: number) => { setStopLoss(value); setError(null); }}
+        ~ labelColor='text-white!'
         ~ )
     .pos-exit-target
       Squishy(
-        ~ height={24}
-        ~ width={38}
+        ~ height={20}
+        ~ width={32}
         ~ label="Take profit"
         ~ className="pos-exit-toggle"
         ~ checked={profitEnabled}
         ~ disabled={saving || maxProfit === 0}
-        ~ trackColor="var(--bg-active)"
-        ~ trackOnColor="var(--buy)"
-        ~ thumbColor="var(--text-secondary)"
+        ~ trackColor="var(--text-muted)"
+        ~ trackOnColor="#419cff"
+        ~ thumbColor="var(--border)"
         ~ thumbOnColor="var(--bg-base)"
         ~ onChange={(checked: boolean) => { setProfitEnabled(checked); setError(null); }}
         ~ )
@@ -117,15 +119,15 @@ dialog.pos-exit-dialog(
         ~ suffix="USD"
         ~ value={takeProfit}
         ~ min={0}
-        ~ max={maxProfit}
+        ~ max={maxProfit/8}
         ~ step={0.01}
         ~ dragStep={dragStep}
         ~ size="lg"
         ~ rubberReach={0}
-        ~ showFill={false}
+        ~ showFill={true}
         ~ accent="#2fd897"
-        ~ chipColor="var(--bg-base)"
-        ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
+        ~ chipColor="#EEEEEE"
+        ~ className="w-full!  border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"
         ~ disabled={saving || !profitEnabled}
         ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
         ~ )

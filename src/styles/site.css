@@ -1353,14 +1353,14 @@
 .pos-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 10px;
 }
 .pos-article {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-direction: row;
-  border-radius: 14px;
+  border-radius: 10px;
   background: linear-gradient(180deg, var(--bg-panel), var(--bg-surface));
   border: 1px solid var(--border-muted);
   overflow: hidden;
@@ -1371,7 +1371,7 @@
   grid-template-columns: minmax(150px, 1.4fr) repeat(5, minmax(0, 1fr)) minmax(0, 1.2fr) auto;
   align-items: center;
   padding: 14px 16px;
-  gap: 12px;
+  gap: 10px;
 }
 .pos-asset {
   display: flex;
@@ -1415,15 +1415,16 @@
   white-space: nowrap;
 }
 .pos-label {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  color: var(--text-muted);
-  line-height: 1.5;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.75em;
 }
 .pos-pnl small {
   font-size: 12px;
   padding-left: 12px;
   font-family: var(--font-mono);
+  letter-spacing: -0.04em;
 }
 .pos-pnl-val {
   gap: 8px;

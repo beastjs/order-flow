@@ -1,10 +1,12 @@
 import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useSpring, useTransform } from "@octanejs/motion";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "octane";
 import type { PointerEvent, KeyboardEvent, FocusEvent } from "octane";
+import { cn } from '@/lib/utils';
 module
   type ScrubFieldSize = "sm" | "md" | "lg" | "xl";
   interface ScrubFieldProps {
     ~ label?: string;
+    ~ labelColor?: string;
     ~ ariaLabel?: string;
     ~ suffix?: string;
     ~ value?: number;
@@ -109,7 +111,7 @@ component DeltaDigit
     span(className="absolute inset-0 opacity-0" ref={outgoing})
     span(className="block" ref={incoming}) #{digit}
 
-props { label = "Value", ariaLabel, suffix = "", value: valueProp, defaultValue = 0, min = 0, max = 100, step = 1, dragStep = step, size = "md", sensitivity = 4, rubberReach = 15, returnDuration = 300, coarseMultiplier = 10, fineMultiplier = 0.1, showDelta = true, showDirty = true, showFill = true, accent = "#a3e635", chipColor = "#27272a", disabled = false, onChange, onCommit, className }: ScrubFieldProps
+props { label = "Value", labelColor, ariaLabel, suffix = "", value: valueProp, defaultValue = 0, min = 0, max = 100, step = 1, dragStep = step, size = "md", sensitivity = 4, rubberReach = 15, returnDuration = 300, coarseMultiplier = 10, fineMultiplier = 0.1, showDelta = true, showDirty = true, showFill = true, accent = "#a3e635", chipColor = "#27272a", disabled = false, onChange, onCommit, className }: ScrubFieldProps
 
 setup
   const id = useId();
@@ -425,7 +427,7 @@ MotionDiv(
     ~ )
     | #{label}
   input(
-    ~ className="m-0 w-full min-w-0 flex-1 cursor-[inherit] border-0 bg-transparent p-0 text-right font-medium tabular-nums focus-visible:outline-0! outline-0 focus-visible:ring-0 [color:inherit] [font-family:inherit] [font-size:inherit] [transition:color_120ms_ease] group-data-[typing=true]:cursor-text group-data-[over=true]:[color:color-mix(in_srgb,currentColor_55%,transparent)] disabled:pointer-events-none!"
+    ~ className="m-0 w-full min-w-0 flex-1 cursor-[inherit] border-0 bg-transparent p-0 text-right font-medium tabular-nums focus-visible:outline-0! outline-0 focus-visible:ring-0 [color:inherit] [font-family:inherit] [font-size:inherit] [transition:color_120ms_ease] group-data-[typing=true]:cursor-text group-data-[over=true]:[color:color-mix(in_srgb,currentColor_55%,transparent)] disabled:pointer-events-none! border-transparent!"
     ~ ref={inputRef}
     ~ id={id}
     ~ type="text"
@@ -465,7 +467,7 @@ MotionDiv(
       ~ aria-hidden="true"
       ~ )
       span(
-        ~ className="flex items-center whitespace-nowrap rounded-full px-2! py-0.5! text-sm! leading-[1.4] font-[450] tabular-nums opacity-0 [color:var(--sf-ghost-ink)] [background:var(--sf-accent)] transition-opacity duration-150 ease-out group-data-[dragging=true]:opacity-100 motion-reduce:transition-none"
+        ~ className={cn("flex items-center whitespace-nowrap rounded-full px-2! py-0.5! text-sm! leading-[1.4] font-[450] tabular-nums opacity-0 _[color:var(--sf-ghost-ink)] [background:var(--sf-accent)] transition-opacity duration-150 ease-out group-data-[dragging=true]:opacity-100 motion-reduce:transition-none ", labelColor)}
         ~ )
         span #{delta.amount < 0 ? "−" : "+"}
         each digit, index in deltaDigits key (index - deltaDigits.length)

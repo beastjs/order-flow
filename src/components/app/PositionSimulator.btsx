@@ -181,9 +181,11 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
             span(className='font-[450]') X
         span.sim-muted #{fmtSize(position.size)} #{base} · #{usd(position.margin)} margin
       .sim-pnl
-        strong(className={live.pnl >= 0 ? "is-up" : "is-down"}) #{usd(live.pnl, true)}
-        span(className={live.roe >= 0 ? "is-up" : "is-down"}) #{fmtPct(live.roe)} ROE
+        strong(className={closePnl === null ? undefined : closePnl >= 0 ? "is-up" : "is-down"}) #{usd(closePnl, true)}
       dl.sim-rows(className='flex-1! h-full flex flex-col')
+        .sim-row
+          dt ROE
+          dd(className={live.roe >= 0 ? "is-up" : "is-down"}) #{fmtPct(live.roe)}
         .sim-row
           dt Entry
           dd #{fmtPrice(position.entry, tickSz)}
@@ -200,11 +202,13 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         fragment
           button.sim-chip(
             ~ type="button"
-            ~ className="self-start w-full h-14! font-sans! font-bold! text-(--text-primary)! tracking-wide text-[18px]! bg-[#419cff]/20!"
+            ~ className="flex items-center justify-between w-full h-12.5! font-sans! font-bold! text-(--text-primary)! tracking-wide text-[18px]! bg-linear-to-r! from-[#419cff]/80! via-[#419cff]/90! to-[#419cff]! brightness-90! hover:border-[#419cff]! hover:brightness-100! transition-all! duration-300! ease-out! px-4!"
             ~ aria-haspopup="dialog"
             ~ disabled={busy !== null}
             ~ onClick={() => setExitTargetKey(paperPositionKey)}
-            ~ ) Exit strategy
+            ~ )
+            img(src='/tpsl.svg' className='h-13.5! w-auto! p-1 bg-[#cacaca]/20_ _border border-white!')
+            p(className='text-white! font-mono text-sm') Exit Strategy
           if exitTargetKey === paperPositionKey
             PositionExitModal(
               ~ row={{ key: paperPositionKey, instId, base, position }}
@@ -215,7 +219,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
       .sim-risk(className='' title="Distance from liquidation")
         .sim-risk-bar(style={{ width: `${live.safety * 100}%` }} data-danger={live.safety < 0.25 ? "1" : "0"})
       button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight} onClick={close})
-        | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position ${usd(closePnl, true)}${isLive ? " (est.)" : ""}`}
+        | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position` }
   else
     .sim-form
       .sim-sides(role="radiogroup" aria-label="Direction")
