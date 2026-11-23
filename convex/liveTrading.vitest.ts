@@ -251,8 +251,10 @@ describe("crash safety", () => {
 
 describe("close + liquidation", () => {
   it("close sends a reduce-only order and the balance moves by exactly the realized PnL", async () => {
-    const { admin, adminId, fundsRow } = await setup(1000);
+    const { admin, adminId, user, fundsRow } = await setup(1000);
+    const paginationOpts = { numItems: 5, cursor: null };
     const { positionId } = await admin.action(api.liveTrading.open, { instId: AAPL, side: "up", margin: 50, leverage: 10 });
+    expect((await admin.query(api.liveTrading.history, { paginationOpts })).page).toEqual([]);
     okx.state.fill = { avgPx: "360.00", accFillSz: "", fee: "-0.26" };
     const r = await admin.action(api.liveTrading.close, { positionId });
     expect(r.outcome).toBe("filled");
@@ -261,6 +263,8 @@ describe("close + liquidation", () => {
     const [closed] = (await admin.query(api.liveTrading.listMine, { status: "closed", paginationOpts: { numItems: 5, cursor: null } })).page;
     const expected = (360 - 353.4) * 1.41 - 0.25 - 0.26;
     expect(closed.realized).toBeCloseTo(expected, 6);
+    expect((await admin.query(api.liveTrading.history, { paginationOpts })).page).toEqual([closed]);
+    expect((await user.query(api.liveTrading.history, { paginationOpts })).page).toEqual([]);
     const funds = await fundsRow(adminId);
     expect(funds!.balance).toBeCloseTo(1000 + expected, 6);
     expect(funds!.locked).toBeCloseTo(0, 9);

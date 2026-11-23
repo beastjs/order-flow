@@ -44,6 +44,21 @@ export const listMine = query({
   },
 });
 
+/** The caller's completed paper trades, most recently settled first. */
+export const history = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(schema.doc("positions")),
+  handler: async (ctx, { paginationOpts }) => {
+    const user = await currentUser(ctx);
+    if (!user) return { page: [], isDone: true, continueCursor: "" };
+    return await ctx.db
+      .query("positions")
+      .withIndex("by_userId_and_closedAt", (q) => q.eq("userId", user._id).gt("closedAt", undefined))
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
 /** The caller's open position on one instrument (the asset page), or null. */
 export const openFor = query({
   args: { instId: v.string() },

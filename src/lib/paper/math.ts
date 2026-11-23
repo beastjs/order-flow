@@ -66,6 +66,11 @@ export function unrealizedPnl(p: PaperPosition, price: number): number {
   return dir(p.side) * (price - p.entry) * p.size
 }
 
+/** Mark-price PnL after the opening fee and estimated fee at the exit quote. */
+export function estimateClosePnl(p: PaperPosition, markPnl: number, exit?: number): number {
+  return markPnl - p.openFee - p.size * (exit ?? 0) * TAKER_FEE
+}
+
 /** Estimated liquidation price: equity falls to maintenance margin. */
 export function liquidationPrice(p: PaperPosition): number {
   const equity0 = p.margin - p.openFee

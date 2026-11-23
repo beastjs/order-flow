@@ -10,13 +10,13 @@ const rootRoute = createRootRoute({ component: RootLayout })
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: Landing })
 const terminalRoute = createRoute({ getParentRoute: () => rootRoute, path: 'terminal', component: TerminalPage })
 
-export type PerpsTab = 'markets' | 'positions'
+export type PerpsTab = 'markets' | 'positions' | 'history'
 type VenueSearch = { venue?: 'hyperliquid' }
 // ?venue=hyperliquid — omitted for the default OKX feed.
 const validateVenue = (search: Record<string, unknown>): VenueSearch =>
   search.venue === 'hyperliquid' ? { venue: 'hyperliquid' } : {}
 const validatePerpsSearch = (search: Record<string, unknown>): { tab?: PerpsTab } & VenueSearch => ({
-  ...(search.tab === 'positions' ? { tab: 'positions' as const } : {}),
+  ...(search.tab === 'positions' || search.tab === 'history' ? { tab: search.tab } : {}),
   ...validateVenue(search)
 })
 
@@ -24,7 +24,7 @@ const perpsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'perps',
   component: Perps,
-  // ?tab=positions — omitted for the default Markets tab.
+  // Omit tab for the default Markets view.
   validateSearch: validatePerpsSearch
 })
 const assetRoute = createRoute({

@@ -1,0 +1,143 @@
+import { useState, useSyncExternalStore } from "octane";
+import { Link } from "@octanejs/tanstack-router";
+import { api } from "../../../convex/_generated/api";
+import type { Doc } from "../../../convex/_generated/dataModel";
+import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
+import { paperStore, TAKER_FEE, type PaperFill } from "@/lib/paper/paper";
+import { cn } from "@/lib/utils";
+import { AssetGlyph } from "./AssetIndex.btsx";
+import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
+
+module
+  type Venue = "paper" | "okx";
+  type HistoryTrade = Doc<"positions"> | Doc<"livePositions"> | PaperFill;
+  const PAGE_SIZE = 20;
+  const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+  function money(value: number | undefined, signed = false): string {
+    if (value === undefined || !Number.isFinite(value)) return "—";
+    const rounded = Math.round(value * 100) / 100;
+    return `${signed && rounded > 0 ? "+" : ""}${dollars.format(rounded || 0)}`;
+  }
+
+component TradeRow
+  props { trade }: { trade: HistoryTrade }
+  setup
+    const saved = "_id" in trade;
+    const okx = "contractsSz" in trade;
+    const base = saved ? trade.base : trade.instId.split("-")[0];
+    const liquidated = saved ? trade.status === "liquidated" : trade.liquidated;
+    const size = saved ? trade.size : trade.margin * trade.leverage / trade.entry;
+    const openFee = saved ? trade.openFee : trade.margin * trade.leverage * TAKER_FEE;
+    const closeFee = saved ? trade.closeFee : liquidated ? 0 : size * trade.exit * TAKER_FEE;
+    const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down";
+  article.trade-history-card
+    header.trade-history-overview
+      Link.pos-asset(to="/perps/$assetId" params={{ assetId: base }} search={{}})
+        AssetGlyph(base={base} size={36})
+        span.pos-asset-name
+          strong #{base}
+          span.pos-side(className={trade.side === "up" ? "is-up" : "is-down"}) #{trade.side === "up" ? "Up" : "Down"} · #{trade.leverage}×
+      div.trade-history-result
+        span.trade-history-label Realized PnL
+        strong(className={pnlClass}) #{money(trade.realized, true)}
+        if !okx && trade.realized !== undefined
+          small(className={pnlClass}) #{fmtPct(100 * trade.realized / trade.margin)} ROE
+      dl.trade-history-metrics
+        div
+          dt Entry
+          dd #{fmtPrice(trade.entry)}
+        div
+          dt #{okx ? "Final exit" : "Exit"}
+          dd #{fmtPrice(trade.exit)}
+        div
+          dt #{okx ? "Final size" : "Size"}
+          dd #{fmtSize(size)} #{base}
+    details.trade-history-disclosure
+      summary
+        span.trade-history-settlement
+          span(className={liquidated ? "is-down" : ""}) #{liquidated ? "Liquidated" : "Closed"}
+          if trade.closedAt !== undefined
+            time(dateTime={new Date(trade.closedAt).toISOString()}) #{dateTime.format(trade.closedAt)}
+        span.trade-history-details-label Details
+      dl.trade-history-details
+        div
+          dt Instrument
+          dd #{trade.instId}
+        div
+          dt #{okx ? "Final margin" : "Margin"}
+          dd #{money(trade.margin)}
+        div
+          dt #{okx ? "Open fee for final size" : "Open fee"}
+          dd #{money(openFee)}
+        div
+          dt #{okx ? "Final close fee" : "Close fee"}
+          dd #{money(closeFee)}
+        div
+          dt Opened
+          dd #{trade.openedAt === undefined ? "—" : dateTime.format(trade.openedAt)}
+
+component HistoryPage
+  props { venue, cursor, onOlder, onNewer }: { venue: Venue; cursor: string | null; onOlder: (cursor: string) => void; onNewer: () => void }
+  setup
+    const query = venue === "paper" ? api.positions.history : api.liveTrading.history;
+    const { data, error } = useConvexQuery(query, { paginationOpts: { numItems: PAGE_SIZE, cursor } });
+  if error
+    p.sim-error(role="alert") Trade history is unavailable. Try again shortly.
+  elseif !data
+    p.lp-grid-empty(role="status") Loading trade history…
+  else
+    .pos-list
+      each trade in data.page key trade._id
+        TradeRow(trade={trade})
+      empty
+        .pos-empty No closed positions.
+  if cursor !== null || (data && !data.isDone)
+    nav.trade-history-controls(aria-label="Trade history pages")
+      if cursor !== null
+        button.lp-btn.lp-btn-ghost(type="button" onClick={onNewer}) Newer trades
+      if data && !data.isDone
+        button.lp-btn.lp-btn-ghost(type="button" onClick={() => onOlder(data.continueCursor)}) Older trades
+
+component CloudHistory
+  props { venue }: { venue: Venue }
+  setup
+    const [cursors, setCursors] = useState<string[]>([]);
+    const cursor = cursors.at(-1) ?? null;
+  each pageCursor in [cursor] key (pageCursor ?? "")
+    HistoryPage(
+      ~ venue={venue}
+      ~ cursor={pageCursor}
+      ~ onOlder={(next: string) => setCursors([...cursors, next])}
+      ~ onNewer={() => setCursors(cursors.slice(0, -1))}
+      ~ )
+
+component PracticeHistory
+  setup
+    const { history } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  p.sim-mode Practice trades saved in this browser.
+  .pos-list
+    each trade in history key `${trade.instId}:${trade.openedAt}:${trade.closedAt}`
+      TradeRow(trade={trade})
+    empty
+      .pos-empty No closed practice positions.
+
+setup
+  const auth = useConvexAuth();
+  const [venue, setVenue] = useState<Venue>("paper");
+
+section.trade-history(aria-label="Closed positions")
+  if auth.isLoading
+    p.lp-grid-empty(role="status") Loading trade history…
+  elseif auth.isAuthenticated
+    fragment
+      .trade-history-controls(role="group" aria-label="Trading account")
+        button.lp-seg(type="button" className={cn(venue === "paper" && "is-active")} aria-pressed={venue === "paper"} onClick={() => setVenue("paper")}) Paper · USDT
+        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")}) OKX · USD
+      if venue === "paper"
+        CloudHistory(venue="paper")
+      else
+        CloudHistory(venue="okx")
+  else
+    PracticeHistory

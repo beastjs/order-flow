@@ -100,6 +100,7 @@ export default defineSchema({
     closedAt: v.optional(v.number()),
   })
     .index("by_userId_and_status", ["userId", "status"])
+    .index("by_userId_and_closedAt", ["userId", "closedAt"])
     .index("by_userId_and_instId_and_status", ["userId", "instId", "status"])
     .index("by_status_and_instId", ["status", "instId"]),
 
@@ -183,6 +184,7 @@ export default defineSchema({
     closedAt: v.optional(v.number()),
   })
     .index("by_userId_and_status", ["userId", "status"])
+    .index("by_userId_and_closedAt", ["userId", "closedAt"])
     .index("by_userId_and_instId_and_status", ["userId", "instId", "status"])
     .index("by_status_and_instId", ["status", "instId"]),
 

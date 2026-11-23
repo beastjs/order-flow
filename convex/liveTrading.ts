@@ -152,6 +152,21 @@ export const listMine = query({
   },
 });
 
+/** The caller's completed OKX positions, most recently settled first. */
+export const history = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(schema.doc("livePositions")),
+  handler: async (ctx, { paginationOpts }) => {
+    const user = await currentUser(ctx);
+    if (!user) return { page: [], isDone: true, continueCursor: "" };
+    return await ctx.db
+      .query("livePositions")
+      .withIndex("by_userId_and_closedAt", (q) => q.eq("userId", user._id).gt("closedAt", undefined))
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
 export const accessCheck = internalQuery({
   args: {},
   returns: v.null(),

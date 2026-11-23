@@ -5,6 +5,8 @@ import { debounce, useQueryStates } from "@octanejs/nuqs";
 import { perpsParams, type PerpsFilter, type PerpsSort } from "@/lib/url/perpsParams";
 import SiteNav from "./SiteNav.btsx";
 import OpenPositions from "@/components/app/OpenPositions.btsx";
+import TradeHistory from "@/components/app/TradeHistory.btsx";
+import type { PerpsTab } from "@/router";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
 import AssetIndex from "@/components/app/AssetIndex.btsx";
 import { useOkxTickerSnapshot } from "@/hooks/useOkx";
@@ -64,8 +66,8 @@ module
 
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
-  const search = useSearch({ strict: false }) as { tab?: "positions" };
-  const tab = search.tab === "positions" ? "positions" : "markets";
+  const search = useSearch({ strict: false }) as { tab?: PerpsTab };
+  const tab = search.tab ?? "markets";
   // Toolbar state lives in the URL: ?venue=&cat=&sort=&q= (defaults omitted).
   const [params, setParams] = useQueryStates(perpsParams);
   const venue: MarketVenue = params.venue;
@@ -153,13 +155,16 @@ setup
   // Only offer the asset classes this venue actually lists.
   const filters = FILTERS.filter((f) => f.value === "all" || counts[f.value] > 0);
 
-.site(className='portrait:px-[clamp(0px,0vw,0px)]!' ref={scrollRef})
+.site(className={cn('portrait:px-[clamp(0px,0vw,0px)]!', tab === "history" && "site-trade-history")} ref={scrollRef})
   SiteNav
   section.lp-page-head
-    p.lp-eyebrow
-      span.lp-live-dot
-      | Streaming Live from #{VENUE_LABEL[venue]}
-    if tab === "positions"
+    if tab !== "history"
+      p.lp-eyebrow
+        span.lp-live-dot
+        | Streaming Live from #{VENUE_LABEL[venue]}
+    if tab === "history"
+      h1.lp-page-title Trade history
+    elseif tab === "positions"
       h1.lp-page-title
         | #{"Your positions,  "}
         em live.
@@ -167,18 +172,22 @@ setup
       h1.lp-page-title
         | #{"Every perpetual, "}
         em live.
-    p.lp-page-sub(className='portrait:hidden!') #{tab === "positions" ? "Your positions marked to the live OKX mark price. Close any of them at market." : !counts.all ? `Loading the ${VENUE_LABEL[venue]} instrument catalog…` : isHl ? `${counts.crypto} crypto, ${counts.stock} equity, ${counts.commodity} commodity, ${counts.fx} FX and ${counts.index} index perpetuals across Hyperliquid and its builder dexes. Prices stream only for the cards on screen.` : `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.`}
+    if tab !== "history"
+      p.lp-page-sub(className='portrait:hidden!') #{tab === "positions" ? "Your positions marked to the live OKX mark price. Close any of them at market." : !counts.all ? `Loading the ${VENUE_LABEL[venue]} instrument catalog…` : isHl ? `${counts.crypto} crypto, ${counts.stock} equity, ${counts.commodity} commodity, ${counts.fx} FX and ${counts.index} index perpetuals across Hyperliquid and its builder dexes. Prices stream only for the cards on screen.` : `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.`}
 
-  nav.lp-tabs(className='sm:mx-12! sm:px-2!' aria-label="Perpetuals")
+  nav.lp-tabs(className={tab === "history" ? "trade-history-tabs" : 'sm:mx-12! sm:px-2!'} aria-label="Perpetuals")
     Link(to="/perps" search={venueSearch(venue)} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
       | Markets
       span.lp-seg-count #{counts.all || ""}
     Link(to="/perps" search={{ tab: "positions", ...venueSearch(venue) }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
       | Positions
       span.lp-seg-count #{openCount || ""}
+    Link(to="/perps" search={{ tab: "history", ...venueSearch(venue) }} className={cn("lp-tab", tab === "history" && "is-active")} aria-current={tab === "history" ? "page" : undefined}) Trade history
 
   if tab === "positions"
     OpenPositions
+  elseif tab === "history"
+    TradeHistory
   else
     section(className='portrait:px-0!')
       .lp-toolbar

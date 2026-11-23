@@ -79,6 +79,29 @@ describe("positions", () => {
     ).rejects.toThrow(/Not enough/);
   });
 
+  it("paginates only the owner's completed trades in closing order", async () => {
+    const { t, alice, bob } = await setup();
+    const args = { ...AAPL, side: "up" as const, margin: 100, leverage: 5, entry: 100 };
+    const olderOpen = await alice.mutation(internal.positions.openPriced, args);
+    const newerOpen = await alice.mutation(internal.positions.openPriced, { ...args, instId: "BTC-USDT-SWAP", base: "BTC" });
+    await alice.mutation(internal.positions.settle, { positionId: newerOpen, exit: 101, liquidated: false, asOwner: true });
+    await alice.mutation(internal.positions.settle, { positionId: olderOpen, exit: 80, liquidated: true, asOwner: true });
+    await alice.mutation(internal.positions.openPriced, args);
+    await t.run(async (ctx) => {
+      await ctx.db.patch("positions", newerOpen, { closedAt: 100 });
+      await ctx.db.patch("positions", olderOpen, { closedAt: 200 });
+    });
+
+    const first = await alice.query(api.positions.history, { paginationOpts: { numItems: 1, cursor: null } });
+    expect(first.page).toMatchObject([{ _id: olderOpen, status: "liquidated" }]);
+    expect(first.isDone).toBe(false);
+    const next = await alice.query(api.positions.history, { paginationOpts: { numItems: 10, cursor: first.continueCursor } });
+    expect(next.page).toMatchObject([{ _id: newerOpen, status: "closed", exit: 101 }]);
+    expect(next.isDone).toBe(true);
+    expect((await bob.query(api.positions.history, { paginationOpts: page })).page).toEqual([]);
+    expect((await t.query(api.positions.history, { paginationOpts: page })).page).toEqual([]);
+  });
+
   it("another user cannot see or close someone else's position", async () => {
     const { alice, bob } = await setup();
     const id = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 5, entry: 100 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'octane'
+import type { FunctionReturnType } from 'convex/server'
 import { api } from '../../convex/_generated/api'
-import { convex } from '@/lib/convex/client'
+import { convex, convexAuthStore } from '@/lib/convex/client'
 import { TAKER_FEE, paperStore, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from './useConvex'
 
@@ -142,10 +143,23 @@ export interface OpenPositions {
   loading: boolean
   balance: number | null
   rows: OpenPositionRow[]
-  close(row: OpenPositionRow, quote: { bid?: number; ask?: number }): Promise<{ result: SimResult | null; error: string | null }>
+  close(row: OpenPositionRow, quote: CloseQuote): Promise<{ result: SimResult | null; error: string | null }>
+  closeAll(getQuote: (instId: string) => CloseQuote): Promise<BulkCloseResult>
+}
+
+type CloseQuote = { bid?: number; ask?: number }
+type BulkCloseResult = {
+  closed: number
+  realized: number
+  failures: { instId: string; message: string }[]
 }
 
 const OPEN_PAGE = { numItems: 200, cursor: null }
+
+function closePracticePosition(position: PaperPosition, quote: CloseQuote): PaperFill | null {
+  const exit = (position.side === 'up' ? quote.bid : quote.ask) ?? 0
+  return paperStore.close(position.instId, exit)
+}
 
 export function useOpenPositions(): OpenPositions {
   const authState = useConvexAuth()
@@ -164,9 +178,21 @@ export function useOpenPositions(): OpenPositions {
       balance: local.balance,
       rows,
       async close(row, quote) {
-        const exit = (row.position.side === 'up' ? quote.bid : quote.ask) ?? 0
-        const fill = paperStore.close(row.instId, exit)
+        const fill = closePracticePosition(row.position, quote)
         return fill ? { result: fill, error: null } : { result: null, error: 'Waiting for a price.' }
+      },
+      async closeAll(getQuote) {
+        const summary: BulkCloseResult = { closed: 0, realized: 0, failures: [] }
+        for (const position of Object.values(paperStore.get().positions)) {
+          const fill = closePracticePosition(position, getQuote(position.instId))
+          if (fill) {
+            summary.closed += 1
+            summary.realized += fill.realized
+          } else {
+            summary.failures.push({ instId: position.instId, message: 'Waiting for a price.' })
+          }
+        }
+        return summary
       }
     }
   }
@@ -200,6 +226,32 @@ export function useOpenPositions(): OpenPositions {
       } catch (e) {
         return { result: null, error: convexErrorMessage(e) }
       }
+    },
+    async closeAll() {
+      const client = convex!
+      const positions: typeof docs = []
+      let cursor: string | null = null
+      do {
+        const page: FunctionReturnType<typeof api.positions.listMine> = await client.query(api.positions.listMine, {
+          status: 'open',
+          paginationOpts: { ...OPEN_PAGE, cursor }
+        })
+        positions.push(...page.page)
+        cursor = page.isDone ? null : page.continueCursor
+      } while (cursor !== null && convexAuthStore.get() === authState)
+      if (convexAuthStore.get() !== authState) throw new Error('Account changed. Try again.')
+
+      const summary: BulkCloseResult = { closed: 0, realized: 0, failures: [] }
+      for (const position of positions) {
+        try {
+          const { realized } = await client.action(api.positions.close, { positionId: position._id })
+          summary.closed += 1
+          summary.realized += realized
+        } catch (e) {
+          summary.failures.push({ instId: position.instId, message: convexErrorMessage(e) })
+        }
+      }
+      return summary
     }
   }
 }

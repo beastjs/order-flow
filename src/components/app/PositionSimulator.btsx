@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "octane";
 import type { OkxTicker } from "@/lib/okx";
-import { MAINT_MARGIN, TAKER_FEE, liquidationPrice, metrics, openPosition, type PaperSide } from "@/lib/paper/math";
+import { MAINT_MARGIN, TAKER_FEE, estimateClosePnl, liquidationPrice, metrics, openPosition, type PaperSide } from "@/lib/paper/math";
 import { maxMargin, usePaperAccount, type SimResult } from "@/hooks/usePaperAccount";
 import { useLiveAccount } from "@/hooks/useLiveAccount";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
@@ -73,6 +73,7 @@ setup
   const entryEst = entryFor(side);
   const preview = margin > 0 && entryEst ? openPosition(instId, side, margin, leverage, entryEst) : null;
   const live = position && mark ? metrics(position, mark) : null;
+  const closePnl = position && live ? estimateClosePnl(position, live.pnl, exitFor(position.side)) : null;
 
   // Practice mode only: the client is the risk engine. Signed in, the server sweep liquidates.
   useEffect(() => {
@@ -128,6 +129,13 @@ setup
     setAmount(tenth >= 1 ? String(tenth) : "");
   }, [available === null, account.mode, venue]);
 
+  useEffect(() => {
+  if (live && position){
+    console.clear()
+    console.log(`PNL ${usd(closePnl, true)} EXIT ${(exitFor(position.side) ?? 0)} | SIZEp ${position.size} | FEEo ${position.openFee} | Fee ${TAKER_FEE}`)
+  }
+  },[live, position])
+
   // canvas#source(style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;")
 section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live" : account.mode})
   header.sim-head
@@ -181,7 +189,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
       .sim-risk(className='' title="Distance from liquidation")
         .sim-risk-bar(style={{ width: `${live.safety * 100}%` }} data-danger={live.safety < 0.25 ? "1" : "0"})
       button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight} onClick={close})
-        | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position ${usd(live.pnl - position.openFee - position.size * (exitFor(position.side) ?? 0) * TAKER_FEE, true)}${isLive ? " (est.)" : ""}`}
+        | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position ${usd(closePnl, true)}${isLive ? " (est.)" : ""}`}
   else
     .sim-form
       .sim-sides(role="radiogroup" aria-label="Direction")

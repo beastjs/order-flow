@@ -3,8 +3,8 @@ import { Link } from "@octanejs/tanstack-router";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
 import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
-import { metrics, TAKER_FEE } from "@/lib/paper/math";
-import type { OkxTicker } from "@/lib/okx";
+import { convexErrorMessage } from "@/hooks/useConvex";
+import { estimateClosePnl, liquidationPrice, unrealizedPnl } from "@/lib/paper/math";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
 
@@ -17,13 +17,11 @@ module
   }
 
 component PositionRow
-  props { row, ticker, mark, busy, onClose }: { row: OpenPositionRow; ticker?: OkxTicker; mark?: number; busy: boolean; onClose: (row: OpenPositionRow) => void }
+  props { row, mark, exit, pnl, busy, disabled, onClose }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void }
   setup
     const p = row.position;
-    const price = mark ?? ticker?.last;
-    const m = price ? metrics(p, price) : null;
-    const exit = p.side === "up" ? ticker?.bidPx || ticker?.last : ticker?.askPx || ticker?.last;
-    const net = m && exit ? m.pnl - p.openFee - p.size * exit * TAKER_FEE : null;
+    const canClose = pnl !== null && Boolean(exit);
+    const pnlClass = pnl === null ? "" : pnl >= 0 ? "is-up" : "is-down";
   article.pos-article(className='portrait:flex-col!' data-side={p.side})
     div.pos-row
       Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
@@ -39,19 +37,19 @@ component PositionRow
         span #{fmtPrice(p.entry)}
       .pos-cell(className='portrait:hidden!')
         span.pos-label Mark
-        span #{fmtPrice(price)}
+        span #{fmtPrice(mark)}
       .pos-cell(className='portrait:hidden!')
         span.pos-label Liquidation (est)
-        span.is-down #{m ? fmtPrice(m.liq) : "—"}
+        span.is-down #{mark ? fmtPrice(liquidationPrice(p)) : "—"}
       .pos-cell(className='portrait:hidden!')
         span.pos-label Margin
         span #{usd(p.margin)}
       .pos-cell.pos-pnl(className='portrait:items-end!')
         span.pos-label(className='portrait:hidden!') PnL
-        span.pos-pnl-val(className={cn('portrait:text-right portrait:font-[600]', m && m.pnl >= 0 ? "is-up" : "is-down")})
-          span(className='portrait:block!') #{m ? usd(m.pnl, true) : "—"}
-          small(className={m && m.roe >= 0 ? "is-up" : "is-down"}) #{m ? fmtPct(m.roe) : ""}
-    button.pos-close(className='portrait:w-full portrait:mt-4! portrait:h-[50px]!' type="button" disabled={busy || net === null} onClick={() => onClose(row)} title={net === null ? "Waiting for a price" : `Close at market · ${usd(net, true)} after fees`})
+        span.pos-pnl-val(className={cn('portrait:text-right portrait:font-[600]', pnlClass)})
+          span(className='portrait:block!') #{usd(pnl, true)}
+          small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100)}
+    button.pos-close(className='portrait:w-full portrait:mt-4! portrait:h-[50px]!' type="button" disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
       | #{busy ? "Closing…" : "Close"}
 
 setup
@@ -59,26 +57,59 @@ setup
   const instIds = open.rows.map((r) => r.instId);
   const tickers = useOkxTickers(instIds, 500);
   const marks = useOkxMarkPrices(instIds, 500);
-  const [closing, setClosing] = useState<string | null>(null);
+  const [closing, setClosing, getClosing] = useState<string | null>(null);
+  const [confirmMode, setConfirmMode] = useState<typeof open.mode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastFill, setLastFill] = useState<(SimResult & { base: string }) | null>(null);
+  const [bulkResult, setBulkResult] = useState<Awaited<ReturnType<typeof open.closeAll>> | null>(null);
+  const confirming = confirmMode === open.mode && !open.loading && open.rows.length > 0;
+
+  const pricedRows = open.rows.map((row) => {
+    const ticker = tickers[row.instId];
+    const mark = marks[row.instId] ?? ticker?.last;
+    const exit = (row.position.side === "up" ? ticker?.bidPx : ticker?.askPx) || ticker?.last;
+    const pnl = mark ? estimateClosePnl(row.position, unrealizedPnl(row.position, mark), exit) : null;
+    return { row, mark, exit, pnl };
+  });
 
   let totalMargin = 0;
-  let totalPnl = 0;
-  for (const r of open.rows) {
-    const px = marks[r.instId] ?? tickers[r.instId]?.last;
-    totalMargin += r.position.margin;
-    if (px) totalPnl += metrics(r.position, px).pnl;
+  let totalPnl: number | null = null;
+  for (const { row, pnl } of pricedRows) {
+    totalMargin += row.position.margin;
+    if (pnl !== null) totalPnl = (totalPnl ?? 0) + pnl;
   }
 
+  const getQuote = (instId: string) => {
+    const t = tickers[instId];
+    return { bid: t?.bidPx || t?.last, ask: t?.askPx || t?.last };
+  };
+
   const close = async (row: OpenPositionRow) => {
-    const t = tickers[row.instId];
+    if (getClosing() !== null) return;
     setClosing(row.key);
     setError(null);
+    setLastFill(null);
+    setBulkResult(null);
     try {
-      const { result, error: err } = await open.close(row, { bid: t?.bidPx || t?.last, ask: t?.askPx || t?.last });
+      const { result, error: err } = await open.close(row, getQuote(row.instId));
       setError(err);
       if (result) setLastFill({ ...result, base: row.base });
+    } finally {
+      setClosing(null);
+    }
+  };
+
+  const closeAll = async () => {
+    if (!confirming || getClosing() !== null) return;
+    setClosing("all");
+    setConfirmMode(null);
+    setError(null);
+    setLastFill(null);
+    setBulkResult(null);
+    try {
+      setBulkResult(await open.closeAll(getQuote));
+    } catch (err) {
+      setError(convexErrorMessage(err));
     } finally {
       setClosing(null);
     }
@@ -94,16 +125,44 @@ section.pos
       strong #{usd(totalMargin)}
     .pos-stat
       span Unrealized PnL
-      strong(className={totalPnl >= 0 ? "is-up" : "is-down"}) #{open.rows.length ? usd(totalPnl, true) : "—"}
+      strong(className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
     .pos-stat
       span Available balance
       strong #{usd(open.balance)}
-  p(className={cn("sim-mode", open.mode === "cloud" && "is-cloud")})
-    span.sim-mode-dot
-    | #{open.mode === "cloud" ? "Your account · positions are saved and priced by the server" : "Practice mode · positions live in this browser — sign in to save them"}
+  .pos-actions
+    // p(className={cn("sim-mode", open.mode === "cloud" && "is-cloud")})
+    //   span.sim-mode-dot
+    //   | #{open.mode === "cloud" ? "Your account · positions are saved and priced by the server" : "Practice mode · positions live in this browser — sign in to save them"}
+    if (!open.loading && open.rows.length > 0) || closing === "all"
+      button.pos-close.pos-close-all(className='portrait:w-full!' type="button" disabled={closing !== null} aria-expanded={confirming} onClick={() => setConfirmMode(confirming ? null : open.mode)})
+        | #{closing === "all" ? "Closing positions…" : "Close all"}
+
+  if confirming
+    .pos-close-confirm
+      div
+        strong Close all #{open.mode === "cloud" ? "paper" : "practice"} positions?
+        p Each position will close at its market price when processed.
+      .pos-close-confirm-actions
+        button.pos-close(type="button" onClick={() => setConfirmMode(null)}) Cancel
+        button.pos-close.pos-close-all(type="button" onClick={closeAll}) Confirm close all
 
   if error
-    p.sim-error #{error}
+    p.sim-error(role="alert") #{error}
+  if closing === "all"
+    p.sim-mode(role="status") Closing open positions at market…
+  if bulkResult
+    .pos-bulk-result(role="status")
+      if bulkResult.closed > 0
+        p(className={cn("sim-result", bulkResult.realized >= 0 ? "is-up" : "is-down")})
+          | Closed #{bulkResult.closed} #{bulkResult.closed === 1 ? "position" : "positions"} · #{usd(bulkResult.realized, true)} realized PnL
+      elseif bulkResult.failures.length === 0
+        p.sim-mode No positions were open.
+      if bulkResult.failures.length > 0
+        .pos-bulk-errors
+          strong Could not close #{bulkResult.failures.length} #{bulkResult.failures.length === 1 ? "position" : "positions"}
+          ul
+            each failure in bulkResult.failures key failure.instId
+              li #{failure.instId} · #{failure.message}
   if lastFill
     p(className={cn("sim-result", lastFill.realized >= 0 ? "is-up" : "is-down")})
       | Closed #{lastFill.side === "up" ? "Up" : "Down"} #{lastFill.leverage}× #{lastFill.base} at #{fmtPrice(lastFill.exit)} · #{usd(lastFill.realized, true)} (#{fmtPct((lastFill.realized / lastFill.margin) * 100)})
@@ -112,8 +171,8 @@ section.pos
     p.lp-grid-empty Loading positions…
   else
     .pos-list
-      each row in open.rows key row.key
-        PositionRow(row={row} ticker={tickers[row.instId]} mark={marks[row.instId]} busy={closing === row.key} onClose={close})
+      each item in pricedRows key item.row.key
+        PositionRow(row={item.row} mark={item.mark} exit={item.exit} pnl={item.pnl} busy={closing === item.row.key} disabled={closing !== null || confirming} onClose={close})
       empty
         .pos-empty
           p No open positions.
