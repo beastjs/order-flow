@@ -5,6 +5,7 @@ import { maxMargin, usePaperAccount, type SimResult } from "@/hooks/usePaperAcco
 import { useLiveAccount } from "@/hooks/useLiveAccount";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
+import ScrubField from "@/components/ui/scrubfield.btsx";
 import FlameUsage from "../canvasui/flame-usage.btsx";
 
 module
@@ -32,10 +33,10 @@ setup
   const effMaxLeverage = isLive ? Math.max(1, Math.min(maxLeverage, liveCfg?.maxLeverage ?? 1)) : maxLeverage;
   const [confirming, setConfirming] = useState(false);
   const [side, setSide] = useState<PaperSide>("up");
-  const [amount, setAmount] = useState("");
-  // Until the user types an amount, it follows the available balance.
+  const [amount, setAmount] = useState(0);
+  // Keep the default until the user enters or scrubs an amount.
   const touched = useRef(false);
-  const typeAmount = (value: string) => {
+  const changeAmount = (value: number) => {
     touched.current = true;
     setAmount(value);
   };
@@ -62,8 +63,9 @@ setup
   const entryFor = (s: PaperSide) => (s === "up" ? quote.ask : quote.bid);
   const exitFor = (s: PaperSide) => (s === "up" ? quote.bid : quote.ask);
 
-  const margin = Number(amount);
   const available = isLive ? liveAcct.balance : account.balance;
+  const amountLimit = Math.max(0, available ?? 0);
+  const margin = Math.min(amount, amountLimit);
   // Live: also capped by the server's per-order notional limit.
   const orderCap = isLive && liveCfg ? Math.floor((liveCfg.maxOrderUsd / leverage) * 100) / 100 : Infinity;
   const affordable = available === null ? null : Math.min(maxMargin(available, leverage), orderCap);
@@ -92,6 +94,7 @@ setup
     }
   };
   const submit = () => {
+    if (!preview || overBalance || available === null || busy !== null || inFlight) return;
     // Real money: first tap shows exactly what will be sent; second tap sends it.
     if (isLive && !confirming) {
       setConfirming(true);
@@ -118,16 +121,19 @@ setup
     });
   const setFraction = (f: number) => {
     const max = affordable ?? 0;
-    typeAmount(String(f === 1 ? max : Math.floor(max * f * 100) / 100));
+    changeAmount(f === 1 ? max : Math.floor(max * f * 100) / 100);
   };
 
   // Default the amount to 10% of what's available once the balance is known
   // (and again after signing in/out or switching venue), unless the user typed one.
   useEffect(() => {
     if (available === null || touched.current) return;
-    const tenth = Math.floor((affordable ?? 0) * 0.1);
-    setAmount(tenth >= 1 ? String(tenth) : "");
+    setAmount(Math.floor((affordable ?? 0) * 0.1));
   }, [available === null, account.mode, venue]);
+
+  useEffect(() => {
+    if (available !== null) setAmount((value) => Math.min(value, amountLimit));
+  }, [available, amountLimit]);
 
   useEffect(() => {
   if (live && position){
@@ -196,23 +202,23 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         button(type="button" role="radio" aria-checked={side === "up"} className={cn("sim-side is-up", side === "up" && "is-active")} onClick={() => setSide("up")}) ▲ Up
         button(type="button" role="radio" aria-checked={side === "down"} className={cn("sim-side is-down", side === "down" && "is-active")} onClick={() => setSide("down")}) ▼ Down
 
-      label.sim-field
-        // span Amount (margin)
-        .sim-input
-          span(className='font-[450] text-xl') $
-          input(
-            ~ type="number"
-            ~ inputMode="decimal"
-            ~ min="0"
-            ~ step="any"
-            ~ value={amount}
-            ~ placeholder="0.00"
-            ~ onInput={(e: Event) => typeAmount((e.target as HTMLInputElement).value)}
-            ~ )
-          span #{isLive ? "USD" : "Amount"}
-      // button.sim-available(type="button" disabled={!affordable} onClick={() => setFraction(1)} title="Use the maximum at this multiplier")
-      //   span Available #{usd(available)}
-      //   span Max #{usd(affordable)} at #{leverage}×
+      ScrubField(
+        ~ label="Amount"
+        ~ suffix={isLive ? "USD" : "USD"}
+        ~ value={margin}
+        ~ min={0}
+        ~ max={amountLimit}
+        ~ step={0.01}
+        ~ dragStep={Math.max(0.01, Math.round(amountLimit) / 100)}
+        ~ rubberReach={0}
+        ~ size="lg"
+        ~ className="w-full! border_ border-(--border-muted) focus-within:border-(--text-muted)"
+        ~ chipColor="var(--bg-base)"
+        ~ accent={side === "up" ? "#fafafa" : "#ff5c74"}
+        ~ showDirty={false}
+        ~ disabled={available === null || busy !== null}
+        ~ onChange={changeAmount}
+        ~ )
       .sim-chips
         each f in [0.1, 0.25, 0.5, 1] key f
           button.sim-chip(type="button" onClick={() => setFraction(f)}) #{f === 1 ? "Max" : `${f * 100}%`}
@@ -256,9 +262,9 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
           p Market #{side === "up" ? "buy (Up)" : "sell (Down)"} of ~#{fmtSize(preview.size)} #{base} at ~#{fmtPrice(entryEst, tickSz)}, #{leverage}×, using #{usd(margin)} of your USD balance. Size is rounded down to whole contracts; the price, size and fee you get are OKX's actual fill.
           .sim-confirm-actions
             button.sim-chip(type="button" onClick={() => setConfirming(false)}) Cancel
-            button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={busy !== null} onClick={submit}) Confirm order
+            button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={overBalance || available === null || busy !== null || inFlight} onClick={submit}) Confirm order
       else
-        button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={!preview || overBalance || busy !== null || inFlight} onClick={submit})
+        button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={!preview || overBalance || available === null || busy !== null || inFlight} onClick={submit})
           | #{busy === "open" ? (isLive ? "Placing on OKX…" : "Placing…") : `${side === "up" ? "Go Up" : "Go Down"} ${leverage}× · ${preview ? usd(margin) : ""}${isLive ? (liveCfg?.mode === "demo" ? " · demo" : " · LIVE") : ""}`}
 
   if error
