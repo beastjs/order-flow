@@ -181,7 +181,7 @@ setup
       span.lp-seg-count #{counts.all || ""}
     Link(to="/perps" search={{ tab: "positions", ...venueSearch(venue) }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
       | Positions
-      span.lp-seg-count #{openCount || ""}
+      span.lp-seg-count #{openCount || "0"}
     Link(to="/perps" search={{ tab: "history", ...venueSearch(venue) }} className={cn("lp-tab", tab === "history" && "is-active")} aria-current={tab === "history" ? "page" : undefined}) Trade history
 
   if tab === "positions"

@@ -29,6 +29,7 @@ import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 import schema, { category, liveOrderKind, livePositionStatus, side } from "./schema";
 import { currentUser, isAdmin, requireUser } from "./lib/auth";
 import { writeLog } from "./lib/log";
+import { syncAssetPositionCounts } from "./lib/positionCounts";
 import { getUsdFunds } from "./funds";
 import { fetchAllMarks, fetchQuote, fetchSwap } from "./lib/okx";
 import { contractsForNotional, subtractSz } from "./lib/okxTradeCore";
@@ -274,6 +275,7 @@ export const reserveClose = internalMutation({
       return null;
     }
     await ctx.db.patch("livePositions", positionId, { status: "closing" });
+    await syncAssetPositionCounts(ctx, p.instId, p.userId);
     const clOrdId = newClOrdId(kind === "liquidation" ? "l" : "c");
     const orderId = await ctx.db.insert("liveOrders", {
       userId: p.userId,
@@ -308,6 +310,13 @@ async function releaseOpen(ctx: MutationCtx, order: Doc<"liveOrders">, reason: s
   });
 }
 
+async function restoreOpen(ctx: MutationCtx, positionId: Id<"livePositions">) {
+  const p = await ctx.db.get("livePositions", positionId);
+  if (!p || p.status !== "closing") return;
+  await ctx.db.patch("livePositions", p._id, { status: "open" });
+  await syncAssetPositionCounts(ctx, p.instId, p.userId);
+}
+
 export const rejectOrder = internalMutation({
   args: { orderId: v.id("liveOrders"), reason: v.string(), status: v.union(v.literal("rejected"), v.literal("failed")) },
   returns: v.null(),
@@ -318,8 +327,7 @@ export const rejectOrder = internalMutation({
     if (order.kind === "open") {
       await releaseOpen(ctx, order, reason);
     } else {
-      const p = await ctx.db.get("livePositions", order.positionId);
-      if (p && p.status === "closing") await ctx.db.patch("livePositions", p._id, { status: "open" });
+      await restoreOpen(ctx, order.positionId);
     }
     await writeLog(ctx, status === "failed" ? "error" : "warn", "liveTrading.reject", `${order.kind} order ${status}`, {
       userId: order.userId,
@@ -346,10 +354,7 @@ export const settleOrder = internalMutation({
     if (!(filled > 0) || !(fill.avgPx > 0)) {
       await ctx.db.patch("liveOrders", order._id, { status: "rejected", ordId: fill.ordId, error: `Not filled (${fill.state}).` });
       if (order.kind === "open") await releaseOpen(ctx, order, `not filled (${fill.state})`);
-      else {
-        const p = await ctx.db.get("livePositions", order.positionId);
-        if (p && p.status === "closing") await ctx.db.patch("livePositions", p._id, { status: "open" });
-      }
+      else await restoreOpen(ctx, order.positionId);
       return null;
     }
     // OKX reports fees as negative charges; a positive value is a rebate.
@@ -390,6 +395,7 @@ async function applyOpenFill(ctx: MutationCtx, order: Doc<"liveOrders">, filledS
     openFee: cost,
     openedAt: Date.now(),
   });
+  await syncAssetPositionCounts(ctx, p.instId, p.userId);
   await ctx.db.insert("activity", {
     userId: order.userId,
     kind: "live_position_opened",
@@ -444,6 +450,7 @@ async function applyCloseFill(ctx: MutationCtx, order: Doc<"liveOrders">, filled
       closedAt: Date.now(),
     });
   }
+  await syncAssetPositionCounts(ctx, p.instId, p.userId);
   await ctx.db.insert("activity", {
     userId: p.userId,
     kind: liquidated ? "live_position_liquidated" : "live_position_closed",

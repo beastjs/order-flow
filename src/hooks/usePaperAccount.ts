@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'octane'
 import type { FunctionReturnType } from 'convex/server'
 import { api } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
 import { convex, convexAuthStore } from '@/lib/convex/client'
 import { TAKER_FEE, paperStore, type ExitTargets, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from './useConvex'
@@ -19,13 +20,24 @@ export interface PaperAccount {
   loading: boolean
   balance: number | null
   position: PaperPosition | null
+  positionKey: string | null
   /** Set when the backend or another view closes the position. */
   closedRemotely: boolean
   open(side: PaperSide, margin: number, leverage: number, quote: { bid?: number; ask?: number }): Promise<string | null>
   close(quote: { bid?: number; ask?: number }): Promise<{ result: SimResult | null; error: string | null }>
   reset(): Promise<string | null>
+  setExitTargets(targets: ExitTargets): Promise<string | null>
   /** Local mode only: the client liquidates on mark (the server sweeps in cloud mode). */
   liquidateLocal(price: number): SimResult | null
+}
+
+async function saveCloudExitTargets(positionId: Id<'positions'>, targets: ExitTargets): Promise<string | null> {
+  try {
+    await convex!.mutation(api.positions.setExitTargets, { positionId, ...targets })
+    return null
+  } catch (e) {
+    return convexErrorMessage(e)
+  }
 }
 
 export function usePaperAccount(instId: string): PaperAccount {
@@ -49,11 +61,13 @@ export function usePaperAccount(instId: string): PaperAccount {
   }, [cloud, remote.data])
 
   if (!cloud) {
+    const position = local.positions[instId] ?? null
     return {
       mode: 'local',
       loading: authState.isLoading,
       balance: local.balance,
-      position: local.positions[instId] ?? null,
+      position,
+      positionKey: position ? `${instId}:${position.openedAt}` : null,
       closedRemotely: false,
       async open(side, margin, leverage, quote) {
         const entry = (side === 'up' ? quote.ask : quote.bid) ?? 0
@@ -69,6 +83,10 @@ export function usePaperAccount(instId: string): PaperAccount {
       async reset() {
         paperStore.reset()
         return null
+      },
+      async setExitTargets(targets) {
+        if (!position) return 'Position not found or already closed.'
+        return paperStore.setExitTargets(instId, position.openedAt, targets)
       },
       liquidateLocal(price) {
         return paperStore.close(instId, price, true)
@@ -86,7 +104,8 @@ export function usePaperAccount(instId: string): PaperAccount {
         entry: doc.entry,
         size: doc.size,
         openFee: doc.openFee,
-        openedAt: doc.openedAt
+        openedAt: doc.openedAt,
+        exitTargets: doc.exitTargets
       }
     : null
 
@@ -95,6 +114,7 @@ export function usePaperAccount(instId: string): PaperAccount {
     loading: funds.data === undefined || remote.data === undefined,
     balance: funds.data?.balance ?? null,
     position,
+    positionKey: doc?._id ?? null,
     closedRemotely,
     async open(side, margin, leverage) {
       setClosedRemotely(false)
@@ -124,6 +144,10 @@ export function usePaperAccount(instId: string): PaperAccount {
       } catch (e) {
         return convexErrorMessage(e)
       }
+    },
+    async setExitTargets(targets) {
+      if (!doc) return 'Position not found or already closed.'
+      return saveCloudExitTargets(doc._id, targets)
     },
     liquidateLocal: () => null
   }
@@ -225,12 +249,7 @@ export function useOpenPositions(): OpenPositions {
     async setExitTargets(row, targets) {
       const doc = docs.find((d) => d._id === row.key)
       if (!doc) return 'Position not found or already closed.'
-      try {
-        await convex!.mutation(api.positions.setExitTargets, { positionId: doc._id, ...targets })
-        return null
-      } catch (e) {
-        return convexErrorMessage(e)
-      }
+      return saveCloudExitTargets(doc._id, targets)
     },
     async close(row) {
       const doc = docs.find((d) => d._id === row.key)

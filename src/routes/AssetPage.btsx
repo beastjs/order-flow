@@ -4,13 +4,19 @@ import { Link, useParams, useSearch } from "@octanejs/tanstack-router";
 import SiteNav from "./SiteNav.btsx";
 import PriceChart from "@/components/app/PriceChart.btsx";
 import PositionSimulator from "@/components/app/PositionSimulator.btsx";
+import { api } from "../../convex/_generated/api";
+import { convex } from "@/lib/convex/client";
+import { useConvexQuery } from "@/hooks/useConvex";
 import { RANGE_LABELS, useHlAssetView, useOkxAssetView, type RangeKey } from "@/hooks/useAssetView";
 import { toHlCoin } from "@/lib/hyperliquid";
 import { CATEGORY_LABEL, VENUE_LABEL, fmtCompact, fmtPct, fmtPrice, fmtSize, glyphSrc, instIdFromAssetId, terminalHref, venueSearch, type MarketVenue } from "@/components/app/assetFormat";
 import { cn } from "@/lib/utils";
-import Middot from "../components/ui/Middot.btsx";
+import Middot from "@/components/ui/Middot.btsx";
+import {Icon} from "@/lib/icons";
 
 module
+  const countFormat = new Intl.NumberFormat("en-US");
+
   function countdown(to: number | undefined, now: number): string {
     if (!to || !now) return "—"
     const s = Math.max(0, Math.floor((to - now) / 1000))
@@ -21,17 +27,44 @@ module
 component Glyph
   props { base, coin, venue='okx' }: { base: string; coin: string; venue: MarketVenue }
   setup const [failed, setFailed] = useState(false);
-  span.asset-glyph.asset-glyph-lg(className='portrait:size-11!')
+  span.asset-glyph.asset-glyph-lg
     if failed
-      span.asset-glyph-mono #{coin.slice(0, 3)}
+      span.asset-glyph-mono #{base.slice(0, 3)}
     else
-    img(src={glyphSrc(coin, venue)} alt={base} onError={() => void setFailed(true)})
+      img(src={glyphSrc(venue === "okx" ? base : coin, venue)} alt={base} onError={() => void setFailed(true)})
 
 component Stat
   props { label, value, tone }: { label: string; value: string; tone?: "up" | "down" }
   .ap-stat
     span #{label}
     strong(className={tone === "up" ? "is-up" : tone === "down" ? "is-down" : undefined}) #{value}
+
+component PositionUserCounts
+  props { instId }: { instId: string }
+  setup
+    const { data, error } = useConvexQuery(api.positions.userCountsForAsset, { instId });
+    const [failed, setFailed] = useState(false);
+    useEffect(() => {
+      if (data !== null || !convex) return;
+      let mounted = true;
+      void convex.mutation(api.positions.initializeAssetPositionCounts, { instId }).catch(() => {
+        if (mounted) setFailed(true);
+      });
+      return () => { mounted = false; };
+    }, [data, instId]);
+
+  section.ap-position-users(aria-label="Users with open positions")
+    .ap-position-user-sides
+      .ap-position-user-side
+
+        span.is-up
+          Icon(name='user' className='size-4.5')
+        strong #{data ? countFormat.format(data.up) : "—"}
+      .ap-position-user-side
+        span.is-down ↓
+        strong #{data ? countFormat.format(data.down) : "—"}
+    if error || failed
+      span.ap-position-user-status Counts unavailable
 
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
@@ -81,6 +114,7 @@ setup
       section.ap-head(className='portrait:-mt-6!')
         div(className='flex items-center justify-between')
           Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
+          div(className='flex flex-auto! w-full!')
           div(className='')
             if inst
               span(className='font-mono text-sm uppercase!') #{`${VENUE_LABEL[venue]}`}
@@ -93,18 +127,19 @@ setup
                 span.asset-index-tag #{`${inst?.maxLeverage}x`}
               if inst
                 div(className='flex items-center! gap-3 sm:gap-4 md:gap-5 text-(--text-muted)!')
-                  if !inst?.preMarket
-                    p.asset-index-tag Pre-IPO
-                  else
-                    span #{`${CATEGORY_LABEL[inst.category]}`}
+                  span #{`${CATEGORY_LABEL[inst.category]}`}
                   Middot
-                  p Info
+                  if !isHl && convex
+                    each instId in [inst.instId] key instId
+                      PositionUserCounts(instId={instId})
               else
                 p Loading...
 
           .ap-price(className=' portrait:min-w-32 flex flex-col items-end! portrait:-space-y-1')
             span.ap-last(className='portrait:text-3xl! text-(--text-primary)!') #{fmtPrice(v.last, tick)}
             span.ap-change(className={cn('portrait:text-sm! portrait:tracking-tightest', up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
+
+
 
       .ap-main
         section.ap-chart-card

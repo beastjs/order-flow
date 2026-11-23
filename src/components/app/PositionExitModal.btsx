@@ -3,9 +3,9 @@ import ScrubField from "@/components/ui/scrubfield.btsx";
 import Squishy from "@/components/ui/squishy.btsx";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import type { OpenPositionRow } from "@/hooks/usePaperAccount";
-import { exitPriceForPnl, liquidationPrice, netPnlAtExit, validateExitTargets, type ExitTargets } from "@/lib/paper/math";
-module
-  const priceFormat = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 11 });
+import { liquidationPrice, netPnlAtExit, validateExitTargets, type ExitTargets } from "@/lib/paper/math";
+import { AssetGlyph } from "./AssetIndex.btsx";
+import { fmtExitPrice } from "./assetFormat";
 
 props { row, mode, onSave, onClose }: { row: OpenPositionRow; mode: "cloud" | "local"; onSave: (targets: ExitTargets) => Promise<string | null>; onClose: () => void }
 setup
@@ -22,7 +22,6 @@ setup
   const maxProfit = position.side === "up" ? Number.MAX_SAFE_INTEGER / 100 :
     Math.max(0, (Math.ceil(netPnlAtExit(position, 0) * 100) - 1) / 100);
   const dragStep = Math.max(0.01, Math.round(position.margin) / 100);
-  const targetLabel = (pnl: number) => `$${priceFormat.format(exitPriceForPnl(position, pnl))}`;
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -59,8 +58,12 @@ dialog.pos-exit-dialog(
   ~ )
   form.pos-exit-form(onSubmit={save})
     header
-      h2#pos-exit-title #{row.base}
-        span(className='font-sans! font-[450] px-2!') Exit Strategy
+      h2#pos-exit-title(className="flex items-center gap-2.5")
+        span(aria-hidden="true")
+          AssetGlyph(base={row.base} size={24})
+        span
+          | #{row.base + " "}
+          span(className='font-sans! font-[450] px-2!') Exit Strategy
     .pos-exit-target
       Squishy(
         ~ height={24}
@@ -76,7 +79,7 @@ dialog.pos-exit-dialog(
         ~ onChange={(checked: boolean) => { setStopEnabled(checked); setError(null); }}
         ~ )
       ScrubField(
-        ~ label={targetLabel(stopLoss)}
+        ~ label={fmtExitPrice(position, stopLoss)}
         ~ ariaLabel="Stop loss PnL"
         ~ suffix="USD"
         ~ value={stopLoss}
@@ -105,10 +108,11 @@ dialog.pos-exit-dialog(
         ~ trackOnColor="var(--buy)"
         ~ thumbColor="var(--text-secondary)"
         ~ thumbOnColor="var(--bg-base)"
-
+        ~ onChange={(checked: boolean) => { setProfitEnabled(checked); setError(null); }}
         ~ )
+
       ScrubField(
-        ~ label={targetLabel(takeProfit)}
+        ~ label={fmtExitPrice(position, takeProfit)}
         ~ ariaLabel="Take profit PnL"
         ~ suffix="USD"
         ~ value={takeProfit}
@@ -129,5 +133,5 @@ dialog.pos-exit-dialog(
     if error
       p.sim-error(role="alert") #{error}
     footer
-      button.pos-close(type="button" disabled={saving} onClick={onClose}) Cancel
-      button.lp-btn.lp-btn-primary(type="submit" disabled={saving}) #{saving ? "Saving…" : "Save targets"}
+      button.pos-close(className="rounded-lg!" type="button" disabled={saving} onClick={onClose}) Cancel
+      button.lp-btn.lp-btn-primary(className="justify-center rounded-lg!" type="submit" disabled={saving}) #{saving ? "Saving…" : "Save Targets"}

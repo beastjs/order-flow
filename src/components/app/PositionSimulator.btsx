@@ -7,6 +7,7 @@ import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
 import ScrubField from "@/components/ui/scrubfield.btsx";
 import FlameUsage from "../canvasui/flame-usage.btsx";
+import PositionExitModal from "./PositionExitModal.btsx";
 
 module
   // Round first so a value like −0.001 prints "$0.00", not "−$0.00".
@@ -32,6 +33,8 @@ setup
   const position = isLive ? liveAcct.position : account.position;
   const effMaxLeverage = isLive ? Math.max(1, Math.min(maxLeverage, liveCfg?.maxLeverage ?? 1)) : maxLeverage;
   const [confirming, setConfirming] = useState(false);
+  const [exitTargetKey, setExitTargetKey] = useState<string | null>(null);
+  const paperPositionKey = isLive ? null : account.positionKey;
   const [side, setSide] = useState<PaperSide>("up");
   const [amount, setAmount] = useState(0);
   // Keep the default until the user enters or scrubs an amount.
@@ -52,6 +55,7 @@ setup
   // Switching venue: drop any pending confirmation and stale result.
   useEffect(() => {
     setConfirming(false);
+    setExitTargetKey(null);
     setLastFill(null);
     setError(null);
   }, [venue]);
@@ -189,9 +193,25 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         .sim-row
           dt Liq. price (est.)
           dd.is-down #{fmtPrice(live.liq, tickSz)}
-        .sim-row
-          dt Notional
-          dd #{usd(live.notional)}
+        // .sim-row
+        //   dt Notional
+        //   dd #{usd(live.notional)}
+      if paperPositionKey
+        fragment
+          button.sim-chip(
+            ~ type="button"
+            ~ className="self-start w-full h-14! font-sans! font-bold! text-(--text-primary)! tracking-wide text-[18px]! bg-[#419cff]/20!"
+            ~ aria-haspopup="dialog"
+            ~ disabled={busy !== null}
+            ~ onClick={() => setExitTargetKey(paperPositionKey)}
+            ~ ) Exit strategy
+          if exitTargetKey === paperPositionKey
+            PositionExitModal(
+              ~ row={{ key: paperPositionKey, instId, base, position }}
+              ~ mode={account.mode}
+              ~ onSave={account.setExitTargets}
+              ~ onClose={() => setExitTargetKey(null)}
+              ~ )
       .sim-risk(className='' title="Distance from liquidation")
         .sim-risk-bar(style={{ width: `${live.safety * 100}%` }} data-danger={live.safety < 0.25 ? "1" : "0"})
       button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight} onClick={close})

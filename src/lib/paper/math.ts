@@ -36,6 +36,7 @@ export interface PaperFill {
   /** Net of both fees; −(margin + open fee) when liquidated. */
   realized: number
   liquidated: boolean
+  exitTargets?: ExitTargets
   autoExitReason?: AutoExitReason
   openedAt: number
   closedAt: number
@@ -84,7 +85,7 @@ export function netPnlAtExit(p: PaperPosition, exit: number): number {
 }
 
 /** Invert the fee-inclusive exit PnL for either direction. */
-export function exitPriceForPnl(p: PaperPosition, pnl: number): number {
+export function exitPriceForPnl(p: Pick<PaperPosition, 'side' | 'entry' | 'size' | 'openFee'>, pnl: number): number {
   const direction = dir(p.side)
   return (direction * p.entry + (pnl + p.openFee) / p.size) / (direction - TAKER_FEE)
 }
@@ -156,6 +157,7 @@ export function closePosition(p: PaperPosition, exit: number, liquidated = false
     realized: Math.max(realized, floor),
     liquidated,
     openedAt: p.openedAt,
-    closedAt: now
+    closedAt: now,
+    ...(p.exitTargets && { exitTargets: { ...p.exitTargets } })
   }
 }

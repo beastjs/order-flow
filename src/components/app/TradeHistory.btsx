@@ -6,7 +6,7 @@ import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { paperStore, TAKER_FEE, type PaperFill } from "@/lib/paper/paper";
 import { cn } from "@/lib/utils";
 import { AssetGlyph } from "./AssetIndex.btsx";
-import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
+import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 
 module
   type Venue = "paper" | "okx";
@@ -32,6 +32,10 @@ component TradeRow
     const settlement = liquidated ? "Liquidated" : autoExit === "stop_loss" ? "Stop loss" : autoExit === "take_profit" ? "Take profit" : "Closed";
     const size = saved ? trade.size : trade.margin * trade.leverage / trade.entry;
     const openFee = saved ? trade.openFee : trade.margin * trade.leverage * TAKER_FEE;
+    const targets = "exitTargets" in trade ? trade.exitTargets : undefined;
+    const stopLoss = targets?.stopLoss ?? null;
+    const takeProfit = targets?.takeProfit ?? null;
+    const priceInputs = { side: trade.side, entry: trade.entry, size, openFee };
     const closeFee = saved ? trade.closeFee : liquidated ? 0 : size * trade.exit * TAKER_FEE;
     const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down";
   article.trade-history-card
@@ -79,6 +83,14 @@ component TradeRow
         div
           dt Opened
           dd #{trade.openedAt === undefined ? "—" : dateTime.format(trade.openedAt)}
+        if stopLoss !== null
+          div
+            dt Stop loss target
+            dd #{money(stopLoss, true)} · #{fmtExitPrice(priceInputs, stopLoss)}
+        if takeProfit !== null
+          div
+            dt Take profit target
+            dd #{money(takeProfit, true)} · #{fmtExitPrice(priceInputs, takeProfit)}
 
 component HistoryPage
   props { venue, cursor, onOlder, onNewer }: { venue: Venue; cursor: string | null; onOlder: (cursor: string) => void; onNewer: () => void }

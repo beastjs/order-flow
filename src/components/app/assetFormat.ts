@@ -1,6 +1,7 @@
 import { CRYPTO_SYMBOLS } from '@/lib/config/instruments'
 import type { HlCategory } from '@/lib/hyperliquid'
 import type { OkxPerpCategory } from '@/lib/okx'
+import { exitPriceForPnl } from '@/lib/paper/math'
 
 /** Asset class across venues (OKX has no fx/index perps). */
 export type AssetCategory = OkxPerpCategory | HlCategory
@@ -46,6 +47,17 @@ export function fmtPrice(price: number | undefined, tickSz?: number): string {
   if (price === undefined || !Number.isFinite(price)) return '—'
   const d = decimalsFor(price, tickSz)
   return price.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+}
+
+const exitPriceFormat = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+export function fmtExitPrice(position: Parameters<typeof exitPriceForPnl>[0], pnl: number): string {
+  return exitPriceFormat.format(exitPriceForPnl(position, pnl))
 }
 
 export function fmtCompact(value: number | undefined): string {

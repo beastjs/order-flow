@@ -6,7 +6,7 @@ import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
 import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import { estimateClosePnl, liquidationPrice, unrealizedPnl } from "@/lib/paper/math";
-import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
+import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
 import {Icon} from "../../lib/icons";
 
@@ -20,12 +20,34 @@ module
     return `${signed && cents > 0 ? "+" : cents < 0 ? "−" : ""}$${Math.abs(cents).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
+component ExitTargetChip
+  props { row, kind, value, disabled, onEdit }: { row: OpenPositionRow; kind: "stop-loss" | "take-profit"; value: number; disabled: boolean; onEdit: () => void }
+  setup
+    const stop = kind === "stop-loss";
+    const amount = usd(value, true);
+    const price = fmtExitPrice(row.position, value);
+  button.pos-exit-chip(
+    ~ type="button"
+    ~ data-kind={kind}
+    ~ aria-label={`Edit ${row.base} ${stop ? "stop loss" : "take profit"}, ${amount} net PnL at ${price}`}
+    ~ aria-haspopup="dialog"
+    ~ disabled={disabled}
+    ~ onClick={onEdit}
+    ~ )
+    span #{stop ? "SL" : "TP"}
+    span #{amount}
+    span.pos-exit-chip-price · #{price}
+
 component PositionRow
   props { row, mark, exit, pnl, busy, disabled, onClose, onExitTargets }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void; onExitTargets: (row: OpenPositionRow) => void }
   setup
     const p = row.position;
     const canClose = pnl !== null && Boolean(exit);
     const pnlClass = pnl === null ? "" : pnl >= 0 ? "is-up" : "is-down";
+    const stopLoss = p.exitTargets?.stopLoss ?? null;
+    const takeProfit = p.exitTargets?.takeProfit ?? null;
+    const hasExitTargets = stopLoss !== null || takeProfit !== null;
+    const editExitTargets = () => onExitTargets(row);
   article.pos-article(className='portrait:flex-col!' data-side={p.side})
     div.pos-row
       Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
@@ -54,14 +76,22 @@ component PositionRow
           span(className='portrait:block!') #{usd(pnl, true)}
           small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100)}
     .pos-row-actions
-      button.pos-close.pos-exit-button(
-        ~ type="button"
-        ~ className={cn(p.exitTargets && "is-active")}
-        ~ aria-label={`${p.exitTargets ? "Edit" : "Set"} ${row.base} stop loss and take profit`}
-        ~ aria-haspopup="dialog"
-        ~ disabled={disabled}
-        ~ onClick={() => onExitTargets(row)}
-        ~ ) TP / SL
+      if hasExitTargets
+        .pos-exit-chips
+          if stopLoss !== null
+            ExitTargetChip(row={row} kind="stop-loss" value={stopLoss} disabled={disabled} onEdit={editExitTargets})
+          if takeProfit !== null
+            ExitTargetChip(row={row} kind="take-profit" value={takeProfit} disabled={disabled} onEdit={editExitTargets})
+      else
+        button(
+          ~ type="button"
+          ~ className="mx-3! hover:brightness-135 transition-all duration-200 ease-out active:scale-97"
+          ~ aria-label={`Set ${row.base} stop loss and take profit`}
+          ~ aria-haspopup="dialog"
+          ~ disabled={disabled}
+          ~ onClick={editExitTargets}
+          ~ )
+          img(src="/pnl.svg" className="h-12 w-10" alt="")
       button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-full portrait:h-[50px]! portrait:rounded-none! portrait:hover:brightness-125! sm:rounded-xl! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" aria-label={busy ? "Closing" : "Close"} disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
         Icon(name={busy ? 'circle' : 'close'} className='size-6 portrait:hidden!')
         span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}

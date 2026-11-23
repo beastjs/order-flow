@@ -7,6 +7,7 @@ import type { MutationCtx } from "./_generated/server";
 import schema, { category, exitTargetFields, positionStatus, side } from "./schema";
 import { currentUser, requireUser } from "./lib/auth";
 import { writeLog } from "./lib/log";
+import { assetPositionCounts, hasOpenPositions, startPositionCountBackfill, syncAssetPositionCounts } from "./lib/positionCounts";
 import { fetchAllMarks, fetchQuote, fetchSwap, fetchSwapQuotes } from "./lib/okx";
 import { requireFunds } from "./funds";
 import { TAKER_FEE, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, validateExitTargets, type AutoExitReason, type PaperPosition } from "../src/lib/paper/math";
@@ -27,6 +28,59 @@ const toPaper = (p: Doc<"positions">): PaperPosition => ({
 });
 
 const usd = (n: number) => `${n < 0 ? "−" : n > 0 ? "+" : ""}$${Math.abs(n).toFixed(2)}`;
+
+export const userCountsForAsset = query({
+  args: { instId: v.string() },
+  returns: v.union(v.object({ up: v.number(), down: v.number() }), v.null()),
+  handler: async (ctx, { instId }) => {
+    const counts = await assetPositionCounts(ctx, instId);
+    if (counts) return counts.ready ? { up: counts.up, down: counts.down } : null;
+    return (await hasOpenPositions(ctx, instId)) ? null : { up: 0, down: 0 };
+  },
+});
+
+/** Initialize existing positions the first time their asset page needs counts. */
+export const initializeAssetPositionCounts = mutation({
+  args: { instId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { instId }) => {
+    if (!(await assetPositionCounts(ctx, instId)) && await hasOpenPositions(ctx, instId)) {
+      await startPositionCountBackfill(ctx, instId);
+    }
+    return null;
+  },
+});
+
+export const backfillAssetPositionCounts = internalMutation({
+  args: {
+    countsId: v.id("assetPositionCounts"),
+    source: v.union(v.literal("paper"), v.literal("live-open"), v.literal("live-closing")),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { countsId, source, cursor }): Promise<null> => {
+    const counts = await ctx.db.get("assetPositionCounts", countsId);
+    if (!counts || counts.ready) return null;
+    const instId = counts.instId;
+    const opts = { numItems: 50, cursor };
+    const page = source === "paper"
+      ? await ctx.db.query("positions").withIndex("by_status_and_instId", (q) =>
+          q.eq("status", "open").eq("instId", instId)).paginate(opts)
+      : await ctx.db.query("livePositions").withIndex("by_status_and_instId", (q) =>
+          q.eq("status", source === "live-open" ? "open" : "closing").eq("instId", instId)).paginate(opts);
+    for (const { userId } of page.page) await syncAssetPositionCounts(ctx, instId, userId);
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.positions.backfillAssetPositionCounts, { countsId, source, cursor: page.continueCursor });
+    } else if (source === "live-closing") {
+      await ctx.db.patch("assetPositionCounts", countsId, { ready: true });
+    } else {
+      const next = source === "paper" ? "live-open" : "live-closing";
+      await ctx.scheduler.runAfter(0, internal.positions.backfillAssetPositionCounts, { countsId, source: next, cursor: null });
+    }
+    return null;
+  },
+});
 
 // ─── reads ───────────────────────────────────────────────────
 
@@ -161,6 +215,7 @@ export const openPriced = internalMutation({
       status: "open",
       openedAt: now,
     });
+    await syncAssetPositionCounts(ctx, p.instId, user._id);
     const balanceAfter = funds.balance - cost;
     await ctx.db.patch("funds", funds._id, { balance: balanceAfter, locked: funds.locked + p.margin });
     await ctx.db.insert("activity", {
@@ -208,6 +263,7 @@ async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: numbe
     closedAt: fill.closedAt,
     autoExitReason: reason,
   });
+  await syncAssetPositionCounts(ctx, p.instId, p.userId);
 
   const funds = await requireFunds(ctx, p.userId);
   // Margin + open fee left the balance at open; `realized` already nets both fees.

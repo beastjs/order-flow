@@ -250,6 +250,43 @@ describe("crash safety", () => {
 });
 
 describe("close + liquidation", () => {
+  it("backfills user counts and deduplicates paper and OKX positions per side", async () => {
+    const { t, admin, user, adminId, userId } = await setup();
+    const market = { instId: AAPL, base: "AAPL", category: "stock" as const };
+    const prices = { entry: 353.4, margin: 50, leverage: 2, size: 0.28, openFee: 0.05 };
+    const userPaperId = await t.run(async (ctx) => {
+      const openedAt = Date.now();
+      await ctx.db.insert("positions", { ...market, ...prices, userId: adminId, side: "up", status: "open", openedAt });
+      await ctx.db.insert("livePositions", {
+        ...market, ...prices, ctVal: 1, contractsSz: "0.28", userId, side: "up", status: "closing", openedAt,
+      });
+      return await ctx.db.insert("positions", { ...market, ...prices, userId, side: "down", status: "open", openedAt });
+    });
+    const readCounts = () => t.query(api.positions.userCountsForAsset, { instId: AAPL });
+    expect(await readCounts()).toBeNull();
+    vi.useFakeTimers();
+    try {
+      await t.mutation(api.positions.initializeAssetPositionCounts, { instId: AAPL });
+      await t.mutation(api.positions.initializeAssetPositionCounts, { instId: AAPL });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await readCounts()).toEqual({ up: 2, down: 1 });
+    expect(await t.query(api.positions.userCountsForAsset, { instId: "BTC-USDT-SWAP" })).toEqual({ up: 0, down: 0 });
+
+    const { positionId } = await admin.action(api.liveTrading.open, { instId: AAPL, side: "up", margin: 50, leverage: 2 });
+    expect(await readCounts()).toEqual({ up: 2, down: 1 });
+    await admin.action(api.liveTrading.close, { positionId });
+    expect(await readCounts()).toEqual({ up: 2, down: 1 });
+    await user.mutation(internal.positions.settle, { positionId: userPaperId, exit: 351, liquidated: false, asOwner: true });
+    expect(await readCounts()).toEqual({ up: 2, down: 0 });
+    const liveOnly = await admin.action(api.liveTrading.open, { instId: AAPL, side: "down", margin: 50, leverage: 2 });
+    expect(await readCounts()).toEqual({ up: 2, down: 1 });
+    await admin.action(api.liveTrading.close, { positionId: liveOnly.positionId });
+    expect(await readCounts()).toEqual({ up: 2, down: 0 });
+  });
+
   it("close sends a reduce-only order and the balance moves by exactly the realized PnL", async () => {
     const { admin, adminId, user, fundsRow } = await setup(1000);
     const paginationOpts = { numItems: 5, cursor: null };

@@ -112,6 +112,20 @@ export default defineSchema({
     .index("by_userId_and_instId_and_status", ["userId", "instId", "status"])
     .index("by_status_and_instId", ["status", "instId"]),
 
+  assetPositionCounts: defineTable({
+    instId: v.string(),
+    up: v.number(),
+    down: v.number(),
+    ready: v.boolean(),
+  }).index("by_instId", ["instId"]),
+
+  assetPositionMembers: defineTable({
+    instId: v.string(),
+    userId: v.id("users"),
+    up: v.boolean(),
+    down: v.boolean(),
+  }).index("by_instId_and_userId", ["instId", "userId"]),
+
   // User-facing feed. `amount` is the signed change to free balance.
   activity: defineTable({
     userId: v.id("users"),

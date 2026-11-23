@@ -44,7 +44,7 @@ component AssetCardView
     const up = (quote.change ?? 0) >= 0;
     const gradId = `spark-${venue}-${item.instId}`;
   Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf({ ...item, venue }) }} search={venueSearch(venue)} aria-label={`${item.base} perpetual`})
-    article.asset-index(className='hover:shadow-[inset_0px_1px_0px_0px_rgba(255,255,255,0.18)] ' ref={cardRef} data-up={up ? "1" : "0"} data-category={item.category})
+    article.asset-index(className='dark:hover:shadow-[inset_0px_1px_0px_0px_rgba(255,255,255,0.18)]! ' ref={cardRef} data-up={up ? "1" : "0"} data-category={item.category})
       header.asset-index-head
         AssetGlyph(base={item.base} venue={venue} coin={item.instId} size={24})
         .asset-index-name
