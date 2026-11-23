@@ -5,6 +5,12 @@
 // ============================================================
 
 export type PaperSide = 'up' | 'down'
+export type AutoExitReason = 'stop_loss' | 'take_profit'
+
+export interface ExitTargets {
+  stopLoss: number | null
+  takeProfit: number | null
+}
 
 export interface PaperPosition {
   instId: string
@@ -17,6 +23,7 @@ export interface PaperPosition {
   size: number
   openFee: number
   openedAt: number
+  exitTargets?: ExitTargets
 }
 
 export interface PaperFill {
@@ -29,6 +36,7 @@ export interface PaperFill {
   /** Net of both fees; −(margin + open fee) when liquidated. */
   realized: number
   liquidated: boolean
+  autoExitReason?: AutoExitReason
   openedAt: number
   closedAt: number
 }
@@ -71,6 +79,39 @@ export function estimateClosePnl(p: PaperPosition, markPnl: number, exit?: numbe
   return markPnl - p.openFee - p.size * (exit ?? 0) * TAKER_FEE
 }
 
+export function netPnlAtExit(p: PaperPosition, exit: number): number {
+  return estimateClosePnl(p, unrealizedPnl(p, exit), exit)
+}
+
+/** Invert the fee-inclusive exit PnL for either direction. */
+export function exitPriceForPnl(p: PaperPosition, pnl: number): number {
+  const direction = dir(p.side)
+  return (direction * p.entry + (pnl + p.openFee) / p.size) / (direction - TAKER_FEE)
+}
+
+export function validateExitTargets(p: PaperPosition, { stopLoss, takeProfit }: ExitTargets): string | null {
+  if (stopLoss !== null) {
+    const price = exitPriceForPnl(p, stopLoss)
+    if (!Number.isFinite(price) || price <= 0 || stopLoss >= 0 || isLiquidated(p, price))
+      return 'Enter a negative stop loss with a trigger price before liquidation.'
+  }
+  if (takeProfit !== null) {
+    const price = exitPriceForPnl(p, takeProfit)
+    if (!Number.isFinite(price) || price <= 0 || takeProfit <= 0)
+      return 'Enter a positive take profit with a valid trigger price.'
+  }
+  return null
+}
+
+export function autoExitReason(p: PaperPosition, exit: number): AutoExitReason | null {
+  if (!p.exitTargets || !Number.isFinite(exit) || exit <= 0) return null
+  const pnl = netPnlAtExit(p, exit)
+  const { stopLoss, takeProfit } = p.exitTargets
+  if (stopLoss !== null && pnl <= stopLoss) return 'stop_loss'
+  if (takeProfit !== null && pnl >= takeProfit) return 'take_profit'
+  return null
+}
+
 /** Estimated liquidation price: equity falls to maintenance margin. */
 export function liquidationPrice(p: PaperPosition): number {
   const equity0 = p.margin - p.openFee
@@ -102,10 +143,9 @@ export function metrics(p: PaperPosition, mark: number): PaperMetrics {
 }
 
 export function closePosition(p: PaperPosition, exit: number, liquidated = false, now = Date.now()): PaperFill {
-  const closeFee = liquidated ? 0 : p.size * exit * TAKER_FEE
   // Everything committed (margin + opening fee) is the most a position can lose.
   const floor = -(p.margin + p.openFee)
-  const realized = liquidated ? floor : unrealizedPnl(p, exit) - p.openFee - closeFee
+  const realized = liquidated ? floor : netPnlAtExit(p, exit)
   return {
     instId: p.instId,
     side: p.side,

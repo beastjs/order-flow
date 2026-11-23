@@ -1,6 +1,7 @@
 import { useEffect, useState } from "octane";
 import { Link } from "@octanejs/tanstack-router";
 import { AssetGlyph } from "./AssetIndex.btsx";
+import PositionExitModal from "./PositionExitModal.btsx";
 import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
 import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
 import { convexErrorMessage } from "@/hooks/useConvex";
@@ -20,7 +21,7 @@ module
   }
 
 component PositionRow
-  props { row, mark, exit, pnl, busy, disabled, onClose }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void }
+  props { row, mark, exit, pnl, busy, disabled, onClose, onExitTargets }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void; onExitTargets: (row: OpenPositionRow) => void }
   setup
     const p = row.position;
     const canClose = pnl !== null && Boolean(exit);
@@ -52,9 +53,18 @@ component PositionRow
         span.pos-pnl-val(className={cn('portrait:text-right portrait:font-[600]', pnlClass)})
           span(className='portrait:block!') #{usd(pnl, true)}
           small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100)}
-    button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-full portrait:mt-4! portrait:h-[50px]! portrait:rounded-none! portrait:hover:brightness-125! sm:rounded-xl! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
-      Icon(name={busy ? 'circle' : 'close'} className='size-6 portrait:hidden!')
-      span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}
+    .pos-row-actions
+      button.pos-close.pos-exit-button(
+        ~ type="button"
+        ~ className={cn(p.exitTargets && "is-active")}
+        ~ aria-label={`${p.exitTargets ? "Edit" : "Set"} ${row.base} stop loss and take profit`}
+        ~ aria-haspopup="dialog"
+        ~ disabled={disabled}
+        ~ onClick={() => onExitTargets(row)}
+        ~ ) TP / SL
+      button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-full portrait:h-[50px]! portrait:rounded-none! portrait:hover:brightness-125! sm:rounded-xl! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" aria-label={busy ? "Closing" : "Close"} disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
+        Icon(name={busy ? 'circle' : 'close'} className='size-6 portrait:hidden!')
+        span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}
 
 setup
   const open = useOpenPositions();
@@ -66,6 +76,10 @@ setup
   const [error, setError] = useState<string | null>(null);
   const [lastFill, setLastFill] = useState<(SimResult & { base: string }) | null>(null);
   const [bulkResult, setBulkResult] = useState<Awaited<ReturnType<typeof open.closeAll>> | null>(null);
+  const [target, setTarget] = useState<{ key: string; openedAt: number; mode: typeof open.mode } | null>(null);
+  const targetRow = target?.mode === open.mode && !open.loading
+    ? open.rows.find((row) => row.key === target.key && row.position.openedAt === target.openedAt)
+    : undefined;
   const confirming = confirmMode === open.mode && !open.loading && open.rows.length > 0;
 
   useEffect(() => {
@@ -185,8 +199,20 @@ section.pos
   else
     .pos-list
       each item in pricedRows key item.row.key
-        PositionRow(row={item.row} mark={item.mark} exit={item.exit} pnl={item.pnl} busy={closing === item.row.key} disabled={closing !== null || confirming} onClose={close})
+        PositionRow(
+          ~ row={item.row}
+          ~ mark={item.mark}
+          ~ exit={item.exit}
+          ~ pnl={item.pnl}
+          ~ busy={closing === item.row.key}
+          ~ disabled={closing !== null || confirming}
+          ~ onClose={close}
+          ~ onExitTargets={(row: OpenPositionRow) => setTarget({ key: row.key, openedAt: row.position.openedAt, mode: open.mode })}
+          ~ )
       empty
         .pos-empty
           p No open positions.
           Link.lp-btn.lp-btn-ghost(to="/perps") Browse markets
+
+  if targetRow
+    PositionExitModal(row={targetRow} mode={open.mode} onSave={(targets) => open.setExitTargets(targetRow, targets)} onClose={() => setTarget(null)})

@@ -1,0 +1,21 @@
+import { useEffect, useSyncExternalStore } from "octane";
+import { useConvexAuth } from "@/hooks/useConvex";
+import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
+import { paperStore } from "@/lib/paper/paper";
+
+setup
+  const auth = useConvexAuth();
+  const { positions } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  const ids = auth.isLoading || auth.isAuthenticated ? [] :
+    Object.values(positions).filter((position) => position.exitTargets).map((position) => position.instId);
+  const tickers = useOkxTickers(ids, 250);
+  const marks = useOkxMarkPrices(ids, 250);
+
+  useEffect(() => {
+    for (const id of ids) {
+      const mark = marks[id];
+      if (mark === undefined) continue;
+      const ticker = tickers[id];
+      paperStore.checkExitTargets(id, mark, { bid: ticker?.bidPx, ask: ticker?.askPx });
+    }
+  }, [positions, auth.isLoading, auth.isAuthenticated, marks, tickers]);

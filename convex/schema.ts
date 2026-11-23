@@ -9,6 +9,11 @@ export const category = v.union(
   v.literal("other"),
 );
 export const positionStatus = v.union(v.literal("open"), v.literal("closed"), v.literal("liquidated"));
+export const autoExitReason = v.union(v.literal("stop_loss"), v.literal("take_profit"));
+export const exitTargetFields = {
+  stopLoss: v.union(v.number(), v.null()),
+  takeProfit: v.union(v.number(), v.null()),
+};
 // USDT = paper trading balance; USD = real top-ups (never touched by Reset).
 export const currency = v.union(v.literal("USDT"), v.literal("USD"));
 export const fundsMode = v.union(v.literal("paper"), v.literal("live"));
@@ -98,9 +103,12 @@ export default defineSchema({
     realized: v.optional(v.number()),
     openedAt: v.number(),
     closedAt: v.optional(v.number()),
+    exitTargets: v.optional(v.object({ ...exitTargetFields, setAt: v.number() })),
+    autoExitReason: v.optional(autoExitReason),
   })
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_userId_and_closedAt", ["userId", "closedAt"])
+    .index("by_status_and_exitTargets_setAt", ["status", "exitTargets.setAt"])
     .index("by_userId_and_instId_and_status", ["userId", "instId", "status"])
     .index("by_status_and_instId", ["status", "instId"]),
 

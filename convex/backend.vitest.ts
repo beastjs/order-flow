@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { STARTING_BALANCE, TAKER_FEE } from "../src/lib/paper/math";
+import { STARTING_BALANCE, TAKER_FEE, exitPriceForPnl, netPnlAtExit } from "../src/lib/paper/math";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -46,6 +46,42 @@ describe("users + funds", () => {
 });
 
 describe("positions", () => {
+  it("saves owner-only exit targets and settles the stop loss and take profit at the executable quote", async () => {
+    const { t, alice, bob } = await setup();
+    const longId = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    const shortId = await alice.mutation(internal.positions.openPriced, { ...AAPL, instId: "BTC-USDT-SWAP", base: "BTC", side: "down", margin: 100, leverage: 2, entry: 100 });
+    const long = (await alice.query(api.positions.openFor, { instId: AAPL.instId }))!;
+    const short = (await alice.query(api.positions.openFor, { instId: "BTC-USDT-SWAP" }))!;
+    expect(netPnlAtExit(long, exitPriceForPnl(long, -10))).toBeCloseTo(-10, 10);
+    expect(netPnlAtExit(short, exitPriceForPnl(short, 10))).toBeCloseTo(10, 10);
+    await expect(bob.mutation(api.positions.setExitTargets, { positionId: longId, stopLoss: -10, takeProfit: null })).rejects.toThrow(/not found/);
+    await expect(alice.mutation(api.positions.setExitTargets, { positionId: longId, stopLoss: -200, takeProfit: null })).rejects.toThrow(/before liquidation/);
+    await alice.mutation(api.positions.setExitTargets, { positionId: longId, stopLoss: -10, takeProfit: null });
+    await alice.mutation(api.positions.setExitTargets, { positionId: shortId, stopLoss: null, takeProfit: 10 });
+    expect(await t.mutation(internal.positions.settleExitTargets, {
+      checkedAt: Date.now(), quotes: [{ positionId: longId, exit: 94, mark: 40 }, { positionId: shortId, exit: 96, mark: 96 }],
+    })).toBe(0);
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const data = String(input).includes("mark-price")
+        ? [{ instId: long.instId, markPx: "94.5" }, { instId: short.instId, markPx: "94.5" }]
+        : [{ instId: long.instId, bidPx: "94", askPx: "96" }, { instId: short.instId, bidPx: "93", askPx: "94" }];
+      return Response.json({ code: "0", data });
+    });
+    try {
+      await t.action(internal.positions.sweepExitTargets, {});
+      await t.action(internal.positions.sweepExitTargets, {});
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchMock.mockRestore();
+    }
+    const history = (await alice.query(api.positions.history, { paginationOpts: page })).page;
+    expect(history).toHaveLength(2);
+    expect(history.find((p) => p._id === longId)).toMatchObject({ exit: 94, autoExitReason: "stop_loss", realized: netPnlAtExit(long, 94) });
+    expect(history.find((p) => p._id === shortId)).toMatchObject({ exit: 94, autoExitReason: "take_profit", realized: netPnlAtExit(short, 94) });
+    expect(await alice.query(api.funds.mine, {})).toMatchObject({ locked: 0 });
+  });
+
   it("open → close moves funds by exactly the realized PnL and records activity", async () => {
     const { alice } = await setup();
     const id = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 500, leverage: 10, entry: 100 });

@@ -57,6 +57,11 @@ export async function fetchQuote(instId: string): Promise<{ bid: number; ask: nu
   return { bid: num(t.bidPx), ask: num(t.askPx) };
 }
 
+export async function fetchSwapQuotes() {
+  const rows = await get<Record<string, string>>("/api/v5/market/tickers?instType=SWAP");
+  return new Map(rows.map((row) => [row.instId, { bid: Number(row.bidPx), ask: Number(row.askPx) }]));
+}
+
 /** Mark prices for every SWAP in one call (used by the liquidation sweep). */
 export async function fetchAllMarks(): Promise<Map<string, number>> {
   const rows = await get<Record<string, string>>("/api/v5/public/mark-price?instType=SWAP");

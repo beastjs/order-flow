@@ -270,7 +270,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
   if error
     p.sim-error #{error}
   if account.closedRemotely
-    p.sim-result.is-down Your #{base} position was liquidated by the server.
+    p.sim-result Your #{base} position closed. See Trade history for the fill.
   elseif lastFill
     p(className={cn("sim-result", lastFill.realized >= 0 ? "is-up" : "is-down")})
       | #{lastFill.liquidated ? "Liquidated" : "Closed"} #{lastFill.side === "up" ? "Up" : "Down"} #{lastFill.leverage}× at #{fmtPrice(lastFill.exit, tickSz)} · #{usd(lastFill.realized, true)} (#{fmtPct((lastFill.realized / lastFill.margin) * 100)})

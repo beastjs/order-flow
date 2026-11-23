@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'octane'
 import type { FunctionReturnType } from 'convex/server'
 import { api } from '../../convex/_generated/api'
 import { convex, convexAuthStore } from '@/lib/convex/client'
-import { TAKER_FEE, paperStore, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
+import { TAKER_FEE, paperStore, type ExitTargets, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from './useConvex'
 
 // ─── One paper account, two backends ─────────────────────────────
@@ -19,7 +19,7 @@ export interface PaperAccount {
   loading: boolean
   balance: number | null
   position: PaperPosition | null
-  /** Set when the backend closed the position (liquidation sweep). */
+  /** Set when the backend or another view closes the position. */
   closedRemotely: boolean
   open(side: PaperSide, margin: number, leverage: number, quote: { bid?: number; ask?: number }): Promise<string | null>
   close(quote: { bid?: number; ask?: number }): Promise<{ result: SimResult | null; error: string | null }>
@@ -36,7 +36,7 @@ export function usePaperAccount(instId: string): PaperAccount {
   const funds = useConvexQuery(api.funds.mine, cloud ? {} : 'skip')
   const remote = useConvexQuery(api.positions.openFor, cloud ? { instId } : 'skip')
 
-  // Detect a cloud position disappearing without us closing it (liquidated server-side).
+  // Detect a cloud position disappearing without this view closing it.
   const [closedRemotely, setClosedRemotely] = useState(false)
   const closedByUsRef = useRef<string | null>(null)
   const lastIdRef = useRef<string | null>(null)
@@ -145,6 +145,7 @@ export interface OpenPositions {
   rows: OpenPositionRow[]
   close(row: OpenPositionRow, quote: CloseQuote): Promise<{ result: SimResult | null; error: string | null }>
   closeAll(getQuote: (instId: string) => CloseQuote): Promise<BulkCloseResult>
+  setExitTargets(row: OpenPositionRow, targets: ExitTargets): Promise<string | null>
 }
 
 type CloseQuote = { bid?: number; ask?: number }
@@ -177,6 +178,9 @@ export function useOpenPositions(): OpenPositions {
       loading: authState.isLoading,
       balance: local.balance,
       rows,
+      async setExitTargets(row, targets) {
+        return paperStore.setExitTargets(row.instId, row.position.openedAt, targets)
+      },
       async close(row, quote) {
         const fill = closePracticePosition(row.position, quote)
         return fill ? { result: fill, error: null } : { result: null, error: 'Waiting for a price.' }
@@ -214,9 +218,20 @@ export function useOpenPositions(): OpenPositions {
         entry: d.entry,
         size: d.size,
         openFee: d.openFee,
-        openedAt: d.openedAt
+        openedAt: d.openedAt,
+        exitTargets: d.exitTargets
       }
     })),
+    async setExitTargets(row, targets) {
+      const doc = docs.find((d) => d._id === row.key)
+      if (!doc) return 'Position not found or already closed.'
+      try {
+        await convex!.mutation(api.positions.setExitTargets, { positionId: doc._id, ...targets })
+        return null
+      } catch (e) {
+        return convexErrorMessage(e)
+      }
+    },
     async close(row) {
       const doc = docs.find((d) => d._id === row.key)
       if (!doc) return { result: null, error: 'Position already closed.' }

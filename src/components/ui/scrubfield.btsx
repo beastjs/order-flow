@@ -1,10 +1,11 @@
-import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useTransform } from "@octanejs/motion";
-import { useEffect, useId, useRef, useState } from "octane";
+import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useSpring, useTransform } from "@octanejs/motion";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "octane";
 import type { PointerEvent, KeyboardEvent, FocusEvent } from "octane";
 module
   type ScrubFieldSize = "sm" | "md" | "lg" | "xl";
   interface ScrubFieldProps {
     ~ label?: string;
+    ~ ariaLabel?: string;
     ~ suffix?: string;
     ~ value?: number;
     ~ defaultValue?: number;
@@ -43,6 +44,8 @@ module
     ~ altKey: boolean;
     ~ };
   const SPRING_UI = { type: "spring" as const, duration: 0.3, bounce: 0 };
+  const VALUE_SPRING = { stiffness: 520, damping: 42, mass: 0.8 };
+  const POINTER_SPRING = { stiffness: 740, damping: 44, mass: 0.65 };
   const LEAN = 4;
   const SIZES: Record<ScrubFieldSize, {
     height: number;
@@ -56,6 +59,8 @@ module
     xl: { height: 52, font: 16, radius: 10, width: 160 }
   };
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const fillRatio = (value: number, min: number, max: number) =>
+    (clamp(value, min, max) - min) / Math.max(max - min, Number.EPSILON);
   const decimalsOf = (n: number) => {
     const s = String(n);
     const i = s.indexOf(".");
@@ -71,7 +76,40 @@ module
     return yiq >= 128 ? "#111111" : "#ffffff";
   };
 
-props { label = "Value", suffix = "", value: valueProp, defaultValue = 0, min = 0, max = 100, step = 1, dragStep = step, size = "md", sensitivity = 4, rubberReach = 15, returnDuration = 300, coarseMultiplier = 10, fineMultiplier = 0.1, showDelta = true, showDirty = true, showFill = true, accent = "#a3e635", chipColor = "#27272a", disabled = false, onChange, onCommit, className }: ScrubFieldProps
+component DeltaDigit
+  props { digit, rising, reduced }: { digit: string; rising: boolean; reduced: boolean }
+  setup
+    const previous = useRef(digit);
+    const outgoing = useRef<HTMLSpanElement | null>(null);
+    const incoming = useRef<HTMLSpanElement | null>(null);
+
+    useLayoutEffect(() => {
+      const oldDigit = previous.current;
+      previous.current = digit;
+      if (oldDigit === digit || reduced || !outgoing.current || !incoming.current) return;
+
+      const offset = rising ? 100 : -100;
+      const timing = { duration: 155, easing: "cubic-bezier(0.2, 0.75, 0.25, 1)" };
+      outgoing.current.textContent = oldDigit;
+      const exit = outgoing.current.animate([
+        { transform: "translateY(0)", opacity: 1 },
+        { transform: `translateY(${-offset}%)`, opacity: 1 }
+      ], timing);
+      const enter = incoming.current.animate([
+        { transform: `translateY(${offset}%)` },
+        { transform: "translateY(0)" }
+      ], timing);
+      return () => {
+        exit.cancel();
+        enter.cancel();
+      };
+    }, [digit, rising, reduced]);
+
+  span(className="relative inline-block h-[1.4em] w-[1ch] overflow-hidden text-center")
+    span(className="absolute inset-0 opacity-0" ref={outgoing})
+    span(className="block" ref={incoming}) #{digit}
+
+props { label = "Value", ariaLabel, suffix = "", value: valueProp, defaultValue = 0, min = 0, max = 100, step = 1, dragStep = step, size = "md", sensitivity = 4, rubberReach = 15, returnDuration = 300, coarseMultiplier = 10, fineMultiplier = 0.1, showDelta = true, showDirty = true, showFill = true, accent = "#a3e635", chipColor = "#27272a", disabled = false, onChange, onCommit, className }: ScrubFieldProps
 
 setup
   const id = useId();
@@ -79,11 +117,13 @@ setup
   const controlled = valueProp !== undefined;
   const [value, setValue] = useState<number>(clamp(controlled ? (valueProp as number) : defaultValue, min, max));
   const [dragging, setDragging] = useState(false);
+  const [delta, setDelta] = useState({ amount: 0, rising: true });
   const [draft, setDraft, getDraft] = useState<string | null>(null);
   const display = useMotionValue(value);
+  const fill = useSpring(fillRatio(value, min, max), VALUE_SPRING);
+  const deltaX = useSpring(0, POINTER_SPRING);
   const chipRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const ghostRef = useRef<HTMLSpanElement | null>(null);
   const drag = useRef<DragState | null>(null);
   const valueRef = useRef(value);
   const typingRef = useRef(false);
@@ -101,7 +141,11 @@ setup
     return v.toFixed(Math.abs(scaled - Math.round(scaled)) < 1e-6 ? baseDecimals : fineDecimals);
   };
 
-  const signed = (d: number) => (d < 0 ? "−" : "+") + fmt(Math.abs(d));
+  const writeDelta = (delta: number) => {
+    const amount = Number(delta.toFixed(2));
+    setDelta((previous) => amount === previous.amount ? previous : { amount, rising: amount > previous.amount });
+  };
+  const deltaDigits = [...Math.abs(delta.amount).toFixed(2)];
   const reach = (rubberReach / 100) * Math.max(max - min, Number.EPSILON);
   const bend = (raw: number) => (reach ? Math.sign(raw) * reach * Math.log1p(Math.abs(raw) / reach) : 0);
   const unbend = (over: number) => (reach ? Math.sign(over) * reach * Math.expm1(Math.abs(over) / reach) : 0);
@@ -136,8 +180,14 @@ setup
 
   const lean = useTransform(display, (d: number) => reduce || !reach ? 0 : clamp((d - clamp(d, min, max)) / reach, -1, 1) * LEAN);
   const chipTransform = useTransform(lean, (v: number) => `translateX(${v}px)`);
-  const fill = useTransform(display, (d: number) => (clamp(d, min, max) - min) / Math.max(max - min, Number.EPSILON));
-  const fillTransform = useTransform(fill, (v: number) => `scaleX(${v})`);
+  const fillTransform = useTransform(fill, (v: number) => `scaleX(${clamp(v, 0, 1)})`);
+  const deltaTransform = useTransform(deltaX, (x: number) => `translateX(${x}px)`);
+
+  useEffect(() => {
+    const next = fillRatio(value, min, max);
+    if (reduce) fill.jump(next);
+    else fill.set(next);
+  }, [value, min, max, reduce]);
 
   const adopt = (next: number) => {
     valueRef.current = next;
@@ -208,6 +258,10 @@ setup
       g.moved = true;
       movedRef.current = true;
       g.x = e.clientX;
+      if (showDelta) {
+        deltaX.jump(e.clientX - g.left);
+        writeDelta(0);
+      }
       setDragging(true);
       document.documentElement.style.cursor = "ew-resize";
     }
@@ -219,12 +273,14 @@ setup
     }
     const raw = g.raw + Math.round((e.clientX - g.x) / sensitivity) * dragStep * m;
     const shown = toShown(raw);
+    if (showDelta) {
+      const x = e.clientX - g.left;
+      if (reduce) deltaX.jump(x);
+      else deltaX.set(x);
+      if (shown !== display.get()) writeDelta(shown - g.before);
+    }
     display.set(shown);
     commit(clamp(raw, min, max));
-    if (ghostRef.current) {
-      ghostRef.current.style.translate = `calc(${e.clientX - g.left}px - 50%) -100%`;
-      ghostRef.current.textContent = signed(shown - g.before);
-    }
   };
 
   const end = (cancel = false) => {
@@ -240,6 +296,7 @@ setup
     }
     if (cancel) {
       commit(g.before);
+      if (showDelta && g.moved) writeDelta(0);
       display.jump(valueRef.current);
       return;
     }
@@ -247,6 +304,7 @@ setup
       inputRef.current?.focus();
       return;
     }
+    if (showDelta) writeDelta(valueRef.current - g.before);
     const bound = clamp(display.get(), min, max);
     if (display.get() !== bound) {
       if (reduce)
@@ -358,7 +416,7 @@ MotionDiv(
         ~ style={{ transform: fillTransform }}
         ~ )
   label(
-    ~ className="inline-flex h-full cursor-[inherit] items-center whitespace-nowrap rounded-[calc(var(--sf-r)-2px)] px-1.5 font-medium [color:color-mix(in_srgb,currentColor_75%,transparent)] [transition:color_120ms_ease,transform_160ms_var(--sf-ease-out)] [@media(hover:hover)_and_(pointer:fine)]:group-data-[disabled=false]:group-hover:[color:color-mix(in_srgb,currentColor_85%,transparent)] group-data-[disabled=false]:group-data-[typing=false]:group-active:[transform:scale(0.96)] group-data-[disabled=false]:group-data-[typing=false]:group-active:[color:currentColor] group-data-[dragging=true]:[transform:scale(0.96)] group-data-[dragging=true]:[color:currentColor] motion-reduce:[transition:color_120ms_ease] motion-reduce:group-data-[dragging=true]:[transform:none] motion-reduce:group-data-[disabled=false]:group-data-[typing=false]:group-active:[transform:none]"
+    ~ className="inline-flex h-full cursor-[inherit] items-center whitespace-nowrap rounded-[calc(var(--sf-r)-2px)] px-1.5 font-[450] [color:color-mix(in_srgb,currentColor_75%,transparent)] [transition:color_120ms_ease,transform_160ms_var(--sf-ease-out)] [@media(hover:hover)_and_(pointer:fine)]:group-data-[disabled=false]:group-hover:[color:color-mix(in_srgb,currentColor_85%,transparent)] group-data-[disabled=false]:group-data-[typing=false]:group-active:[transform:scale(0.96)] group-data-[disabled=false]:group-data-[typing=false]:group-active:[color:currentColor] group-data-[dragging=true]:[transform:scale(0.96)] group-data-[dragging=true]:[color:currentColor] motion-reduce:[transition:color_120ms_ease] motion-reduce:group-data-[dragging=true]:[transform:none] motion-reduce:group-data-[disabled=false]:group-data-[typing=false]:group-active:[transform:none]"
     ~ htmlFor={id}
     ~ onClick={e => {
     ~ if (movedRef.current)
@@ -371,8 +429,9 @@ MotionDiv(
     ~ ref={inputRef}
     ~ id={id}
     ~ type="text"
-    ~ inputMode="decimal"
+    ~ inputMode={max <= 0 && min < 0 ? "text" : "decimal"}
     ~ role="spinbutton"
+    ~ aria-label={ariaLabel}
     ~ aria-valuenow={value}
     ~ aria-valuemin={min}
     ~ aria-valuemax={max}
@@ -400,8 +459,17 @@ MotionDiv(
       ~ )
       | #{suffix}
   if showDelta
-    span(
-      ~ className="pointer-events-none absolute -top-1.5 left-0 origin-bottom whitespace-nowrap rounded-full px-2! py-0.5! text-sm! leading-[1.4] font-[450] tabular-nums opacity-0 [color:var(--sf-ghost-ink)] [translate:0_-100%] [scale:0.95] [background:var(--sf-accent)] [transition:opacity_125ms_var(--sf-ease-out),scale_125ms_var(--sf-ease-out)] group-data-[dragging=true]:opacity-100 group-data-[dragging=true]:[scale:1] motion-reduce:[scale:1] motion-reduce:[transition:opacity_200ms_ease]"
-      ~ ref={ghostRef}
+    MotionSpan(
+      ~ className="pointer-events-none absolute -top-2 left-0 [translate:-50%_-100%]"
+      ~ style={{ transform: deltaTransform }}
       ~ aria-hidden="true"
       ~ )
+      span(
+        ~ className="flex items-center whitespace-nowrap rounded-full px-2! py-0.5! text-sm! leading-[1.4] font-[450] tabular-nums opacity-0 [color:var(--sf-ghost-ink)] [background:var(--sf-accent)] transition-opacity duration-150 ease-out group-data-[dragging=true]:opacity-100 motion-reduce:transition-none"
+        ~ )
+        span #{delta.amount < 0 ? "−" : "+"}
+        each digit, index in deltaDigits key (index - deltaDigits.length)
+          if digit === "."
+            span .
+          else
+            DeltaDigit(digit={digit} rising={delta.rising} reduced={Boolean(reduce) || !dragging})

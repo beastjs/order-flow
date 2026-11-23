@@ -4,7 +4,7 @@
 // Nothing here touches a real account or exchange.
 // ============================================================
 
-import { STARTING_BALANCE, TAKER_FEE, closePosition, openPosition, type PaperFill, type PaperPosition, type PaperSide } from './math'
+import { STARTING_BALANCE, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, validateExitTargets, type AutoExitReason, type ExitTargets, type PaperFill, type PaperPosition, type PaperSide } from './math'
 
 export * from './math'
 
@@ -72,10 +72,30 @@ export const paperStore = {
     })
     return null
   },
-  close(instId: string, exit: number, liquidated = false): PaperFill | null {
+  setExitTargets(instId: string, openedAt: number, targets: ExitTargets): string | null {
+    const position = state.positions[instId]
+    if (!position || position.openedAt !== openedAt) return 'Position not found or already closed.'
+    const error = validateExitTargets(position, targets)
+    if (error) return error
+    const exitTargets = targets.stopLoss === null && targets.takeProfit === null ? undefined : targets
+    commit({ ...state, positions: { ...state.positions, [instId]: { ...position, exitTargets } } })
+    return null
+  },
+  checkExitTargets(instId: string, mark: number, quote: { bid?: number; ask?: number }): void {
+    const position = state.positions[instId]
+    if (!position?.exitTargets || !Number.isFinite(mark) || mark <= 0) return
+    if (isLiquidated(position, mark)) {
+      paperStore.close(instId, liquidationPrice(position), true)
+      return
+    }
+    const exit = (position.side === 'up' ? quote.bid : quote.ask) ?? 0
+    const reason = autoExitReason(position, exit)
+    if (reason) paperStore.close(instId, exit, false, reason)
+  },
+  close(instId: string, exit: number, liquidated = false, reason?: AutoExitReason): PaperFill | null {
     const p = state.positions[instId]
     if (!p || !(exit > 0)) return null
-    const fill = closePosition(p, exit, liquidated)
+    const fill = { ...closePosition(p, exit, liquidated), autoExitReason: reason }
     const { [instId]: _, ...rest } = state.positions
     // Margin + open fee were debited at open; return margin plus realized (realized already nets the open fee).
     commit({

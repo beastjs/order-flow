@@ -1,0 +1,114 @@
+import { useLayoutEffect, useRef, useState } from "octane";
+import ScrubField from "@/components/ui/scrubfield.btsx";
+import { convexErrorMessage } from "@/hooks/useConvex";
+import type { OpenPositionRow } from "@/hooks/usePaperAccount";
+import { exitPriceForPnl, liquidationPrice, netPnlAtExit, validateExitTargets, type ExitTargets } from "@/lib/paper/math";
+module
+  const priceFormat = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 11 });
+
+props { row, mode, onSave, onClose }: { row: OpenPositionRow; mode: "cloud" | "local"; onSave: (targets: ExitTargets) => Promise<string | null>; onClose: () => void }
+setup
+  const position = row.position;
+  const saved = position.exitTargets;
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const [stopEnabled, setStopEnabled] = useState(saved?.stopLoss != null);
+  const [profitEnabled, setProfitEnabled] = useState(saved?.takeProfit != null);
+  const [stopLoss, setStopLoss] = useState(saved?.stopLoss ?? 0);
+  const [takeProfit, setTakeProfit] = useState(saved?.takeProfit ?? 0);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving, getSaving] = useState(false);
+  const minLoss = Math.min(0, (Math.floor(netPnlAtExit(position, liquidationPrice(position)) * 100) + 1) / 100);
+  const maxProfit = position.side === "up" ? Number.MAX_SAFE_INTEGER / 100 :
+    Math.max(0, (Math.ceil(netPnlAtExit(position, 0) * 100) - 1) / 100);
+  const dragStep = Math.max(0.01, Math.round(position.margin) / 100);
+  const targetLabel = (pnl: number) => `$${priceFormat.format(exitPriceForPnl(position, pnl))}`;
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  const save = async (event: SubmitEvent) => {
+    event.preventDefault();
+    if (getSaving()) return;
+    const targets = { stopLoss: stopEnabled ? stopLoss : null, takeProfit: profitEnabled ? takeProfit : null };
+    const invalid = validateExitTargets(position, targets);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const issue = await onSave(targets);
+      if (issue) setError(issue);
+      else onClose();
+    } catch (issue) {
+      setError(convexErrorMessage(issue));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+dialog.pos-exit-dialog(
+  ~ aria-labelledby="pos-exit-title"
+  ~ ref={dialogRef}
+  ~ onCancel={(event: Event) => { event.preventDefault(); if (!getSaving()) onClose(); }}
+  ~ )
+  form.pos-exit-form(onSubmit={save})
+    header
+      h2#pos-exit-title #{row.base}
+        span(className='font-sans! font-[450] px-2!') Exit Strategy
+    .pos-exit-target
+      label.pos-exit-toggle
+        input(type="checkbox" checked={stopEnabled} disabled={saving || minLoss === 0} onChange={(event: Event) => { setStopEnabled((event.target as HTMLInputElement).checked); setError(null); }})
+        | Stop loss
+      if stopEnabled
+        ScrubField(
+          ~ label={targetLabel(stopLoss)}
+          ~ ariaLabel="Stop loss PnL"
+          ~ suffix="USDT"
+          ~ value={stopLoss}
+          ~ min={minLoss}
+          ~ max={0}
+          ~ step={0.01}
+          ~ dragStep={dragStep}
+          ~ size="lg"
+          ~ rubberReach={0}
+          ~ showFill={false}
+          ~ accent="#ff5c74"
+          ~ chipColor="var(--bg-base)"
+          ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
+          ~ disabled={saving}
+          ~ onChange={(value: number) => { setStopLoss(value); setError(null); }}
+          ~ )
+    .pos-exit-target
+      label.pos-exit-toggle
+        input(type="checkbox" checked={profitEnabled} disabled={saving || maxProfit === 0} onChange={(event: Event) => { setProfitEnabled((event.target as HTMLInputElement).checked); setError(null); }})
+        | Take profit
+      if profitEnabled
+        ScrubField(
+          ~ label={targetLabel(takeProfit)}
+          ~ ariaLabel="Take profit PnL"
+          ~ suffix="USDT"
+          ~ value={takeProfit}
+          ~ min={0}
+          ~ max={maxProfit}
+          ~ step={0.01}
+          ~ dragStep={dragStep}
+          ~ size="lg"
+          ~ rubberReach={0}
+          ~ showFill={false}
+          ~ accent="#2fd897"
+          ~ chipColor="var(--bg-base)"
+          ~ className="w-full! border border-(--border-muted) focus-within:border-(--text-muted)"
+          ~ disabled={saving}
+          ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
+          ~ )
+    p.pos-exit-note #{mode === "cloud" ? "Paper targets are checked every 30 seconds." : "Practice targets are checked while this app is open in your browser."} Fills use the market price at the time of the check.
+    if error
+      p.sim-error(role="alert") #{error}
+    footer
+      button.pos-close(type="button" disabled={saving} onClick={onClose}) Cancel
+      button.lp-btn.lp-btn-primary(type="submit" disabled={saving}) #{saving ? "Saving…" : "Save targets"}
