@@ -1,6 +1,7 @@
 import { animate, cancelFrame, frame, motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "@octanejs/motion";
 import { useEffect, useId, useRef, useState } from "octane";
 import type { CSSProperties, PointerEvent, KeyboardEvent } from "octane";
+import { cn } from "@/lib/utils";
 module
   interface SquishSwitchProps {
     ~ checked?: boolean;
@@ -123,6 +124,8 @@ setup
   const down = (e: PointerEvent<HTMLButtonElement>) => {
     if (disabled || grip.current || e.button !== 0)
       return;
+    if (label && !trackRef.current?.contains(e.target as Node))
+      return;
     grip.current = {
       id: e.pointerId,
       grab: localX(e.clientX) - x.get(),
@@ -186,7 +189,7 @@ setup
   const MotionSpan = motion.span;
 span(className={`inline-flex items-center ${className ? ` ${className}` : ""}`})
   button(
-    ~ className="group relative m-0 inline-block disabled:opacity-50! gap-3 cursor-pointer touch-pan-y border-0 bg-transparent p-0 outline-none select-none rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] after:absolute after:-inset-2 after:content-[''] data-[held]:cursor-grabbing aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+    ~ className={["group relative m-0 inline-flex items-center disabled:opacity-50! gap-3 cursor-pointer touch-pan-y border-0 bg-transparent p-0 outline-none select-none rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] after:absolute after:-inset-2 after:content-[''] data-[held]:cursor-grabbing aria-disabled:cursor-not-allowed aria-disabled:opacity-50", label && "w-full justify-between text-left after:pointer-events-none"]}
     ~ id={buttonId}
     ~ type="button"
     ~ role="switch"
@@ -225,8 +228,10 @@ span(className={`inline-flex items-center ${className ? ` ${className}` : ""}`})
     ~ }}
     ~ onClick={click}
     ~ )
+    if label
+      span(className={cn("text-[14px] font-[450] opacity-50!", {'opacity-100!': !disabled})}) #{label}
     span(
-      ~ className="relative block [width:var(--ss-w)] [height:var(--ss-h)] [border-radius:var(--ss-r)] [background:var(--ss-track)] shadow-inner shadow-(--muted) [transition:background-color_var(--ss-fade)_ease] group-data-[on]:[background:var(--ss-track-on)] motion-reduce:[transition-duration:1ms]"
+      ~ className="relative block shrink-0 [width:var(--ss-w)] [height:var(--ss-h)] [border-radius:var(--ss-r)] [background:var(--ss-track)] shadow-inner shadow-(--muted) [transition:background-color_var(--ss-fade)_ease] group-data-[on]:[background:var(--ss-track-on)] motion-reduce:[transition-duration:1ms]"
       ~ ref={trackRef}
       ~ )
       MotionSpan(
@@ -234,5 +239,3 @@ span(className={`inline-flex items-center ${className ? ` ${className}` : ""}`})
         ~ aria-hidden="true"
         ~ style={{ x, scaleX, scaleY }}
         ~ )
-  if label
-    label(className="cursor-pointer select-none text-base ml-4! w-full" htmlFor={buttonId}) #{label}
