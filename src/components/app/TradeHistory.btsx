@@ -10,7 +10,8 @@ import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 
 module
   type Venue = "paper" | "okx";
-  type HistoryTrade = Doc<"positions"> | Doc<"livePositions"> | PaperFill;
+  type CloudTrade = Doc<"positions"> | Doc<"livePositions">;
+  type HistoryTrade = CloudTrade | PaperFill;
   const PAGE_SIZE = 20;
   const dateTime = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
   const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -110,13 +111,14 @@ component HistoryPage
   setup
     const query = venue === "paper" ? api.positions.history : api.liveTrading.history;
     const { data, error } = useConvexQuery(query, { paginationOpts: { numItems: PAGE_SIZE, cursor } });
+    const trades: readonly CloudTrade[] = data?.page ?? [];
   if error
     p.sim-error(role="alert") Trade history is unavailable. Try again shortly.
   elseif !data
     p.lp-grid-empty(role="status") Loading trade history…
   else
     .lp-asset-grid.trade-history-grid
-      each trade in data.page key trade._id
+      each trade in trades key trade._id
         TradeRow(trade={trade})
       empty
         p.lp-grid-empty No closed positions.

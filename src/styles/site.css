@@ -1074,15 +1074,16 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 6px;
-  border-radius: 12px;
+  padding: 0px;
+  border-radius: 6px;
   background: var(--bg-base);
-  border: 1px solid var(--border-muted);
+  border: 1px solid transparent;
+  height: 50px;
 }
 .sim-side {
-  height: 44px;
+  height: 48px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 14px;
@@ -1103,8 +1104,8 @@
 .sim-field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: 13px;
+  /*gap: 3px;*/
+  font-size: 15px;
   color: var(--text-secondary);
 }
 .sim-field-head {
@@ -1113,9 +1114,9 @@
 }
 .sim-field-head strong {
   color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 15px;
 }
 .sim-input {
   display: flex;

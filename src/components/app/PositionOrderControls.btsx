@@ -1,6 +1,7 @@
 import type { PaperSide } from "@/lib/paper/math";
 import { cn } from "@/lib/utils";
 import ScrubField from "@/components/ui/scrubfield.btsx";
+import WakeSlider from "../ui/WakeSlider.btsx";
 
 module
   interface Props {
@@ -21,8 +22,9 @@ module
 
 props { side, amount, amountLimit, amountSuffix, amountDragStep = Math.max(0.01, Math.round(amountLimit) / 100), leverage, maxLeverage, disabled, amountDisabled, onSideChange, onAmountChange, onAmountPreset, onLeverageChange }: Props
 setup
-  const stops = [1, 2, 5, 10, 20, 50, 100].filter((step) => step < maxLeverage).concat(maxLeverage);
+  const stops = [1, 25, 50, 75, 100].filter((step) => step < maxLeverage).concat(maxLeverage);
   const fill = maxLeverage > 1 ? ((leverage - 1) / (maxLeverage - 1)) * 100 : 100;
+  const onChange = (value: number) => onLeverageChange(value)
 
 .contents(style={{ "--tone": side === "up" ? "var(--buy)" : "var(--sell)" }})
   .sim-sides(role="radiogroup" aria-label="Direction")
@@ -40,10 +42,11 @@ setup
     ~ step={0.01}
     ~ dragStep={amountDragStep}
     ~ rubberReach={0}
+    ~ radius={5}
     ~ size="lg"
     ~ className="w-full! border_ border-(--border-muted) focus-within:border-(--text-muted)"
     ~ chipColor="var(--bg-base)"
-    ~ accent={side === "up" ? "var(--buy)" : "#ff5c74"}
+    ~ accent={side === "up" ? "var(--buy)" : "var(--sell)"}
     ~ showDirty={false}
     ~ disabled={disabled || amountDisabled}
     ~ onChange={onAmountChange}
@@ -53,22 +56,23 @@ setup
       each fraction in [0.1, 0.25, 0.5, 1] key fraction
         button.sim-chip(type="button" disabled={disabled} onClick={() => onAmountPreset(fraction)}) #{fraction === 1 ? "Max" : `${fraction * 100}%`}
 
-  label.sim-field
+  label.sim-field(className='mt-4')
     span.sim-field-head
-      | Multiplier
-      strong #{leverage}×
-    input.sim-range(
-      ~ type="range"
-      ~ aria-label="Multiplier"
-      ~ aria-valuetext={`${leverage}×`}
-      ~ min="1"
-      ~ max={maxLeverage}
-      ~ step="1"
-      ~ value={leverage}
-      ~ style={{ "--fill": `${fill}%` }}
-      ~ disabled={disabled}
-      ~ onInput={(event) => onLeverageChange(Number(event.currentTarget.value))}
-      ~ )
+      strong Multiplier
+      strong(className='text-(--tone)!') #{leverage}x
+    WakeSlider(showValue={false} val={leverage} max={maxLeverage} defaultValue={leverage} disabled={disabled} onChange={onChange} height={32} crestColor={side === 'up' ? 'var(--buy)' : 'var(--sell)'})
+    // input.sim-range(
+    //   ~ type="range"
+    //   ~ aria-label="Multiplier"
+    //   ~ aria-valuetext={`${leverage}×`}
+    //   ~ min="1"
+    //   ~ max={maxLeverage}
+    //   ~ step="1"
+    //   ~ value={leverage}
+    //   ~ style={{ "--fill": `${fill}%` }}
+    //   ~ disabled={disabled}
+    //   ~ onInput={(event) => onLeverageChange(Number(event.currentTarget.value))}
+    //   ~ )
   .sim-chips
     each step in stops key step
-      button(type="button" className={cn("sim-chip", leverage === step && "is-active")} disabled={disabled} onClick={() => onLeverageChange(step)}) #{step}×
+      button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-[600]! text-[15px]!", {"brightness-100 bg-(--tone)! text-[#101010]! font-bold!":leverage === step, 'text-white!': side === 'down'})} disabled={disabled} onClick={() => onLeverageChange(step)}) #{step}x

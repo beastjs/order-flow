@@ -18,6 +18,7 @@ module
     ~ size?: ScrubFieldSize;
     ~ sensitivity?: number;
     ~ rubberReach?: number;
+    ~ radius?: number;
     ~ returnDuration?: number;
     ~ coarseMultiplier?: number;
     ~ fineMultiplier?: number;
@@ -57,7 +58,7 @@ module
   }> = {
     sm: { height: 28, font: 12, radius: 6, width: 104 },
     md: { height: 34, font: 13, radius: 8, width: 128 },
-    lg: { height: 44, font: 16, radius: 10, width: 160 },
+    lg: { height: 48, font: 16, radius: 10, width: 160 },
     xl: { height: 52, font: 16, radius: 10, width: 160 }
   };
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -111,7 +112,7 @@ component DeltaDigit
     span(className="absolute inset-0 opacity-0" ref={outgoing})
     span(className="block" ref={incoming}) #{digit}
 
-props { label = "Value", labelColor, ariaLabel, suffix = "", value: valueProp, defaultValue = 0, min = 0, max = 100, step = 1, dragStep = step, size = "md", sensitivity = 4, rubberReach = 15, returnDuration = 300, coarseMultiplier = 10, fineMultiplier = 0.1, showDelta = true, showDirty = true, showFill = true, accent = "#a3e635", chipColor = "#27272a", disabled = false, onChange, onCommit, className }: ScrubFieldProps
+props { label = "Value", labelColor, ariaLabel, radius=4, suffix = "", value: valueProp, defaultValue = 0, min = 0, max = 100, step = 1, dragStep = step, size = "md", sensitivity = 4, rubberReach = 15, returnDuration = 300, coarseMultiplier = 10, fineMultiplier = 0.1, showDelta = true, showDirty = true, showFill = true, accent = "#a3e635", chipColor = "#27272a", disabled = false, onChange, onCommit, className }: ScrubFieldProps
 
 setup
   const id = useId();
@@ -385,7 +386,7 @@ setup
 
 MotionDiv(
   ~ ref={chipRef}
-  ~ className={`group relative inline-flex h-[var(--sf-h)] w-[var(--sf-w)] items-center gap-1 rounded-[var(--sf-r)] px-4! leading-none select-none isolate [font-family:inherit] [font-size:var(--sf-fs)] [background:var(--sf-chip)] [box-shadow:0_0_0_1px_transparent] cursor-ew-resize touch-pan-y data-[typing=true]:cursor-text data-[disabled=true]:cursor-default [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [transition:background-color_200ms_ease,box-shadow_200ms_ease] data-[dirty=true]:[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--sf-accent)_55%,transparent)] data-[dirty=true]:[transition-duration:0ms] data-[typing=true]:[background:color-mix(in_srgb,currentColor_7%,var(--sf-chip))] data-[disabled=true]:opacity-50 disabled:opacity-30 ${className ? ` ${className}` : ""}`}
+  ~ className={`group relative border inline-flex h-[var(--sf-h)] w-[var(--sf-w)] items-center gap-1 rounded-[var(--sf-r)] px-4! leading-none select-none isolate [font-family:inherit] [font-size:var(--sf-fs)] [background:var(--sf-chip)] [box-shadow:0_0_0_1px_transparent] cursor-ew-resize touch-pan-y data-[typing=true]:cursor-text data-[disabled=true]:cursor-default [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] [transition:background-color_200ms_ease,box-shadow_200ms_ease] data-[dirty=true]:[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--sf-accent)_55%,transparent)] data-[dirty=true]:[transition-duration:0ms] data-[typing=true]:[background:color-mix(in_srgb,currentColor_7%,var(--sf-chip))] data-[disabled=true]:opacity-50 disabled:opacity-30 ${className ? ` ${className}` : ""}`}
   ~ data-dirty={dirty ? "true" : "false"}
   ~ data-dragging={dragging ? "true" : "false"}
   ~ data-typing={draft !== null ? "true" : "false"}
@@ -402,7 +403,7 @@ MotionDiv(
   ~ "--sf-ghost-ink": onColor(accent),
   ~ "--sf-h": `${preset.height}px`,
   ~ "--sf-fs": `${preset.font}px`,
-  ~ "--sf-r": `${preset.radius}px`,
+  ~ "--sf-r": `${radius ?? preset.radius}px`,
   ~ "--sf-w": `${preset.width}px`,
   ~ "--sf-ease-out": "cubic-bezier(0.24, 1, 0.32, 1)",
   ~ transform: chipTransform
