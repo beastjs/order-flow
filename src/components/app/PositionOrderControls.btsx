@@ -47,7 +47,8 @@ setup
     ~ className="w-full! border_ border-(--border-muted) focus-within:border-(--text-muted)"
     ~ chipColor="var(--bg-base)"
     ~ accent={side === "up" ? "var(--buy)" : "var(--sell)"}
-    ~ showDirty={false}
+    ~ showFill={true}
+    ~ showDirty={true}
     ~ disabled={disabled || amountDisabled}
     ~ onChange={onAmountChange}
     ~ )

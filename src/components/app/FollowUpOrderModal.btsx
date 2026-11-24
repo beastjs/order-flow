@@ -102,10 +102,13 @@ setup
 dialog.pos-exit-dialog(ref={dialog} aria-labelledby={title} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }})
   form.pos-exit-form(aria-busy={busy} onSubmit={(event) => { event.preventDefault(); if (!busy && !loading) void form.handleSubmit(); }})
     header
-      h2(id={title}) #{row.base} follow-up order
+      h2(id={title})
+        span #{row.base}
+        span(className='font-sans px-3!') On Close Trigger Order
       p Opens one paper market order when this position closes. The order uses the available balance at that time.
     label.sim-field
-      span Asset
+      span(className='text-xl! text-(--text-primary)!')
+        strong Asset
       select.sim-input(className="w-full min-w-0 text-(--text-primary)" value={values.instId} disabled={busy || loading} onChange={(event) => selectInstrument(event.currentTarget.value)})
         if !selected
           option(value={values.instId}) #{values.instId.split("-")[0]}
@@ -119,7 +122,7 @@ dialog.pos-exit-dialog(ref={dialog} aria-labelledby={title} onCancel={(event) =>
       ~ onLeverageChange={(multiplier) => { form.setFieldValue("multiplier", multiplier); setError(null); }}
       ~ )
     fieldset(className="grid min-w-0 gap-4" disabled={busy})
-      legend.pos-exit-note(className="mb-1") Follow-up TP/SL (optional)
+      legend.pos-exit-note(className="mb-1 text-xl!") TP/SL
       ExitTargetField(
         ~ kind="stop-loss" value={values.stopLoss} enabled={values.stopEnabled} disabled={busy} suffix="USDT"
         ~ min={Math.min(-MAX_EXIT_TARGET, values.stopLoss)} max={0} dragStep={targetDragStep}

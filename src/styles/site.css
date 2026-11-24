@@ -1560,13 +1560,13 @@
   max-width: 100%;
   min-width: 180px;
   min-height: 50px;
-  padding: 12.5px 12px;
+  padding: 13px 12px;
   border: 1px solid color-mix(in oklab, var(--target-color) 12%, var(--border));
   border-radius: 1px;
   background: color-mix(in oklab, var(--target-color) 4%, var(--bg-panel));
   color: var(--target-color);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
