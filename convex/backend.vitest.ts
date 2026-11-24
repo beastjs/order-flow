@@ -46,6 +46,67 @@ describe("users + funds", () => {
 });
 
 describe("positions", () => {
+  it.each([
+    { stopLoss: null, takeProfit: 15, bid: 114, ask: 104, reason: "total_take_profit" },
+    { stopLoss: -15, takeProfit: null, bid: 86, ask: 96, reason: "total_stop_loss" },
+  ])("closes the whole paper basket once for $reason", async ({ stopLoss, takeProfit, bid, ask, reason }) => {
+    const { t, alice, bob } = await setup();
+    const btc = { instId: "BTC-USDT-SWAP", base: "BTC", category: "crypto" as const };
+    const longId = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    const shortId = await alice.mutation(internal.positions.openPriced, { ...btc, side: "down", margin: 100, leverage: 2, entry: 100 });
+    await bob.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    await expect(t.mutation(api.positions.setTotalExitTargets, { stopLoss, takeProfit })).rejects.toThrow(/Not signed in/);
+    await expect(alice.mutation(api.positions.setTotalExitTargets, { stopLoss: 15, takeProfit })).rejects.toThrow(/negative/);
+    await alice.mutation(api.positions.setTotalExitTargets, { stopLoss, takeProfit });
+
+    const funds = (await alice.query(api.funds.mine, {}))!;
+    const setAt = funds.totalExitTargets!.setAt;
+    const quote = { instId: AAPL.instId, mark: 100, bid, ask: bid + 1 };
+    const quotes = [quote, { instId: btc.instId, mark: 100, bid: ask - 1, ask }];
+    expect(await t.mutation(internal.positions.settleTotalExitTargets, {
+      fundsId: funds._id, setAt, checkedAt: setAt, quotes: [quote],
+    })).toBe(0);
+    expect(await t.mutation(internal.positions.settleTotalExitTargets, {
+      fundsId: funds._id, setAt: setAt - 1, checkedAt: setAt, quotes,
+    })).toBe(0);
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const data = quotes.map(({ instId, mark, bid, ask }) => String(input).includes("mark-price")
+        ? { instId, markPx: String(mark) }
+        : { instId, bidPx: String(bid), askPx: String(ask) });
+      return Response.json({ code: "0", data });
+    });
+    try {
+      await t.action(internal.positions.sweepTotalExitTargets, {});
+      await t.action(internal.positions.sweepTotalExitTargets, {});
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchMock.mockRestore();
+    }
+    const history = (await alice.query(api.positions.history, { paginationOpts: page })).page;
+    expect(history).toHaveLength(2);
+    expect(history.find((p) => p._id === longId)).toMatchObject({ exit: bid, autoExitReason: reason });
+    expect(history.find((p) => p._id === shortId)).toMatchObject({ exit: ask, autoExitReason: reason });
+    const after = (await alice.query(api.funds.mine, {}))!;
+    expect(after.totalExitTargets).toBeUndefined();
+    expect(after.locked).toBe(0);
+    expect(after.balance).toBeCloseTo(STARTING_BALANCE + history.reduce((pnl, fill) => pnl + fill.realized!, 0));
+    expect(await bob.query(api.positions.openFor, { instId: AAPL.instId })).not.toBeNull();
+  });
+
+  it("keeps a total exit armed after a partial manual close and clears it when the account is flat", async () => {
+    const { alice } = await setup();
+    const targets = { stopLoss: -25, takeProfit: null };
+    await expect(alice.mutation(api.positions.setTotalExitTargets, targets)).rejects.toThrow(/No open/);
+    const a = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    const b = await alice.mutation(internal.positions.openPriced, { ...AAPL, instId: "BTC-USDT-SWAP", base: "BTC", side: "down", margin: 100, leverage: 2, entry: 100 });
+    await alice.mutation(api.positions.setTotalExitTargets, targets);
+    await alice.mutation(internal.positions.settle, { positionId: a, exit: 100, liquidated: false, asOwner: true });
+    expect((await alice.query(api.funds.mine, {}))?.totalExitTargets).toMatchObject(targets);
+    await alice.mutation(internal.positions.settle, { positionId: b, exit: 100, liquidated: false, asOwner: true });
+    expect((await alice.query(api.funds.mine, {}))?.totalExitTargets).toBeUndefined();
+  });
+
   it("saves owner-only exit targets and settles the stop loss and take profit at the executable quote", async () => {
     const { t, alice, bob } = await setup();
     const longId = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });

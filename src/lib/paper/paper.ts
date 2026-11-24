@@ -4,7 +4,7 @@
 // Nothing here touches a real account or exchange.
 // ============================================================
 
-import { STARTING_BALANCE, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, validateExitTargets, type AutoExitReason, type ExitTargets, type PaperFill, type PaperPosition, type PaperSide } from './math'
+import { STARTING_BALANCE, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, priceTotalExit, totalExitReason, validateExitTargets, validateTotalExitTargets, type AutoExitReason, type ExitQuote, type ExitTargets, type PaperFill, type PaperPosition, type PaperSide } from './math'
 
 export * from './math'
 
@@ -14,6 +14,7 @@ export interface PaperState {
   balance: number
   positions: Record<string, PaperPosition>
   history: PaperFill[]
+  totalExitTargets?: ExitTargets
 }
 
 const KEY = 'cfx-paper-v1'
@@ -81,6 +82,29 @@ export const paperStore = {
     commit({ ...state, positions: { ...state.positions, [instId]: { ...position, exitTargets } } })
     return null
   },
+  setTotalExitTargets(targets: ExitTargets): string | null {
+    const error = validateTotalExitTargets(targets)
+    if (error) return error
+    const enabled = targets.stopLoss !== null || targets.takeProfit !== null
+    if (enabled && Object.keys(state.positions).length === 0) return 'No open paper positions.'
+    commit({ ...state, totalExitTargets: enabled ? targets : undefined })
+    return null
+  },
+  checkTotalExitTargets(getQuote: (instId: string) => ExitQuote | undefined): void {
+    if (!state.totalExitTargets) return
+    const basket = priceTotalExit(Object.values(state.positions), getQuote)
+    const reason = basket && totalExitReason(state.totalExitTargets, basket.pnl)
+    if (!basket || !reason) return
+
+    const now = Date.now()
+    let balance = state.balance
+    const fills = basket.exits.map(({ position, exit, liquidated }) => {
+      const fill = closePosition(position, exit, liquidated, now)
+      balance += position.margin + position.openFee + fill.realized
+      return liquidated ? fill : { ...fill, autoExitReason: reason }
+    })
+    commit({ balance, positions: {}, history: [...fills, ...state.history].slice(0, 50) })
+  },
   checkExitTargets(instId: string, mark: number, quote: { bid?: number; ask?: number }): void {
     const position = state.positions[instId]
     if (!position?.exitTargets || !Number.isFinite(mark) || mark <= 0) return
@@ -101,7 +125,8 @@ export const paperStore = {
     commit({
       balance: state.balance + p.margin + fill.realized + p.openFee,
       positions: rest,
-      history: [fill, ...state.history].slice(0, 50)
+      history: [fill, ...state.history].slice(0, 50),
+      totalExitTargets: Object.keys(rest).length > 0 ? state.totalExitTargets : undefined
     })
     return fill
   },

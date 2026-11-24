@@ -1402,7 +1402,7 @@
   display: grid;
   flex: 1;
   min-width: 0;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 1px;
   /*border-radius: var(--radius-card);*/
   overflow: hidden;
@@ -1417,7 +1417,7 @@
   /*background: var(--bg-surface);*/
   min-width: 0;
 }
-.pos-stat span {
+.pos-stat > span {
   color: var(--text-secondary);
   font-size: 13px;
   font-family: var(--font-mono);
@@ -1441,7 +1441,7 @@
   align-items: center;
   justify-content: space-between;
   flex-direction: row;
-  border-radius: 10px;
+  border-radius: 4px;
   background: linear-gradient(180deg, var(--bg-panel), var(--bg-surface));
   border: 1px solid var(--border);
   overflow: hidden;
@@ -1571,7 +1571,7 @@
 .pos-row-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0px;
   flex-shrink: 0;
 }
 .pos-exit-button {
@@ -1584,12 +1584,33 @@
   .pos-row-actions {
     width: 100%;
     margin-top: 16px;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .pos-row-actions .pos-exit-chips {
+    flex: 1;
+    flex-direction: row;
+  }
+  .pos-stat .pos-exit-chips {
+    width: min(100%, 160px);
+  }
+  .pos-row-actions .pos-exit-chip {
+    flex: 1 1 0;
+  }
+  .pos-exit-chip {
+    min-width: 0;
+    align-items: center;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .pos-exit-chip-amount {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: clamp(0.875rem, 4vw, 1.125rem);
   }
   .pos-row-actions .pos-close {
-    grid-area: auto;
-    justify-self: stretch;
+    flex-shrink: 0;
     height: 50px;
   }
 }

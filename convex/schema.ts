@@ -9,7 +9,10 @@ export const category = v.union(
   v.literal("other"),
 );
 export const positionStatus = v.union(v.literal("open"), v.literal("closed"), v.literal("liquidated"));
-export const autoExitReason = v.union(v.literal("stop_loss"), v.literal("take_profit"));
+export const autoExitReason = v.union(
+  v.literal("stop_loss"), v.literal("take_profit"),
+  v.literal("total_stop_loss"), v.literal("total_take_profit"),
+);
 export const exitTargetFields = {
   stopLoss: v.union(v.number(), v.null()),
   takeProfit: v.union(v.number(), v.null()),
@@ -90,7 +93,10 @@ export default defineSchema({
     mode: fundsMode,
     balance: v.number(),
     locked: v.number(),
-  }).index("by_userId_and_currency", ["userId", "currency"]),
+    totalExitTargets: v.optional(v.object({ ...exitTargetFields, setAt: v.number() })),
+  })
+    .index("by_userId_and_currency", ["userId", "currency"])
+    .index("by_currency_and_totalExitTargets_setAt", ["currency", "totalExitTargets.setAt"]),
 
   // Isolated-margin perpetual positions. Entry/exit prices come from OKX,
   // fetched server-side, never from the client.

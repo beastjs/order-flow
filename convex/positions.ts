@@ -3,14 +3,14 @@ import { paginationOptsValidator, paginationResultValidator, type FunctionReturn
 import { action, internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import schema, { category, exitTargetFields, positionStatus, side } from "./schema";
 import { currentUser, requireUser } from "./lib/auth";
 import { writeLog } from "./lib/log";
 import { assetPositionCounts, hasOpenPositions, startPositionCountBackfill, syncAssetPositionCounts } from "./lib/positionCounts";
 import { fetchAllMarks, fetchQuote, fetchSwap, fetchSwapQuotes } from "./lib/okx";
 import { requireFunds } from "./funds";
-import { TAKER_FEE, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, validateExitTargets, type AutoExitReason, type PaperPosition } from "../src/lib/paper/math";
+import { TAKER_FEE, autoExitLabels, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, priceTotalExit, totalExitReason, validateExitTargets, validateTotalExitTargets, type AutoExitReason, type PaperPosition } from "../src/lib/paper/math";
 
 const MAX_MARGIN = 1_000_000;
 const SWEEP_BATCH = 500;
@@ -28,6 +28,9 @@ const toPaper = (p: Doc<"positions">): PaperPosition => ({
 });
 
 const usd = (n: number) => `${n < 0 ? "−" : n > 0 ? "+" : ""}$${Math.abs(n).toFixed(2)}`;
+
+const openPositionsFor = (ctx: QueryCtx, userId: Id<"users">) => ctx.db.query("positions")
+  .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "open"));
 
 export const userCountsForAsset = query({
   args: { instId: v.string() },
@@ -269,11 +272,16 @@ async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: numbe
   // Margin + open fee left the balance at open; `realized` already nets both fees.
   const credit = p.margin + p.openFee + fill.realized;
   const balanceAfter = funds.balance + credit;
-  await ctx.db.patch("funds", funds._id, { balance: balanceAfter, locked: Math.max(0, funds.locked - p.margin) });
+  const clearTargets = funds.totalExitTargets && !(await openPositionsFor(ctx, p.userId).first());
+  await ctx.db.patch("funds", funds._id, {
+    balance: balanceAfter,
+    locked: Math.max(0, funds.locked - p.margin),
+    ...(clearTargets && { totalExitTargets: undefined }),
+  });
   await ctx.db.insert("activity", {
     userId: p.userId,
     kind: liquidated ? "position_liquidated" : "position_closed",
-    message: `${liquidated ? "Liquidated" : reason === "stop_loss" ? "Stop loss closed" : reason === "take_profit" ? "Take profit closed" : "Closed"} ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${fill.exit} · ${usd(fill.realized)}`,
+    message: `${liquidated ? "Liquidated" : reason ? `${autoExitLabels[reason]} closed` : "Closed"} ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${fill.exit} · ${usd(fill.realized)}`,
     positionId: p._id,
     instId: p.instId,
     amount: credit,
@@ -342,6 +350,94 @@ export const settleExitTargets = internalMutation({
       count++;
     }
     return count;
+  },
+});
+
+export const setTotalExitTargets = mutation({
+  args: exitTargetFields,
+  returns: v.null(),
+  handler: async (ctx, targets) => {
+    const user = await requireUser(ctx);
+    const error = validateTotalExitTargets(targets);
+    if (error) throw new Error(error);
+
+    const funds = await requireFunds(ctx, user._id);
+    const enabled = targets.stopLoss !== null || targets.takeProfit !== null;
+    if (enabled && !(await openPositionsFor(ctx, user._id).first())) throw new Error("No open paper positions.");
+    await ctx.db.patch("funds", funds._id, {
+      totalExitTargets: enabled
+        ? { ...targets, setAt: Math.max(Date.now(), (funds.totalExitTargets?.setAt ?? 0) + 1) }
+        : undefined,
+    });
+    return null;
+  },
+});
+
+export const totalExitTargetPage = internalQuery({
+  args: { paginationOpts: paginationOptsValidator, checkedAt: v.number() },
+  returns: paginationResultValidator(v.object({ fundsId: v.id("funds"), setAt: v.number() })),
+  handler: async (ctx, { paginationOpts, checkedAt }) => {
+    const page = await ctx.db.query("funds")
+      .withIndex("by_currency_and_totalExitTargets_setAt", (q) =>
+        q.eq("currency", "USDT").gt("totalExitTargets.setAt", undefined).lte("totalExitTargets.setAt", checkedAt))
+      .paginate(paginationOpts);
+    return { ...page, page: page.page.map((funds) => ({ fundsId: funds._id, setAt: funds.totalExitTargets!.setAt })) };
+  },
+});
+
+const totalExitQuote = v.object({ instId: v.string(), bid: v.number(), ask: v.number(), mark: v.number() });
+
+export const settleTotalExitTargets = internalMutation({
+  args: { fundsId: v.id("funds"), setAt: v.number(), checkedAt: v.number(), quotes: v.array(totalExitQuote) },
+  returns: v.number(),
+  handler: async (ctx, { fundsId, setAt, checkedAt, quotes }) => {
+    const funds = await ctx.db.get("funds", fundsId);
+    const targets = funds?.totalExitTargets;
+    if (!funds || funds.currency !== "USDT" || !targets || targets.setAt !== setAt || setAt > checkedAt) return 0;
+
+    const positions: Doc<"positions">[] = [];
+    for await (const position of openPositionsFor(ctx, funds.userId)) {
+      if (position.openedAt > checkedAt) return 0;
+      positions.push(position);
+    }
+    const market = new Map(quotes.map((quote) => [quote.instId, quote]));
+    const basket = priceTotalExit(positions, (instId) => market.get(instId));
+    const reason = basket && totalExitReason(targets, basket.pnl);
+    if (!basket || !reason) return 0;
+
+    await ctx.db.patch("funds", fundsId, { totalExitTargets: undefined });
+    for (const { position, exit, liquidated } of basket.exits) {
+      await settlePosition(ctx, position, exit, liquidated, liquidated ? undefined : reason);
+    }
+    return basket.exits.length;
+  },
+});
+
+export const sweepTotalExitTargets = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const checkedAt = Date.now();
+    let totalQuotes: { instId: string; bid: number; ask: number; mark: number }[] | undefined;
+    let cursor: string | null = null;
+    do {
+      const page: FunctionReturnType<typeof internal.positions.totalExitTargetPage> = await ctx.runQuery(
+        internal.positions.totalExitTargetPage, { paginationOpts: { numItems: 100, cursor }, checkedAt },
+      );
+      if (page.page.length > 0) {
+        if (!totalQuotes) {
+          const [market, marks] = await Promise.all([fetchSwapQuotes(), fetchAllMarks()]);
+          totalQuotes = Array.from(marks, ([instId, mark]) => ({
+            instId, mark, bid: market.get(instId)?.bid ?? 0, ask: market.get(instId)?.ask ?? 0,
+          }));
+        }
+        for (const account of page.page) {
+          await ctx.runMutation(internal.positions.settleTotalExitTargets, { ...account, checkedAt, quotes: totalQuotes });
+        }
+      }
+      cursor = page.isDone ? null : page.continueCursor;
+    } while (cursor !== null);
+    return null;
   },
 });
 

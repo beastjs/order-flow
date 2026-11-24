@@ -1,16 +1,21 @@
-import { useLayoutEffect, useRef, useState } from "octane";
+import { useId, useLayoutEffect, useRef, useState } from "octane";
 import ScrubField from "@/components/ui/scrubfield.btsx";
 import Squishy from "@/components/ui/squishy.btsx";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import type { OpenPositionRow } from "@/hooks/usePaperAccount";
-import { liquidationPrice, netPnlAtExit, validateExitTargets, type ExitTargets } from "@/lib/paper/math";
+import { liquidationPrice, netPnlAtExit, validateExitTargets, validateTotalExitTargets, type ExitTargets } from "@/lib/paper/math";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import { fmtExitPrice } from "./assetFormat";
 
-props { row, mode, onSave, onClose }: { row: OpenPositionRow; mode: "cloud" | "local"; onSave: (targets: ExitTargets) => Promise<string | null>; onClose: () => void }
+module
+  type ExitScope = { row: OpenPositionRow; total?: never } | { row?: never; total: { targets: ExitTargets | null; margin: number } };
+  const MAX_TARGET = Number.MAX_SAFE_INTEGER / 100;
+
+props { row, total, mode, onSave, onClose }: ExitScope & { mode: "cloud" | "local"; onSave: (targets: ExitTargets) => Promise<string | null>; onClose: () => void }
 setup
-  const position = row.position;
-  const saved = position.exitTargets;
+  const position = row?.position;
+  const saved = position?.exitTargets ?? total?.targets;
+  const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const [stopEnabled, setStopEnabled] = useState(saved?.stopLoss != null);
   const [profitEnabled, setProfitEnabled] = useState(saved?.takeProfit != null);
@@ -18,10 +23,12 @@ setup
   const [takeProfit, setTakeProfit] = useState(saved?.takeProfit ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving, getSaving] = useState(false);
-  const minLoss = Math.min(0, (Math.floor(netPnlAtExit(position, liquidationPrice(position)) * 100) + 1) / 100);
-  const maxProfit = position.side === "up" ? Number.MAX_SAFE_INTEGER / 100 :
+  const minLoss = position ? Math.min(0, (Math.floor(netPnlAtExit(position, liquidationPrice(position)) * 100) + 1) / 100)
+    : Math.min(-MAX_TARGET, saved?.stopLoss ?? 0);
+  const maxProfit = !position || position.side === "up" ? MAX_TARGET :
     Math.max(0, (Math.ceil(netPnlAtExit(position, 0) * 100) - 1) / 100);
-  const dragStep = Math.max(0.01, Math.round(position.margin) / 100);
+  const profitLimit = position ? maxProfit / 8 : Math.max(MAX_TARGET, saved?.takeProfit ?? 0);
+  const dragStep = Math.max(0.01, Math.round(position?.margin ?? total?.margin ?? 0) / 100);
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -33,7 +40,7 @@ setup
     event.preventDefault();
     if (getSaving()) return;
     const targets = { stopLoss: stopEnabled ? stopLoss : null, takeProfit: profitEnabled ? takeProfit : null };
-    const invalid = validateExitTargets(position, targets);
+    const invalid = position ? validateExitTargets(position, targets) : validateTotalExitTargets(targets);
     if (invalid) {
       setError(invalid);
       return;
@@ -53,18 +60,24 @@ setup
 
 dialog.pos-exit-dialog(
   ~ className='dark:border-(--border)!'
-  ~ aria-labelledby="pos-exit-title"
+  ~ aria-labelledby={titleId}
   ~ ref={dialogRef}
   ~ onCancel={(event: Event) => { event.preventDefault(); if (!getSaving()) onClose(); }}
   ~ )
   form.pos-exit-form(onSubmit={save})
     header
-      h2#pos-exit-title(className="flex items-center gap-2.5")
-        span(aria-hidden="true")
-          AssetGlyph(base={row.base} size={24})
-        span
-          | #{row.base + " "}
-          span(className='font-sans! font-[450] px-2!') Exit Strategy
+      h2(id={titleId} className="flex items-center gap-2.5")
+        if row
+          fragment
+            span(aria-hidden="true")
+              AssetGlyph(base={row.base} size={24})
+            span
+              | #{row.base + " "}
+              span(className='font-sans! font-[450] px-2!') Exit Strategy
+        else
+          | Total TP/SL
+      if total
+        p Close all open paper positions when combined P&L after fees reaches either target.
     .pos-exit-target
       Squishy(
         ~ height={20}
@@ -80,8 +93,8 @@ dialog.pos-exit-dialog(
         ~ onChange={(checked: boolean) => { setStopEnabled(checked); setError(null); }}
         ~ )
       ScrubField(
-        ~ label={fmtExitPrice(position, stopLoss)}
-        ~ ariaLabel="Stop loss PnL"
+        ~ label={position ? fmtExitPrice(position, stopLoss) : "Net P&L"}
+        ~ ariaLabel={total ? "Total stop loss PnL" : "Stop loss PnL"}
         ~ suffix="USD"
         ~ value={stopLoss}
         ~ min={minLoss}
@@ -115,13 +128,13 @@ dialog.pos-exit-dialog(
         ~ )
 
       ScrubField(
-        ~ label={fmtExitPrice(position, takeProfit)}
+        ~ label={position ? fmtExitPrice(position, takeProfit) : "Net P&L"}
         ~ labelColor='text-(--bg-base)'
-        ~ ariaLabel="Take profit PnL"
+        ~ ariaLabel={total ? "Total take profit PnL" : "Take profit PnL"}
         ~ suffix="USD"
         ~ value={takeProfit}
         ~ min={0}
-        ~ max={maxProfit/8}
+        ~ max={profitLimit}
         ~ step={0.01}
         ~ dragStep={dragStep}
         ~ size="lg"
@@ -133,7 +146,8 @@ dialog.pos-exit-dialog(
         ~ disabled={saving || !profitEnabled}
         ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
         ~ )
-    // p.pos-exit-note #{mode === "cloud" ? "Paper targets are checked every 30 seconds." : "Practice targets are checked while this app is open in your browser."} Fills use the market price at the time of the check.
+    if total
+      p.pos-exit-note #{mode === "cloud" ? "Checked every minute." : "Checked as prices update while the app is open."} Targets clear when all positions close.
     if error
       p.sim-error(role="alert") #{error}
     footer

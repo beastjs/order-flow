@@ -5,11 +5,23 @@
 // ============================================================
 
 export type PaperSide = 'up' | 'down'
-export type AutoExitReason = 'stop_loss' | 'take_profit'
+export const autoExitLabels = {
+  stop_loss: 'Stop loss',
+  take_profit: 'Take profit',
+  total_stop_loss: 'Total stop loss',
+  total_take_profit: 'Total take profit'
+} as const
+export type AutoExitReason = keyof typeof autoExitLabels
 
 export interface ExitTargets {
   stopLoss: number | null
   takeProfit: number | null
+}
+
+export interface ExitQuote {
+  bid?: number
+  ask?: number
+  mark?: number
 }
 
 export interface PaperPosition {
@@ -104,13 +116,46 @@ export function validateExitTargets(p: PaperPosition, { stopLoss, takeProfit }: 
   return null
 }
 
-export function autoExitReason(p: PaperPosition, exit: number): AutoExitReason | null {
-  if (!p.exitTargets || !Number.isFinite(exit) || exit <= 0) return null
-  const pnl = netPnlAtExit(p, exit)
-  const { stopLoss, takeProfit } = p.exitTargets
+function targetReached({ stopLoss, takeProfit }: ExitTargets, pnl: number) {
   if (stopLoss !== null && pnl <= stopLoss) return 'stop_loss'
   if (takeProfit !== null && pnl >= takeProfit) return 'take_profit'
   return null
+}
+
+export function autoExitReason(p: PaperPosition, exit: number): AutoExitReason | null {
+  if (!p.exitTargets || !isPrice(exit)) return null
+  return targetReached(p.exitTargets, netPnlAtExit(p, exit))
+}
+
+export function validateTotalExitTargets({ stopLoss, takeProfit }: ExitTargets): string | null {
+  if (stopLoss !== null && (!Number.isFinite(stopLoss) || stopLoss >= 0)) return 'Enter a negative stop loss.'
+  if (takeProfit !== null && (!Number.isFinite(takeProfit) || takeProfit <= 0)) return 'Enter a positive take profit.'
+  return null
+}
+
+export function totalExitReason(targets: ExitTargets, pnl: number): AutoExitReason | null {
+  const reason = targetReached(targets, pnl)
+  return reason === null ? null : `total_${reason}`
+}
+
+function isPrice(price: number | undefined): price is number {
+  return price !== undefined && Number.isFinite(price) && price > 0
+}
+
+/** Price the entire basket using executable sides and the same fees and loss cap as settlement. */
+export function priceTotalExit<P extends PaperPosition>(positions: Iterable<P>, getQuote: (instId: string) => ExitQuote | undefined) {
+  const exits: { position: P; exit: number; liquidated: boolean }[] = []
+  let pnl = 0
+  for (const position of positions) {
+    const quote = getQuote(position.instId)
+    if (!isPrice(quote?.mark)) return null
+    const liquidated = isLiquidated(position, quote.mark)
+    const exit = liquidated ? liquidationPrice(position) : position.side === 'up' ? quote.bid : quote.ask
+    if (!isPrice(exit)) return null
+    pnl += realizedPnl(position, exit, liquidated)
+    exits.push({ position, exit, liquidated })
+  }
+  return exits.length > 0 && Number.isFinite(pnl) ? { pnl, exits } : null
 }
 
 /** Estimated liquidation price: equity falls to maintenance margin. */
@@ -143,10 +188,13 @@ export function metrics(p: PaperPosition, mark: number): PaperMetrics {
   return { pnl, roe: ((pnl - p.openFee) / p.margin) * 100, notional: p.size * mark, liq, safety }
 }
 
-export function closePosition(p: PaperPosition, exit: number, liquidated = false, now = Date.now()): PaperFill {
+function realizedPnl(p: PaperPosition, exit: number, liquidated: boolean): number {
   // Everything committed (margin + opening fee) is the most a position can lose.
   const floor = -(p.margin + p.openFee)
-  const realized = liquidated ? floor : netPnlAtExit(p, exit)
+  return liquidated ? floor : Math.max(netPnlAtExit(p, exit), floor)
+}
+
+export function closePosition(p: PaperPosition, exit: number, liquidated = false, now = Date.now()): PaperFill {
   return {
     instId: p.instId,
     side: p.side,
@@ -154,7 +202,7 @@ export function closePosition(p: PaperPosition, exit: number, liquidated = false
     margin: p.margin,
     entry: p.entry,
     exit,
-    realized: Math.max(realized, floor),
+    realized: realizedPnl(p, exit, liquidated),
     liquidated,
     openedAt: p.openedAt,
     closedAt: now,

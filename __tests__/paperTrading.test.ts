@@ -50,6 +50,39 @@ describe("paper position math", () => {
 describe("paper store", () => {
   beforeEach(() => paperStore.reset());
 
+  it("checks total targets against the full basket at market after fees", () => {
+    paperStore.open("LONG", "up", 100, 2, 100);
+    paperStore.open("SHORT", "down", 100, 2, 100);
+    expect(paperStore.setTotalExitTargets({ stopLoss: 0, takeProfit: 20 })).toMatch(/negative/);
+    expect(paperStore.setTotalExitTargets({ stopLoss: null, takeProfit: 20 })).toBeNull();
+
+    const long = { bid: 114, ask: 115, mark: 110 };
+    const short = { bid: 103, ask: 104, mark: 103 };
+    paperStore.checkTotalExitTargets((id) => id === "LONG" ? long : undefined);
+    paperStore.checkTotalExitTargets((id) => id === "LONG" ? long : short);
+    expect(paperStore.get().history).toHaveLength(0);
+
+    expect(paperStore.setTotalExitTargets({ stopLoss: null, takeProfit: 15 })).toBeNull();
+    const check = () => paperStore.checkTotalExitTargets((id) => id === "LONG" ? long : short);
+    check();
+    check();
+    const { balance, positions, history, totalExitTargets } = paperStore.get();
+    expect(positions).toEqual({});
+    expect(totalExitTargets).toBeUndefined();
+    expect(history).toMatchObject([
+      { instId: "LONG", exit: 114, autoExitReason: "total_take_profit" },
+      { instId: "SHORT", exit: 104, autoExitReason: "total_take_profit" },
+    ]);
+    expect(balance).toBeCloseTo(STARTING_BALANCE + history[0].realized + history[1].realized);
+  });
+
+  it("disarms total targets once the last position closes manually", () => {
+    paperStore.open("X", "up", 100, 2, 100);
+    paperStore.setTotalExitTargets({ stopLoss: -15, takeProfit: null });
+    paperStore.close("X", 100);
+    expect(paperStore.get().totalExitTargets).toBeUndefined();
+  });
+
   it("round trip moves the balance by exactly the realized PnL", () => {
     expect(paperStore.open("X", "up", 500, 10, 100)).toBeNull();
     expect(paperStore.get().balance).toBeCloseTo(STARTING_BALANCE - 500 - 5000 * TAKER_FEE);

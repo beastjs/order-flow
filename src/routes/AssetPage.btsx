@@ -202,4 +202,7 @@ setup
           a.lp-btn.lp-btn-primary(href={terminal}) Open #{inst?.base} in the footprint terminal →
 
   footer.site-foot
-    span #{isHl ? "Data: Hyperliquid public WebSocket (api.hyperliquid.xyz)." : "Data: OKX public & business WebSocket."} Sizes shown in #{inst?.category === "stock" ? "shares" : "base units"}. Not investment advice.
+    div(className='flex items-center justify-center gap-3')
+
+      span(className='px-3 font-mono text-sm') Live data stream from
+      Icon(name={isHl ? 'hyperliquid': 'okx'} className='size-4')

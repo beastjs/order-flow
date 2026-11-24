@@ -70,12 +70,12 @@ component PerpsTabs
   props { tab, venue, marketCount, openCount }: { tab: PerpsTab; venue: MarketVenue; marketCount: number; openCount: number }
   nav.lp-tabs(className='sm:mx-12! sm:px-2!' aria-label="Perpetuals")
     Link(to="/perps" search={venueSearch(venue)} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
-      | Markets
+      | Perps
       span.lp-seg-count #{marketCount || ""}
     Link(to="/perps" search={{ tab: "positions", ...venueSearch(venue) }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
       | Positions
       span.lp-seg-count #{openCount || "0"}
-    Link(to="/perps" search={{ tab: "history", ...venueSearch(venue) }} className={cn("lp-tab", tab === "history" && "is-active")} aria-current={tab === "history" ? "page" : undefined}) Trade history
+    Link(to="/perps" search={{ tab: "history", ...venueSearch(venue) }} className={cn("lp-tab", tab === "history" && "is-active")} aria-current={tab === "history" ? "page" : undefined}) History
 
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();

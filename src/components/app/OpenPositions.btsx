@@ -1,14 +1,14 @@
-import { useEffect, useState } from "octane";
+import { useEffect, useLinkedState, useState } from "octane";
 import { Link } from "@octanejs/tanstack-router";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import PositionExitModal from "./PositionExitModal.btsx";
 import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
 import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
 import { convexErrorMessage } from "@/hooks/useConvex";
-import { estimateClosePnl, liquidationPrice, unrealizedPnl } from "@/lib/paper/math";
+import { estimateClosePnl, liquidationPrice, priceTotalExit, unrealizedPnl } from "@/lib/paper/math";
 import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
-import {Icon} from "../../lib/icons";
+import {Icon} from "@/lib/icons";
 
 module
   const CLOSE_ALL_CONFIRM_MS = 5_000;
@@ -21,24 +21,25 @@ module
   }
 
 component ExitTargetChip
-  props { row, kind, value, disabled, onEdit }: { row: OpenPositionRow; kind: "stop-loss" | "take-profit"; value: number; disabled: boolean; onEdit: () => void }
+  props { row, kind, value, disabled, onEdit }: { row?: OpenPositionRow; kind: "stop-loss" | "take-profit"; value: number; disabled: boolean; onEdit: () => void }
   setup
     const stop = kind === "stop-loss";
     const amount = usd(value, true);
-    const price = fmtExitPrice(row.position, value);
+    const price = row && fmtExitPrice(row.position, value);
   button.pos-exit-chip(
+    ~ className='portrait:h-[50px] portrait:rounded-[1px] portrait:border-transparent! portrait:hover:brightness-150 portrait:pl-5!'
     ~ type="button"
     ~ data-kind={kind}
-    ~ aria-label={`Edit ${row.base} ${stop ? "stop loss" : "take profit"}, ${amount} net PnL at ${price}`}
+    ~ aria-label={`Edit ${row?.base ?? "total"} ${stop ? "stop loss" : "take profit"}, ${amount} net PnL${price ? ` at ${price}` : ""}`}
     ~ aria-haspopup="dialog"
     ~ disabled={disabled}
     ~ onClick={onEdit}
     ~ )
-    span
+    span.pos-exit-chip-amount
       span(className='text-(--text-primary) font-[450] pr-1.5!') #{stop ? "SL" : "TP"}
       span #{amount}
-    // span ·
-    span.pos-exit-chip-price #{price}
+    if price
+      span.pos-exit-chip-price(className='portrait:hidden') #{price}
 
 component PositionRow
   props { row, mark, exit, pnl, busy, disabled, onClose, onExitTargets }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void; onExitTargets: (row: OpenPositionRow) => void }
@@ -50,7 +51,7 @@ component PositionRow
     const takeProfit = p.exitTargets?.takeProfit ?? null;
     const hasExitTargets = stopLoss !== null || takeProfit !== null;
     const editExitTargets = () => onExitTargets(row);
-  article.pos-article(className='portrait:flex-col! hover:border-(--text-secondary)/50! transition-[border-color] duration-300 ease-out' data-side={p.side})
+  article.pos-article(className='portrait:flex-col! portrait:rounded-md! hover:border-(--text-secondary)/50! transition-[border-color] duration-300 ease-out' data-side={p.side})
     div.pos-row
       Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
         AssetGlyph(base={row.base} size={38})
@@ -67,7 +68,7 @@ component PositionRow
         span.pos-label Mark
         span #{fmtPrice(mark)}
       .pos-cell(className='portrait:hidden!')
-        span.pos-label Liquidation (est)
+        span.pos-label Liq
         span.is-down #{mark ? fmtPrice(liquidationPrice(p)) : "—"}
       .pos-cell(className='portrait:hidden!')
         span.pos-label Margin
@@ -94,9 +95,9 @@ component PositionRow
           ~ onClick={editExitTargets}
           ~ )
           img(src="/tpsl.svg" className="h-12 w-18" alt="")
-      button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-full portrait:h-[50px]! portrait:rounded-none! portrait:hover:brightness-125! sm:rounded-xl! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" aria-label={busy ? "Closing" : "Close"} disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
-        Icon(name={busy ? 'circle' : 'close'} className='size-6 portrait:hidden!')
-        span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}
+      button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-fit portrait:h-[50px]! sm:size-[50px]! lg:w-[50px]! portrait:rounded-none! portrait:hover:brightness-145! lg:ml-3! md:mr-0! lg:mr-4! lg:rounded-[4px]! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" aria-label={busy ? "Closing" : "Close"} disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
+        Icon(name={busy ? 'circle' : 'close'} className='size-6')
+        // span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}
 
 setup
   const open = useOpenPositions();
@@ -109,6 +110,7 @@ setup
   const [lastFill, setLastFill] = useState<(SimResult & { base: string }) | null>(null);
   const [bulkResult, setBulkResult] = useState<Awaited<ReturnType<typeof open.closeAll>> | null>(null);
   const [target, setTarget] = useState<{ key: string; openedAt: number; mode: typeof open.mode } | null>(null);
+  const [showTotalTargets, setShowTotalTargets] = useLinkedState(open.loading ? null : open.mode, (): boolean => false);
   const targetRow = target?.mode === open.mode && !open.loading
     ? open.rows.find((row) => row.key === target.key && row.position.openedAt === target.openedAt)
     : undefined;
@@ -128,12 +130,13 @@ setup
     return { row, mark, exit, pnl };
   });
 
-  let totalMargin = 0;
-  let totalPnl: number | null = null;
-  for (const { row, pnl } of pricedRows) {
-    totalMargin += row.position.margin;
-    if (pnl !== null) totalPnl = (totalPnl ?? 0) + pnl;
-  }
+  const totalMargin = open.rows.reduce((sum, { position }) => sum + position.margin, 0);
+  const totalExit = open.allRowsLoaded ? priceTotalExit(open.rows.map(({ position }) => position), (id) => ({
+    mark: marks[id], bid: tickers[id]?.bidPx, ask: tickers[id]?.askPx,
+  })) : null;
+  const totalPnl = totalExit?.pnl ?? null;
+  const totalStopLoss = open.totalExitTargets?.stopLoss ?? null;
+  const totalTakeProfit = open.totalExitTargets?.takeProfit ?? null;
 
   const getQuote = (instId: string) => {
     const t = tickers[instId];
@@ -177,38 +180,46 @@ setup
 
 section.pos(aria-label="Paper positions")
   .pos-overview
-    .pos-summary(className='portait:py-2!')
-      .pos-stat
-        span
-        // strong #{usd(open.balance)}
-      .pos-stat
+    .pos-summary(className='portait:py-2! portrait:grid-cols-2!')
+
+      .pos-stat(className='portrait:hidden!')
         span Balance
         strong #{usd(open.balance)}
-      .pos-stat
+      .pos-stat(className='portrait:hidden!')
         span Open
         strong #{open.loading ? "—" : open.rows.length}
-      .pos-stat
+      .pos-stat(className='portrait:hidden!')
         span Margin
         strong #{usd(totalMargin)}
-      .pos-stat
-        span Set Total TP/SL
-        button(
-          ~ type="button"
-          ~ className="flex items-center justify-center hover:bg-(--border) bg-(--border)/80 hover:brightness-125! transition-all duration-200 ease-out active:scale-97 w-36! border border-transparent hover:border-(--text-muted)/50 rounded-[1px]"
-          ~ aria-label={`Set all stop loss and take profit`}
-          ~ aria-haspopup="dialog"
-          ~ disabled={false}
-          ~ onClick={undefined}
-          ~ )
-          img(src="/tpsl.svg" className="h-12 w-18" alt="")
-      .pos-stat
+
+
+      .pos-stat(className='sm:col-span-2! flex! flex-col! items-center! portrait:px-2!')
+        span #{open.totalExitTargets ? "Total TP/SL" : "Set Total TP/SL"}
+        if totalStopLoss !== null || totalTakeProfit !== null
+          .pos-exit-chips
+            if totalStopLoss !== null
+              ExitTargetChip(kind="stop-loss" value={totalStopLoss} disabled={false} onEdit={() => setShowTotalTargets(true)})
+            if totalTakeProfit !== null
+              ExitTargetChip(kind="take-profit" value={totalTakeProfit} disabled={false} onEdit={() => setShowTotalTargets(true)})
+        else
+          button(
+            ~ type="button"
+            ~ className={cn("pos-exit-button flex min-h-12 max-w-full w-36! flex-col items-center justify-center hover:bg-(--border) bg-(--border)/80 hover:brightness-125! transition-all duration-200 ease-out active:scale-97 border border-transparent hover:border-(--text-muted)/50 rounded-[1px] disabled:opacity-50", open.totalExitTargets && "is-active border-(--border)!")}
+            ~ aria-label={open.totalExitTargets ? "Edit total take profit and stop loss" : "Set total take profit and stop loss"}
+            ~ aria-haspopup="dialog"
+            ~ disabled={open.loading || closing !== null || (open.rows.length === 0 && !open.totalExitTargets)}
+            ~ onClick={() => setShowTotalTargets(true)}
+            ~ )
+
+            img(src="/tpsl.svg" className="h-12 w-18" alt="")
+      .pos-stat(className='sm:col-span-2! flex! flex-col! items-center!')
         span Total PnL
-        strong(className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
+        strong(title="Estimated combined PnL at market after fees" className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
 
     div(className='border-b border-(--border) border-dashed py-6.5!')
       if (!open.loading && open.rows.length > 0) || closing === "all"
         button.pos-close.pos-close-all(
-          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-64 rounded-[1px]!", confirming && "is-confirming text-white!")}
+          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-54 rounded-[1px]!", confirming && "is-confirming text-white!")}
           ~ type="button"
           ~ disabled={closing !== null}
           ~ onClick={closeAll}
@@ -263,3 +274,5 @@ section.pos(aria-label="Paper positions")
 
   if targetRow
     PositionExitModal(row={targetRow} mode={open.mode} onSave={(targets) => open.setExitTargets(targetRow, targets)} onClose={() => setTarget(null)})
+  if showTotalTargets && !open.loading
+    PositionExitModal(total={{ targets: open.totalExitTargets, margin: totalMargin }} mode={open.mode} onSave={open.setTotalExitTargets} onClose={() => setShowTotalTargets(false)})

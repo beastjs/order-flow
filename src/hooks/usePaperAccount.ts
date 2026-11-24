@@ -167,9 +167,12 @@ export interface OpenPositions {
   loading: boolean
   balance: number | null
   rows: OpenPositionRow[]
+  allRowsLoaded: boolean
+  totalExitTargets: ExitTargets | null
   close(row: OpenPositionRow, quote: CloseQuote): Promise<{ result: SimResult | null; error: string | null }>
   closeAll(getQuote: (instId: string) => CloseQuote): Promise<BulkCloseResult>
   setExitTargets(row: OpenPositionRow, targets: ExitTargets): Promise<string | null>
+  setTotalExitTargets(targets: ExitTargets): Promise<string | null>
 }
 
 type CloseQuote = { bid?: number; ask?: number }
@@ -202,6 +205,11 @@ export function useOpenPositions(): OpenPositions {
       loading: authState.isLoading,
       balance: local.balance,
       rows,
+      allRowsLoaded: true,
+      totalExitTargets: local.totalExitTargets ?? null,
+      async setTotalExitTargets(targets) {
+        return paperStore.setTotalExitTargets(targets)
+      },
       async setExitTargets(row, targets) {
         return paperStore.setExitTargets(row.instId, row.position.openedAt, targets)
       },
@@ -230,6 +238,8 @@ export function useOpenPositions(): OpenPositions {
     mode: 'cloud',
     loading: funds.data === undefined || remote.data === undefined,
     balance: funds.data?.balance ?? null,
+    allRowsLoaded: remote.data?.isDone === true,
+    totalExitTargets: funds.data?.totalExitTargets ?? null,
     rows: docs.map((d) => ({
       key: d._id,
       instId: d.instId,
@@ -246,6 +256,14 @@ export function useOpenPositions(): OpenPositions {
         exitTargets: d.exitTargets
       }
     })),
+    async setTotalExitTargets(targets) {
+      try {
+        await convex!.mutation(api.positions.setTotalExitTargets, targets)
+        return null
+      } catch (e) {
+        return convexErrorMessage(e)
+      }
+    },
     async setExitTargets(row, targets) {
       const doc = docs.find((d) => d._id === row.key)
       if (!doc) return 'Position not found or already closed.'

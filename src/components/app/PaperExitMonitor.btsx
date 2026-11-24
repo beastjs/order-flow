@@ -5,17 +5,23 @@ import { paperStore } from "@/lib/paper/paper";
 
 setup
   const auth = useConvexAuth();
-  const { positions } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
-  const ids = auth.isLoading || auth.isAuthenticated ? [] :
-    Object.values(positions).filter((position) => position.exitTargets).map((position) => position.instId);
+  const { positions, totalExitTargets } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  const enabled = !auth.isLoading && !auth.isAuthenticated;
+  const ids = enabled ? Object.values(positions)
+    .filter((position) => totalExitTargets || position.exitTargets)
+    .map((position) => position.instId) : [];
   const tickers = useOkxTickers(ids, 250);
   const marks = useOkxMarkPrices(ids, 250);
 
   useEffect(() => {
+    if (!enabled) return;
+    if (totalExitTargets) {
+      paperStore.checkTotalExitTargets((id) => ({ mark: marks[id], bid: tickers[id]?.bidPx, ask: tickers[id]?.askPx }));
+    }
     for (const id of ids) {
       const mark = marks[id];
       if (mark === undefined) continue;
       const ticker = tickers[id];
       paperStore.checkExitTargets(id, mark, { bid: ticker?.bidPx, ask: ticker?.askPx });
     }
-  }, [positions, auth.isLoading, auth.isAuthenticated, marks, tickers]);
+  }, [positions, totalExitTargets, enabled, marks, tickers]);
