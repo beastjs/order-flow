@@ -182,24 +182,33 @@ section.pos(aria-label="Paper positions")
         span
         // strong #{usd(open.balance)}
       .pos-stat
-        span Available balance
+        span Balance
         strong #{usd(open.balance)}
       .pos-stat
-        span Open paper positions
+        span Open
         strong #{open.loading ? "—" : open.rows.length}
       .pos-stat
-        span Margin in use
+        span Margin
         strong #{usd(totalMargin)}
       .pos-stat
-        span Set TP/SL
+        span Set Total TP/SL
+        button(
+          ~ type="button"
+          ~ className="flex items-center justify-center hover:bg-(--border) bg-(--border)/80 hover:brightness-125! transition-all duration-200 ease-out active:scale-97 w-36! border border-transparent hover:border-(--text-muted)/50 rounded-[1px]"
+          ~ aria-label={`Set all stop loss and take profit`}
+          ~ aria-haspopup="dialog"
+          ~ disabled={false}
+          ~ onClick={undefined}
+          ~ )
+          img(src="/tpsl.svg" className="h-12 w-18" alt="")
       .pos-stat
-        span Unrealized PnL
+        span Total PnL
         strong(className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
 
-    div(className='border-b border-(--border) py-5!')
+    div(className='border-b border-(--border) border-dashed py-6.5!')
       if (!open.loading && open.rows.length > 0) || closing === "all"
         button.pos-close.pos-close-all(
-          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-64", confirming && "is-confirming text-white!")}
+          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-64 rounded-[1px]!", confirming && "is-confirming text-white!")}
           ~ type="button"
           ~ disabled={closing !== null}
           ~ onClick={closeAll}
