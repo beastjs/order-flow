@@ -48,7 +48,7 @@ component PositionRow
     const takeProfit = p.exitTargets?.takeProfit ?? null;
     const hasExitTargets = stopLoss !== null || takeProfit !== null;
     const editExitTargets = () => onExitTargets(row);
-  article.pos-article(className='portrait:flex-col!' data-side={p.side})
+  article.pos-article(className='portrait:flex-col! hover:border-(--text-secondary)/50! transition-[border-color] duration-300 ease-out' data-side={p.side})
     div.pos-row
       Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
         AssetGlyph(base={row.base} size={38})
@@ -85,13 +85,13 @@ component PositionRow
       else
         button(
           ~ type="button"
-          ~ className="mx-3! hover:brightness-135 transition-all duration-200 ease-out active:scale-97"
+          ~ className="flex items-center justify-center hover:bg-(--border) hover:brightness-135 transition-all duration-200 ease-out active:scale-97 w-48! border border-transparent hover:border-(--text-muted)/50 rounded-[1px]"
           ~ aria-label={`Set ${row.base} stop loss and take profit`}
           ~ aria-haspopup="dialog"
           ~ disabled={disabled}
           ~ onClick={editExitTargets}
           ~ )
-          img(src="/pnl.svg" className="h-12 w-10" alt="")
+          img(src="/tpsl.svg" className="h-12 w-18" alt="")
       button.pos-close(className='portrait:bg-(--bg-hover)! portrait:w-full portrait:h-[50px]! portrait:rounded-none! portrait:hover:brightness-125! sm:rounded-xl! md:size-14! sm:px-0! flex! flex-row! justify-center! items-center! border-none! portrait:transition-colors! duration-280! ease-out! sm:mr-4!' type="button" aria-label={busy ? "Closing" : "Close"} disabled={disabled || !canClose} onClick={() => onClose(row)} title={canClose ? `Close at market · ${usd(pnl, true)} after fees` : "Waiting for a price"})
         Icon(name={busy ? 'circle' : 'close'} className='size-6 portrait:hidden!')
         span(className='md:hidden portrait:text-lg! font-[450]!') #{busy ? "Closing…" : "Close"}
@@ -191,7 +191,7 @@ section.pos
     div(className='border-b border-(--border) py-5!')
       if (!open.loading && open.rows.length > 0) || closing === "all"
         button.pos-close.pos-close-all(
-          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-64", confirming && "is-confirming")}
+          ~ className={cn("portrait:h-14! portrait:w-full h-16! w-64", confirming && "is-confirming text-white!")}
           ~ type="button"
           ~ disabled={closing !== null}
           ~ onClick={closeAll}

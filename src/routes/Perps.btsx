@@ -64,6 +64,17 @@ module
     }
   }
 
+component PerpsTabs
+  props { tab, venue, marketCount, openCount }: { tab: PerpsTab; venue: MarketVenue; marketCount: number; openCount: number }
+  nav.lp-tabs(className='sm:mx-12! sm:px-2!' aria-label="Perpetuals")
+    Link(to="/perps" search={venueSearch(venue)} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
+      | Markets
+      span.lp-seg-count #{marketCount || ""}
+    Link(to="/perps" search={{ tab: "positions", ...venueSearch(venue) }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
+      | Positions
+      span.lp-seg-count #{openCount || "0"}
+    Link(to="/perps" search={{ tab: "history", ...venueSearch(venue) }} className={cn("lp-tab", tab === "history" && "is-active")} aria-current={tab === "history" ? "page" : undefined}) Trade history
+
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
   const search = useSearch({ strict: false }) as { tab?: PerpsTab };
@@ -155,7 +166,7 @@ setup
   // Only offer the asset classes this venue actually lists.
   const filters = FILTERS.filter((f) => f.value === "all" || counts[f.value] > 0);
 
-.site(className={cn('portrait:px-[clamp(0px,0vw,0px)]!', tab === "history" && "site-trade-history")} ref={scrollRef})
+.site(className='portrait:px-[clamp(0px,0vw,0px)]!' ref={scrollRef})
   SiteNav
   section.lp-page-head
     if tab !== "history"
@@ -163,7 +174,7 @@ setup
         span.lp-live-dot
         | Streaming Live from #{VENUE_LABEL[venue]}
     if tab === "history"
-      h1.lp-page-title Trade history
+      h1.lp-page-title(className='mt-11!') Trade history
     elseif tab === "positions"
       h1.lp-page-title
         | #{"Your positions,  "}
@@ -175,19 +186,14 @@ setup
 //     if tab !== "history"
 //       p.lp-page-sub(className='portrait:hidden!') #{tab === "positions" ? "Your positions marked to the live OKX mark price. Close any of them at market." : !counts.all ? `Loading the ${VENUE_LABEL[venue]} instrument catalog…` : isHl ? `${counts.crypto} crypto, ${counts.stock} equity, ${counts.commodity} commodity, ${counts.fx} FX and ${counts.index} index perpetuals across Hyperliquid and its builder dexes. Prices stream only for the cards on screen.` : `${counts.crypto} crypto, ${counts.stock} equity and ${counts.commodity} commodity perpetuals. Prices stream only for the cards on screen.`}
 //
-  nav.lp-tabs(className={tab === "history" ? "trade-history-tabs" : 'sm:mx-12! sm:px-2!'} aria-label="Perpetuals")
-    Link(to="/perps" search={venueSearch(venue)} className={cn("lp-tab", tab === "markets" && "is-active")} aria-current={tab === "markets" ? "page" : undefined})
-      | Markets
-      span.lp-seg-count #{counts.all || ""}
-    Link(to="/perps" search={{ tab: "positions", ...venueSearch(venue) }} className={cn("lp-tab", tab === "positions" && "is-active")} aria-current={tab === "positions" ? "page" : undefined})
-      | Positions
-      span.lp-seg-count #{openCount || "0"}
-    Link(to="/perps" search={{ tab: "history", ...venueSearch(venue) }} className={cn("lp-tab", tab === "history" && "is-active")} aria-current={tab === "history" ? "page" : undefined}) Trade history
+  if tab !== "history"
+    PerpsTabs(tab={tab} venue={venue} marketCount={counts.all} openCount={openCount})
 
   if tab === "positions"
     OpenPositions
   elseif tab === "history"
     TradeHistory
+      PerpsTabs(tab={tab} venue={venue} marketCount={counts.all} openCount={openCount})
   else
     section(className='portrait:px-0!')
       .lp-toolbar

@@ -38,18 +38,15 @@ component TradeRow
     const priceInputs = { side: trade.side, entry: trade.entry, size, openFee };
     const closeFee = saved ? trade.closeFee : liquidated ? 0 : size * trade.exit * TAKER_FEE;
     const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down";
-  article.trade-history-card
+    const roe = !okx && trade.realized !== undefined ? 100 * trade.realized / trade.margin : null;
+  article.asset-index.trade-history-card(className='hover:bg-(--text-secondary)/5! hover:border-(--text-secondary)/50! transition-colors! duration-300! ease-out!')
     header.trade-history-overview
-      Link.pos-asset(to="/perps/$assetId" params={{ assetId: base }} search={{}})
-        AssetGlyph(base={base} size={36})
-        span.pos-asset-name
+      Link.trade-history-asset(to="/perps/$assetId" params={{ assetId: base }} search={{}})
+        AssetGlyph(base={base} size={24})
+        span.asset-index-name
           strong #{base}
           span.pos-side(className={trade.side === "up" ? "is-up" : "is-down"}) #{trade.side === "up" ? "Up" : "Down"} · #{trade.leverage}×
-      div.trade-history-result
-        span.trade-history-label Realized PnL
-        strong(className={pnlClass}) #{money(trade.realized, true)}
-        if !okx && trade.realized !== undefined
-          small(className={pnlClass}) #{fmtPct(100 * trade.realized / trade.margin)} ROE
+
       dl.trade-history-metrics
         div
           dt Entry
@@ -60,17 +57,23 @@ component TradeRow
         div
           dt #{okx ? "Final size" : "Size"}
           dd #{fmtSize(size)} #{base}
+      dl.trade-history-roe
+        dt ROE
+        dd #{fmtPct(roe)}
+      div.trade-history-result
+        span.trade-history-label Realized PnL
+        strong(className={pnlClass}) #{money(trade.realized, true)}
     details.trade-history-disclosure
       summary
         span.trade-history-settlement
           span(className={liquidated ? "is-down" : ""}) #{settlement}
           if trade.closedAt !== undefined
-            time(dateTime={new Date(trade.closedAt).toISOString()}) #{dateTime.format(trade.closedAt)}
+            time(className='font-mono text-(--text-secondary)' dateTime={new Date(trade.closedAt).toISOString()}) #{dateTime.format(trade.closedAt)}
         span.trade-history-details-label Details
       dl.trade-history-details
-        div
-          dt Instrument
-          dd #{trade.instId}
+        // div
+        //   dt Instrument
+        //   dd #{trade.instId}
         div
           dt #{okx ? "Final margin" : "Margin"}
           dd #{money(trade.margin)}
@@ -80,9 +83,7 @@ component TradeRow
         div
           dt #{okx ? "Final close fee" : "Close fee"}
           dd #{money(closeFee)}
-        div
-          dt Opened
-          dd #{trade.openedAt === undefined ? "—" : dateTime.format(trade.openedAt)}
+
         if stopLoss !== null
           div
             dt Stop loss target
@@ -91,7 +92,9 @@ component TradeRow
           div
             dt Take profit target
             dd #{money(takeProfit, true)} · #{fmtExitPrice(priceInputs, takeProfit)}
-
+        div
+          dt Opened
+          dd #{trade.openedAt === undefined ? "—" : dateTime.format(trade.openedAt)}
 component HistoryPage
   props { venue, cursor, onOlder, onNewer }: { venue: Venue; cursor: string | null; onOlder: (cursor: string) => void; onNewer: () => void }
   setup
@@ -102,11 +105,11 @@ component HistoryPage
   elseif !data
     p.lp-grid-empty(role="status") Loading trade history…
   else
-    .pos-list
+    .lp-asset-grid.trade-history-grid
       each trade in data.page key trade._id
         TradeRow(trade={trade})
       empty
-        .pos-empty No closed positions.
+        p.lp-grid-empty No closed positions.
   if cursor !== null || (data && !data.isDone)
     nav.trade-history-controls(aria-label="Trade history pages")
       if cursor !== null
@@ -131,27 +134,32 @@ component PracticeHistory
   setup
     const { history } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
   p.sim-mode Practice trades saved in this browser.
-  .pos-list
+  .lp-asset-grid.trade-history-grid
     each trade in history key `${trade.instId}:${trade.openedAt}:${trade.closedAt}`
       TradeRow(trade={trade})
     empty
-      .pos-empty No closed practice positions.
+      p.lp-grid-empty No closed practice positions.
 
+props { children }: { children: unknown }
 setup
   const auth = useConvexAuth();
   const [venue, setVenue] = useState<Venue>("paper");
+
+.trade-history-tabs-row
+  | #{children}
+  if auth.isAuthenticated && !auth.isLoading
+    .lp-toolbar
+      .lp-segmented(role="group" aria-label="Trading account")
+        button.lp-seg(type="button" className={cn(venue === "paper" && "is-active")} aria-pressed={venue === "paper"} onClick={() => setVenue("paper")}) Paper · USDT
+        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")}) OKX · USD
 
 section.trade-history(aria-label="Closed positions")
   if auth.isLoading
     p.lp-grid-empty(role="status") Loading trade history…
   elseif auth.isAuthenticated
-    fragment
-      .trade-history-controls(role="group" aria-label="Trading account")
-        button.lp-seg(type="button" className={cn(venue === "paper" && "is-active")} aria-pressed={venue === "paper"} onClick={() => setVenue("paper")}) Paper · USDT
-        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")}) OKX · USD
-      if venue === "paper"
-        CloudHistory(venue="paper")
-      else
-        CloudHistory(venue="okx")
+    if venue === "paper"
+      CloudHistory(venue="paper")
+    else
+      CloudHistory(venue="okx")
   else
     PracticeHistory

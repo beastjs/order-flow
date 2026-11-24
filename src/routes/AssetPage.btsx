@@ -103,7 +103,7 @@ setup
 
 .site( ref={scrollRef})
   SiteNav
-  if inst === null || inst === undefined
+  if inst === null
     section.lp-page-head(className='portrait:w-screen!')
       p.lp-eyebrow
         Link(to="/perps" search={venueSearch(venue)}) ← All markets
@@ -114,32 +114,25 @@ setup
       section.ap-head(className='portrait:-mt-6!')
         div(className='flex items-center justify-between')
           Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
-          div(className='flex flex-auto! w-full!')
-          div(className='')
-            if inst
-              span(className='font-mono text-sm uppercase!') #{`${VENUE_LABEL[venue]}`}
+          span(className='font-mono text-sm uppercase!') #{VENUE_LABEL[venue]}
         .ap-title
           Glyph(base={title} coin={coin} venue={venue})
-          div(className='flex items-center justify-between w-full')
-            div(className='')
-              div(className='flex items-center gap-4')
-                h1 #{title}
-                span.asset-index-tag #{`${inst?.maxLeverage}x`}
-              if inst
-                div(className='flex items-center! gap-3 sm:gap-4 md:gap-5 text-(--text-muted)!')
-                  span #{`${CATEGORY_LABEL[inst.category]}`}
-                  Middot
-                  if !isHl && convex
-                    each instId in [inst.instId] key instId
-                      PositionUserCounts(instId={instId})
-              else
-                p Loading...
-
-          .ap-price(className=' portrait:min-w-32 flex flex-col items-end! portrait:-space-y-1')
-            span.ap-last(className='portrait:text-3xl! text-(--text-primary)!') #{fmtPrice(v.last, tick)}
+          .ap-title-name
+            h1(title={title}) #{title}
+            span.asset-index-tag #{inst ? `${inst.maxLeverage}x` : "—"}
+          .ap-title-meta
+            if inst
+              fragment
+                span #{CATEGORY_LABEL[inst.category]}
+                Middot
+                if !isHl && convex
+                  each instId in [inst.instId] key instId
+                    PositionUserCounts(instId={instId})
+            else
+              span(role="status") Loading market data…
+          .ap-price(className='portrait:-space-y-1')
+            span.ap-last(className='portrait:text-3xl! text-(--text-primary)!' title={fmtPrice(v.last, tick)}) #{fmtPrice(v.last, tick)}
             span.ap-change(className={cn('portrait:text-sm! portrait:tracking-tightest', up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
-
-
 
       .ap-main
         section.ap-chart-card
@@ -150,14 +143,19 @@ setup
                   span.lp-live-dot
                 | #{x.label}
           PriceChart(candles={v.candles} tickSz={tick} loading={v.candlesLoading})
-        if inst && !isHl
-          PositionSimulator(instId={inst.instId} base={inst.base} tickSz={tick} maxLeverage={inst.maxLeverage} ticker={v.okxTicker} markPx={v.markPx})
-        elseif inst
+        if isHl
           aside.ap-panel.ap-venue-note
-            h2 Trade #{inst.base}
+            h2 Trade #{title}
             p.ap-muted Paper and live positions fill against OKX quotes. Hyperliquid data here is view-only.
             if okxTwin
               Link.lp-btn(to="/perps/$assetId" params={{ assetId: okxTwin }} search={{}}) Open #{okxTwin} on OKX →
+        elseif inst
+          PositionSimulator(instId={inst.instId} base={inst.base} tickSz={tick} maxLeverage={inst.maxLeverage} ticker={v.okxTicker} markPx={v.markPx})
+        else
+          section.sim(aria-busy="true")
+            header.sim-head
+              h2 Simulate a position
+            .sim-loading(role="status") Loading market data…
 
       section.ap-stats
         Stat(label="Mark price" value={fmtPrice(v.markPx, tick)})

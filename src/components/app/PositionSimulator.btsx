@@ -73,7 +73,7 @@ setup
   // Live: also capped by the server's per-order notional limit.
   const orderCap = isLive && liveCfg ? Math.floor((liveCfg.maxOrderUsd / leverage) * 100) / 100 : Infinity;
   const affordable = available === null ? null : Math.min(maxMargin(available, leverage), orderCap);
-  const loading = isLive ? liveAcct.loading : account.mode === "cloud" && account.loading;
+  const loading = isLive ? liveAcct.loading : account.loading;
   const inFlight = isLive && (liveAcct.status === "opening" || liveAcct.status === "closing");
   const overBalance = affordable !== null && margin > affordable;
   const entryEst = entryFor(side);
@@ -167,10 +167,10 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
     button.sim-link.sim-reset-inline(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset paper balance
 
   if loading
-    .sim-loading Loading your account…
+    .sim-loading(role="status") Loading your account…
   elseif inFlight && !position
     .sim-loading Placing your order on OKX…
-  elseif position && live
+  elseif position
     .sim-open
       .sim-open-top
         span(className={cn("sim-badge", position.side === "up" ? "is-up" : "is-down")})
@@ -185,7 +185,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
       dl.sim-rows(className='flex-1! h-full flex flex-col')
         .sim-row
           dt ROE
-          dd(className={live.roe >= 0 ? "is-up" : "is-down"}) #{fmtPct(live.roe)}
+          dd(className={live ? (live.roe >= 0 ? "is-up" : "is-down") : undefined}) #{fmtPct(live?.roe)}
         .sim-row
           dt Entry
           dd #{fmtPrice(position.entry, tickSz)}
@@ -194,7 +194,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
           dd #{fmtPrice(mark, tickSz)}
         .sim-row
           dt Liq. price (est.)
-          dd.is-down #{fmtPrice(live.liq, tickSz)}
+          dd.is-down #{fmtPrice(liquidationPrice(position), tickSz)}
         // .sim-row
         //   dt Notional
         //   dd #{usd(live.notional)}
@@ -207,7 +207,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
             ~ disabled={busy !== null}
             ~ onClick={() => setExitTargetKey(paperPositionKey)}
             ~ )
-            img(src='/tpsl.svg' className='h-13.5! w-auto! p-1 bg-[#cacaca]/20_ _border border-white!')
+            img(src='/tpsl.svg' className='h-10! w-auto! p-1')
             p(className='text-white! font-mono text-sm') Exit Strategy
           if exitTargetKey === paperPositionKey
             PositionExitModal(
@@ -217,8 +217,8 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
               ~ onClose={() => setExitTargetKey(null)}
               ~ )
       .sim-risk(className='' title="Distance from liquidation")
-        .sim-risk-bar(style={{ width: `${live.safety * 100}%` }} data-danger={live.safety < 0.25 ? "1" : "0"})
-      button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight} onClick={close})
+        .sim-risk-bar(style={{ width: `${(live?.safety ?? 0) * 100}%` }} data-danger={live && live.safety < 0.25 ? "1" : "0"})
+      button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight || !live || (!isLive && !exitFor(position.side))} onClick={close})
         | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position` }
   else
     .sim-form
@@ -228,6 +228,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
 
       ScrubField(
         ~ label="Amount"
+        ~ labelColor={side === 'up' ? "text-[#1b1b1b]" : 'text-white'}
         ~ suffix={isLive ? "USD" : "USD"}
         ~ value={margin}
         ~ min={0}
@@ -238,7 +239,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         ~ size="lg"
         ~ className="w-full! border_ border-(--border-muted) focus-within:border-(--text-muted)"
         ~ chipColor="var(--bg-base)"
-        ~ accent={side === "up" ? "#fafafa" : "#ff5c74"}
+        ~ accent={side === "up" ? "var(--buy)" : "#ff5c74"}
         ~ showDirty={false}
         ~ disabled={available === null || busy !== null}
         ~ onChange={changeAmount}

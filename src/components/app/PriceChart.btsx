@@ -61,8 +61,8 @@ setup
         path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke")
         if point
           line.price-chart-cross(x1={point[0]} x2={point[0]} y1="0" y2={H} vector-effect="non-scaling-stroke")
-      .price-chart-axis
-        span H #{fmtPrice(paths.hi, tickSz)}
-        span L #{fmtPrice(paths.lo, tickSz)}
   else
     .price-chart-empty #{loading ? "Loading chart…" : "No data for this range."}
+  .price-chart-axis
+    span H #{fmtPrice(paths?.hi, tickSz)}
+    span L #{fmtPrice(paths?.lo, tickSz)}

@@ -1,6 +1,6 @@
 import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useSpring, useTransform } from "@octanejs/motion";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "octane";
-import type { PointerEvent, KeyboardEvent, FocusEvent } from "octane";
+import type { PointerEvent, KeyboardEvent, FocusEvent, ClassValue } from "octane";
 import { cn } from '@/lib/utils';
 module
   type ScrubFieldSize = "sm" | "md" | "lg" | "xl";
@@ -79,7 +79,7 @@ module
   };
 
 component DeltaDigit
-  props { digit, rising, reduced }: { digit: string; rising: boolean; reduced: boolean }
+  props { digit, rising, reduced, className }: { digit: string; rising: boolean; reduced: boolean, className?: ClassValue }
   setup
     const previous = useRef(digit);
     const outgoing = useRef<HTMLSpanElement | null>(null);
@@ -107,7 +107,7 @@ component DeltaDigit
       };
     }, [digit, rising, reduced]);
 
-  span(className="relative inline-block h-[1.4em] w-[1ch] overflow-hidden text-center")
+  span(className={cn("relative inline-block h-[1.4em] w-[1ch] overflow-hidden font-[450] text-center", className)})
     span(className="absolute inset-0 opacity-0" ref={outgoing})
     span(className="block" ref={incoming}) #{digit}
 
@@ -474,4 +474,4 @@ MotionDiv(
           if digit === "."
             span .
           else
-            DeltaDigit(digit={digit} rising={delta.rising} reduced={Boolean(reduce) || !dragging})
+            DeltaDigit(digit={digit} rising={delta.rising} reduced={Boolean(reduce) || !dragging} className={labelColor})

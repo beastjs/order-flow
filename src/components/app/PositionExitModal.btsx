@@ -52,6 +52,7 @@ setup
   };
 
 dialog.pos-exit-dialog(
+  ~ className='dark:border-(--border)!'
   ~ aria-labelledby="pos-exit-title"
   ~ ref={dialogRef}
   ~ onCancel={(event: Event) => { event.preventDefault(); if (!getSaving()) onClose(); }}
@@ -73,7 +74,7 @@ dialog.pos-exit-dialog(
         ~ checked={stopEnabled}
         ~ disabled={saving || minLoss === 0}
         ~ trackColor="var(--text-muted)"
-        ~ trackOnColor="#419cff"
+        ~ trackOnColor="#f0f0f0"
         ~ thumbColor="var(--border)"
         ~ thumbOnColor="var(--bg-base)"
         ~ onChange={(checked: boolean) => { setStopEnabled(checked); setError(null); }}
@@ -107,7 +108,7 @@ dialog.pos-exit-dialog(
         ~ checked={profitEnabled}
         ~ disabled={saving || maxProfit === 0}
         ~ trackColor="var(--text-muted)"
-        ~ trackOnColor="#419cff"
+        ~ trackOnColor="#f0f0f0"
         ~ thumbColor="var(--border)"
         ~ thumbOnColor="var(--bg-base)"
         ~ onChange={(checked: boolean) => { setProfitEnabled(checked); setError(null); }}
@@ -115,6 +116,7 @@ dialog.pos-exit-dialog(
 
       ScrubField(
         ~ label={fmtExitPrice(position, takeProfit)}
+        ~ labelColor='text-(--bg-base)'
         ~ ariaLabel="Take profit PnL"
         ~ suffix="USD"
         ~ value={takeProfit}
@@ -126,8 +128,8 @@ dialog.pos-exit-dialog(
         ~ rubberReach={0}
         ~ showFill={true}
         ~ accent="#2fd897"
-        ~ chipColor="#EEEEEE"
-        ~ className="w-full!  border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"
+        ~ chipColor="#dddddd40"
+        ~ className="w-full!  _border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"
         ~ disabled={saving || !profitEnabled}
         ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
         ~ )
@@ -135,5 +137,5 @@ dialog.pos-exit-dialog(
     if error
       p.sim-error(role="alert") #{error}
     footer
-      button.pos-close(className="rounded-lg!" type="button" disabled={saving} onClick={onClose}) Cancel
+      button.pos-close(className="rounded-lg! bg-(--border)!" type="button" disabled={saving} onClick={onClose}) Cancel
       button.lp-btn.lp-btn-primary(className="justify-center rounded-lg!" type="submit" disabled={saving}) #{saving ? "Saving…" : "Save Targets"}
