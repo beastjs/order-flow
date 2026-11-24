@@ -113,7 +113,7 @@ setup
     .ap-body
       section.ap-head(className='portrait:-mt-6!')
         div(className='flex items-center justify-between')
-          Link.ap-back(to="/perps" search={venueSearch(venue)}) ← All markets
+          Link.ap-back(to={'/perps'} search={venueSearch(venue)}) ← All markets
           span(className='font-mono text-sm uppercase!') #{VENUE_LABEL[venue]}
         .ap-title
           Glyph(base={title} coin={coin} venue={venue})

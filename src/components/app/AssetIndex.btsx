@@ -1,4 +1,5 @@
-import { useRef, useState } from "octane";
+import { useLayoutEffect, useRef, useState } from "octane";
+import { animate, useReducedMotion, type Transition } from "@octanejs/motion";
 import { okxChangePct, useInView, useOkxSparkline, useOkxTicker } from "@/hooks/useOkx";
 import { useHlAssetCtx, useHlSparkline } from "@/hooks/useHyperliquid";
 import { Link } from "@octanejs/tanstack-router";
@@ -9,6 +10,12 @@ import { cn } from "@/lib/utils";
 
 module
   export { AssetGlyph }
+
+  const sparkWidth = 240;
+  const sparkHeight = 56;
+  const sparkBaseline = sparkHeight / 2;
+  const sparkPlaceholder = `M0,${sparkBaseline} L${sparkWidth},${sparkBaseline}`;
+  const sparklineEntry: Transition = { type: "tween", duration: 0.15, ease: [0.23, 1, 0.32, 1] };
 
   /** What a card shows, whichever venue it streams from. */
   interface CardQuote {
@@ -40,7 +47,7 @@ component AssetCardView
   setup
     const venue = item.venue ?? "okx";
     const series = quote.last !== undefined && closes.length ? [...closes.slice(0, -1), quote.last] : closes;
-    const paths = sparkPaths(series, 240, 56);
+    const paths = sparkPaths(series, sparkWidth, sparkHeight);
     const up = (quote.change ?? 0) >= 0;
     const gradId = `spark-${venue}-${item.instId}`;
   Link.asset-index-link(to="/perps/$assetId" params={{ assetId: assetIdOf({ ...item, venue }) }} search={venueSearch(venue)} aria-label={`${item.base} perpetual`})
@@ -58,15 +65,41 @@ component AssetCardView
         span.asset-index-last #{quote.last !== undefined ? fmtPrice(quote.last, item.tickSz) : "—"}
         span.asset-index-change(className={cn( up ? "is-up" : "is-down")})
           | #{quote.change === null ? "" : `${up ? "+" : ""}${quote.change.toFixed(2)}%`}
-      svg.asset-index-spark(viewBox="0 0 240 56" preserveAspectRatio="none" aria-hidden)
+      svg.asset-index-spark(viewBox={`0 0 ${sparkWidth} ${sparkHeight}`} preserveAspectRatio="none" aria-hidden)
         defs
           linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")
             stop(offset="0%" stop-color="currentColor" stop-opacity="0.22")
             stop(offset="100%" stop-color="currentColor" stop-opacity="0")
         if paths
-          g
-            path(d={paths.area} fill={`url(#${gradId})`})
-            path(d={paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
+          scope
+            setup
+              const reduceMotion = useReducedMotion();
+              const line = useRef<SVGPathElement | null>(null);
+              const area = useRef<SVGPathElement | null>(null);
+              const [morphing, setMorphing] = useState(!reduceMotion);
+              const flatLine = morphing ? paths.points.map(([x], index) => `${index ? "L" : "M"}${x.toFixed(1)},${sparkBaseline}`).join(" ") : "";
+              const flatArea = `${flatLine} L${sparkWidth},${sparkBaseline} L0,${sparkBaseline} Z`;
+              useLayoutEffect(() => {
+                if (!line.current || !area.current) return;
+                if (!morphing) {
+                  const fade = animate(area.current, { opacity: [0, 1] }, sparklineEntry);
+                  return () => fade.stop();
+                }
+                const lineEntrance = animate(line.current, { d: [flatLine, paths.line] }, sparklineEntry);
+                const areaEntrance = animate(area.current, { d: [flatArea, paths.area] }, sparklineEntry);
+                let active = true;
+                void lineEntrance.then(() => { if (active) setMorphing(false); });
+                return () => {
+                  active = false;
+                  lineEntrance.stop();
+                  areaEntrance.stop();
+                };
+              }, []);
+            g
+              path(ref={area} d={morphing ? flatArea : paths.area} fill={`url(#${gradId})`})
+              path(ref={line} d={morphing ? flatLine : paths.line} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
+        else
+          path(d={sparkPlaceholder} fill="none" stroke="currentColor" stroke-width="1.4" vector-effect="non-scaling-stroke")
       // footer.asset-index-foot
       //   span(className='text-(--text-secondary)') Vol #{fmtCompact(quote.turnover)}
       //   span(className='tracking-tightest') #{quote.foot}

@@ -174,7 +174,7 @@ setup
     if tab !== "history"
       p.lp-eyebrow
         span.lp-live-dot
-        | Streaming Live from #{VENUE_LABEL[venue]}
+        | Live from #{VENUE_LABEL[venue]}
     if tab === "history"
       h1.lp-page-title(className='mt-11!') Trade history
     elseif tab === "positions"
