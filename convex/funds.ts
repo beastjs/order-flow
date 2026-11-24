@@ -75,7 +75,7 @@ export const resetPaper = mutation({
 
     const funds = await requireFunds(ctx, user._id);
     const amount = STARTING_BALANCE - funds.balance;
-    await ctx.db.patch("funds", funds._id, { balance: STARTING_BALANCE, locked: 0 });
+    await ctx.db.patch("funds", funds._id, { balance: STARTING_BALANCE, locked: 0, paperResetAt: Date.now() });
     await ctx.db.insert("activity", {
       userId: user._id,
       kind: "funds_reset",

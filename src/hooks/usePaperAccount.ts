@@ -3,7 +3,7 @@ import type { FunctionReturnType } from 'convex/server'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { convex, convexAuthStore } from '@/lib/convex/client'
-import { TAKER_FEE, paperStore, type ExitTargets, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
+import { TAKER_FEE, paperStore, type ExitTargets, type FollowUpOrder, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from './useConvex'
 
 // ─── One paper account, two backends ─────────────────────────────
@@ -172,6 +172,7 @@ export interface OpenPositions {
   close(row: OpenPositionRow, quote: CloseQuote): Promise<{ result: SimResult | null; error: string | null }>
   closeAll(getQuote: (instId: string) => CloseQuote): Promise<BulkCloseResult>
   setExitTargets(row: OpenPositionRow, targets: ExitTargets): Promise<string | null>
+  setFollowUpOrder(row: OpenPositionRow, order: FollowUpOrder | null): Promise<string | null>
   setTotalExitTargets(targets: ExitTargets): Promise<string | null>
 }
 
@@ -213,7 +214,13 @@ export function useOpenPositions(): OpenPositions {
       async setExitTargets(row, targets) {
         return paperStore.setExitTargets(row.instId, row.position.openedAt, targets)
       },
+      async setFollowUpOrder(row, order) {
+        return paperStore.setFollowUpOrder(row.instId, row.position.openedAt, order)
+      },
       async close(row, quote) {
+        if (paperStore.get().positions[row.instId]?.openedAt !== row.position.openedAt) {
+          return { result: null, error: 'Position already closed.' }
+        }
         const fill = closePracticePosition(row.position, quote)
         return fill ? { result: fill, error: null } : { result: null, error: 'Waiting for a price.' }
       },
@@ -253,7 +260,8 @@ export function useOpenPositions(): OpenPositions {
         size: d.size,
         openFee: d.openFee,
         openedAt: d.openedAt,
-        exitTargets: d.exitTargets
+        exitTargets: d.exitTargets,
+        followUpOrder: d.followUpOrder
       }
     })),
     async setTotalExitTargets(targets) {
@@ -268,6 +276,17 @@ export function useOpenPositions(): OpenPositions {
       const doc = docs.find((d) => d._id === row.key)
       if (!doc) return 'Position not found or already closed.'
       return saveCloudExitTargets(doc._id, targets)
+    },
+    async setFollowUpOrder(row, order) {
+      const doc = docs.find((d) => d._id === row.key)
+      if (!doc) return 'Position not found or already closed.'
+      if (convexAuthStore.get() !== authState) return 'Account changed. Try again.'
+      try {
+        await convex!.mutation(api.positions.setFollowUpOrder, { positionId: doc._id, order })
+        return null
+      } catch (e) {
+        return convexErrorMessage(e)
+      }
     },
     async close(row) {
       const doc = docs.find((d) => d._id === row.key)

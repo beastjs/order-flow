@@ -118,6 +118,12 @@ export async function fetchTickers(instType: OkxInstType = 'SWAP'): Promise<Reco
   return out
 }
 
+export async function fetchTicker(instId: string): Promise<OkxTicker> {
+  const [ticker] = await get<Record<string, string>>(`/api/v5/market/ticker?instId=${encodeURIComponent(instId)}`)
+  if (!ticker) throw new Error(`No quote for ${instId}.`)
+  return parseTicker(ticker)
+}
+
 // ─── rate-limited candle queue ────────────────────────────────
 // OKX allows 40 candle requests / 2s per IP. Grids of hundreds of cards
 // go through this queue so scrolling never trips the limit.

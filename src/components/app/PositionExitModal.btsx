@@ -1,15 +1,13 @@
 import { useId, useLayoutEffect, useRef, useState } from "octane";
-import ScrubField from "@/components/ui/scrubfield.btsx";
-import Squishy from "@/components/ui/squishy.btsx";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import type { OpenPositionRow } from "@/hooks/usePaperAccount";
 import { liquidationPrice, netPnlAtExit, validateExitTargets, validateTotalExitTargets, type ExitTargets } from "@/lib/paper/math";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import { fmtExitPrice } from "./assetFormat";
+import ExitTargetField, { MAX_EXIT_TARGET } from "./ExitTargetField.btsx";
 
 module
   type ExitScope = { row: OpenPositionRow; total?: never } | { row?: never; total: { targets: ExitTargets | null; margin: number } };
-  const MAX_TARGET = Number.MAX_SAFE_INTEGER / 100;
 
 props { row, total, mode, onSave, onClose }: ExitScope & { mode: "cloud" | "local"; onSave: (targets: ExitTargets) => Promise<string | null>; onClose: () => void }
 setup
@@ -24,10 +22,10 @@ setup
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving, getSaving] = useState(false);
   const minLoss = position ? Math.min(0, (Math.floor(netPnlAtExit(position, liquidationPrice(position)) * 100) + 1) / 100)
-    : Math.min(-MAX_TARGET, saved?.stopLoss ?? 0);
-  const maxProfit = !position || position.side === "up" ? MAX_TARGET :
+    : Math.min(-MAX_EXIT_TARGET, saved?.stopLoss ?? 0);
+  const maxProfit = !position || position.side === "up" ? MAX_EXIT_TARGET :
     Math.max(0, (Math.ceil(netPnlAtExit(position, 0) * 100) - 1) / 100);
-  const profitLimit = position ? maxProfit / 8 : Math.max(MAX_TARGET, saved?.takeProfit ?? 0);
+  const profitLimit = position ? maxProfit / 8 : Math.max(MAX_EXIT_TARGET, saved?.takeProfit ?? 0);
   const dragStep = Math.max(0.01, Math.round(position?.margin ?? total?.margin ?? 0) / 100);
 
   useLayoutEffect(() => {
@@ -78,74 +76,20 @@ dialog.pos-exit-dialog(
           | Total TP/SL
       if total
         p Close all open paper positions when combined P&L after fees reaches either target.
-    .pos-exit-target
-      Squishy(
-        ~ height={20}
-        ~ width={32}
-        ~ label="Stop loss"
-        ~ className="pos-exit-toggle w-full! capitalize!"
-        ~ checked={stopEnabled}
-        ~ disabled={saving || minLoss === 0}
-        ~ trackColor="var(--text-muted)"
-        ~ trackOnColor="#f0f0f0"
-        ~ thumbColor="var(--border)"
-        ~ thumbOnColor="var(--bg-base)"
-        ~ onChange={(checked: boolean) => { setStopEnabled(checked); setError(null); }}
-        ~ )
-      ScrubField(
-        ~ label={position ? fmtExitPrice(position, stopLoss) : "Net P&L"}
-        ~ ariaLabel={total ? "Total stop loss PnL" : "Stop loss PnL"}
-        ~ suffix="USD"
-        ~ value={stopLoss}
-        ~ min={minLoss}
-        ~ max={0}
-        ~ step={0.01}
-        ~ dragStep={dragStep}
-        ~ size="lg"
-        ~ rubberReach={0}
-        ~ showFill={true}
-        // ~ accent="#ff5c74"
-        ~ accent="#fafafa"
-        ~ chipColor="#ff5c74"
-        ~ className="w-full! text-white! border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"
-        ~ disabled={saving || !stopEnabled}
-        ~ onChange={(value: number) => { setStopLoss(value); setError(null); }}
-        ~ labelColor='text-white!'
-        ~ )
-    .pos-exit-target
-      Squishy(
-        ~ height={20}
-        ~ width={32}
-        ~ label="Take profit"
-        ~ className="pos-exit-toggle"
-        ~ checked={profitEnabled}
-        ~ disabled={saving || maxProfit === 0}
-        ~ trackColor="var(--text-muted)"
-        ~ trackOnColor="#f0f0f0"
-        ~ thumbColor="var(--border)"
-        ~ thumbOnColor="var(--bg-base)"
-        ~ onChange={(checked: boolean) => { setProfitEnabled(checked); setError(null); }}
-        ~ )
-
-      ScrubField(
-        ~ label={position ? fmtExitPrice(position, takeProfit) : "Net P&L"}
-        ~ labelColor='text-(--bg-base)'
-        ~ ariaLabel={total ? "Total take profit PnL" : "Take profit PnL"}
-        ~ suffix="USD"
-        ~ value={takeProfit}
-        ~ min={0}
-        ~ max={profitLimit}
-        ~ step={0.01}
-        ~ dragStep={dragStep}
-        ~ size="lg"
-        ~ rubberReach={0}
-        ~ showFill={true}
-        ~ accent="#2fd897"
-        ~ chipColor="#dddddd40"
-        ~ className="w-full!  _border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"
-        ~ disabled={saving || !profitEnabled}
-        ~ onChange={(value: number) => { setTakeProfit(value); setError(null); }}
-        ~ )
+    ExitTargetField(
+      ~ kind="stop-loss" value={stopLoss} enabled={stopEnabled} disabled={saving} min={minLoss} max={0} dragStep={dragStep}
+      ~ label={position ? fmtExitPrice(position, stopLoss) : "Net P&L"}
+      ~ ariaLabel={total ? "Total stop loss PnL" : "Stop loss PnL"}
+      ~ onToggle={(checked) => { setStopEnabled(checked); setError(null); }}
+      ~ onChange={(value) => { setStopLoss(value); setError(null); }}
+      ~ )
+    ExitTargetField(
+      ~ kind="take-profit" value={takeProfit} enabled={profitEnabled} disabled={saving} min={0} max={profitLimit} dragStep={dragStep}
+      ~ label={position ? fmtExitPrice(position, takeProfit) : "Net P&L"}
+      ~ ariaLabel={total ? "Total take profit PnL" : "Take profit PnL"}
+      ~ onToggle={(checked) => { setProfitEnabled(checked); setError(null); }}
+      ~ onChange={(value) => { setTakeProfit(value); setError(null); }}
+      ~ )
     if total
       p.pos-exit-note #{mode === "cloud" ? "Checked every minute." : "Checked as prices update while the app is open."} Targets clear when all positions close.
     if error

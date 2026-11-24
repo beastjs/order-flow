@@ -1,0 +1,147 @@
+import { useForm, useStore } from "@octanejs/tanstack-form";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "octane";
+import { convexErrorMessage } from "@/hooks/useConvex";
+import type { OpenPositionRow } from "@/hooks/usePaperAccount";
+import { fetchPerps, type OkxPerpInstrument } from "@/lib/okx";
+import { MAX_PAPER_MARGIN, validateFollowUpOrder, type FollowUpOrder } from "@/lib/paper/math";
+import PositionOrderControls from "./PositionOrderControls.btsx";
+import ExitTargetField, { MAX_EXIT_TARGET } from "./ExitTargetField.btsx";
+
+props { row, onSave, onClose }: { row: OpenPositionRow; onSave: (order: FollowUpOrder | null) => Promise<string | null>; onClose: () => void }
+setup
+  const saved = row.position.followUpOrder;
+  const dialog = useRef<HTMLDialogElement | null>(null);
+  const title = useId();
+  const [instruments, setInstruments] = useState<OkxPerpInstrument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [removing, setRemoving, getRemoving] = useState(false);
+
+  const persist = async (order: FollowUpOrder | null) => {
+    setError(null);
+    try {
+      const issue = await onSave(order);
+      if (issue) setError(issue);
+      else onClose();
+    } catch (issue) {
+      setError(convexErrorMessage(issue));
+    }
+  };
+
+  const form = useForm({
+    defaultValues: {
+      instId: saved?.instId ?? row.instId,
+      side: saved?.side ?? row.position.side,
+      amount: saved?.margin ?? 0,
+      multiplier: saved?.leverage ?? row.position.leverage,
+      stopLoss: saved?.exitTargets.stopLoss ?? 0,
+      takeProfit: saved?.exitTargets.takeProfit ?? 0,
+      stopEnabled: saved?.exitTargets.stopLoss != null,
+      profitEnabled: saved?.exitTargets.takeProfit != null,
+    },
+    onSubmit: async ({ value }) => {
+      const instrument = instruments.find(({ instId }) => instId === value.instId);
+      if (!instrument) {
+        setError("Choose a live USDT perpetual.");
+        return;
+      }
+      const order: FollowUpOrder = {
+        instId: value.instId, side: value.side, margin: value.amount, leverage: value.multiplier,
+        exitTargets: { stopLoss: value.stopEnabled ? value.stopLoss : null, takeProfit: value.profitEnabled ? value.takeProfit : null },
+      };
+      const issue = validateFollowUpOrder(order, instrument.maxLeverage || 1);
+      if (issue) setError(issue);
+      else await persist(order);
+    },
+  });
+  const values = useStore(form.store, (state) => state.values);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const busy = submitting || removing;
+  const selected = instruments.find(({ instId }) => instId === values.instId);
+  const maxLeverage = selected ? selected.maxLeverage || 1 : values.multiplier;
+  const amountDragStep = Math.max(0.01, Math.round(row.position.margin) / 100);
+  const targetDragStep = Math.max(0.01, Math.round(values.amount || row.position.margin) / 100);
+
+  const selectInstrument = (instId: string) => {
+    const instrument = instruments.find((market) => market.instId === instId);
+    form.setFieldValue("instId", instId);
+    if (instrument && values.multiplier > (instrument.maxLeverage || 1)) {
+      form.setFieldValue("multiplier", instrument.maxLeverage || 1);
+    }
+    setError(null);
+  };
+
+  useLayoutEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void fetchPerps().then((catalog) => {
+      if (!active) return;
+      const eligible = catalog.filter((market) => market.state === "live" && market.settleCcy === "USDT").sort((a, b) => a.base.localeCompare(b.base));
+      const { instId, multiplier } = form.state.values;
+      const market = eligible.find((instrument) => instrument.instId === instId);
+      if (market && multiplier > (market.maxLeverage || 1)) form.setFieldValue("multiplier", market.maxLeverage || 1);
+      setInstruments(eligible);
+    }).catch(() => {}).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const remove = async () => {
+    if (form.state.isSubmitting || getRemoving()) return;
+    setRemoving(true);
+    try { await persist(null); }
+    finally { setRemoving(false); }
+  };
+
+dialog.pos-exit-dialog(ref={dialog} aria-labelledby={title} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }})
+  form.pos-exit-form(aria-busy={busy} onSubmit={(event) => { event.preventDefault(); if (!busy && !loading) void form.handleSubmit(); }})
+    header
+      h2(id={title}) #{row.base} follow-up order
+      p Opens one paper market order when this position closes. The order uses the available balance at that time.
+    label.sim-field
+      span Asset
+      select.sim-input(className="w-full min-w-0 text-(--text-primary)" value={values.instId} disabled={busy || loading} onChange={(event) => selectInstrument(event.currentTarget.value)})
+        if !selected
+          option(value={values.instId}) #{values.instId.split("-")[0]}
+        each instrument in instruments key instrument.instId
+          option(value={instrument.instId}) #{instrument.base}
+    PositionOrderControls(
+      ~ side={values.side} amount={values.amount} amountLimit={MAX_PAPER_MARGIN} amountSuffix="USDT" amountDragStep={amountDragStep}
+      ~ leverage={values.multiplier} maxLeverage={maxLeverage} disabled={busy || !selected}
+      ~ onSideChange={(side) => { form.setFieldValue("side", side); setError(null); }}
+      ~ onAmountChange={(amount) => { form.setFieldValue("amount", amount); setError(null); }}
+      ~ onLeverageChange={(multiplier) => { form.setFieldValue("multiplier", multiplier); setError(null); }}
+      ~ )
+    fieldset(className="grid min-w-0 gap-4" disabled={busy})
+      legend.pos-exit-note(className="mb-1") Follow-up TP/SL (optional)
+      ExitTargetField(
+        ~ kind="stop-loss" value={values.stopLoss} enabled={values.stopEnabled} disabled={busy} suffix="USDT"
+        ~ min={Math.min(-MAX_EXIT_TARGET, values.stopLoss)} max={0} dragStep={targetDragStep}
+        ~ label="Net P&L" ariaLabel="Stop loss (USDT)"
+        ~ onToggle={(enabled) => { form.setFieldValue("stopEnabled", enabled); setError(null); }}
+        ~ onChange={(value) => { form.setFieldValue("stopLoss", value); setError(null); }}
+        ~ )
+      ExitTargetField(
+        ~ kind="take-profit" value={values.takeProfit} enabled={values.profitEnabled} disabled={busy} suffix="USDT"
+        ~ min={0} max={Math.max(MAX_EXIT_TARGET, values.takeProfit)} dragStep={targetDragStep}
+        ~ label="Net P&L" ariaLabel="Take profit (USDT)"
+        ~ onToggle={(enabled) => { form.setFieldValue("profitEnabled", enabled); setError(null); }}
+        ~ onChange={(value) => { form.setFieldValue("takeProfit", value); setError(null); }}
+        ~ )
+    if loading
+      p.pos-exit-note(role="status") Loading assets…
+    elseif instruments.length === 0
+      p.sim-error(role="alert") Could not load the asset list. Reopen the dialog to retry.
+    if error
+      p.sim-error(role="alert") #{error}
+    if saved
+      button.sim-link.is-down(className="justify-self-start" type="button" disabled={busy} onClick={remove}) #{removing ? "Removing…" : "Remove trigger"}
+    footer(className="mt-0!")
+      button.pos-close(className="rounded-lg! bg-(--border)!" type="button" disabled={busy} onClick={onClose}) Cancel
+      button.lp-btn.lp-btn-primary(className="justify-center rounded-lg!" type="submit" disabled={busy || loading || !selected}) #{submitting ? "Saving…" : "Save trigger"}

@@ -35,6 +35,9 @@ component TradeRow
     const targets = "exitTargets" in trade ? trade.exitTargets : undefined;
     const stopLoss = targets?.stopLoss ?? null;
     const takeProfit = targets?.takeProfit ?? null;
+    const followUp = "followUpOrder" in trade ? trade.followUpOrder : undefined;
+    const followUpResult = "followUpResult" in trade ? trade.followUpResult : undefined;
+    const followUpBase = followUp?.instId.split("-")[0];
     const priceInputs = { side: trade.side, entry: trade.entry, size, openFee };
     const closeFee = saved ? trade.closeFee : liquidated ? 0 : size * trade.exit * TAKER_FEE;
     const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down";
@@ -94,6 +97,11 @@ component TradeRow
           div
             dt Take profit target
             dd #{money(takeProfit, true)} · #{fmtExitPrice(priceInputs, takeProfit)}
+        if followUp && followUpResult
+          div
+            dt Follow-up order
+            dd(className={followUpResult.status === "failed" ? "is-down" : undefined})
+              | #{followUpResult.status === "opened" ? `Opened ${followUpBase}` : followUpResult.status === "pending" ? `Opening ${followUpBase}…` : `${followUpBase} could not open. ${followUpResult.error}`}
         div
           dt Opened
           dd #{trade.openedAt === undefined ? "—" : dateTime.format(trade.openedAt)}

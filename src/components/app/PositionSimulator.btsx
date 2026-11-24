@@ -5,7 +5,7 @@ import { maxMargin, usePaperAccount, type SimResult } from "@/hooks/usePaperAcco
 import { useLiveAccount, useOkxConnection } from "@/hooks/useLiveAccount";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
-import ScrubField from "@/components/ui/scrubfield.btsx";
+import PositionOrderControls from "./PositionOrderControls.btsx";
 import PositionExitModal from "./PositionExitModal.btsx";
 import OkxConnectionModal from "../OkxConnectionModal.btsx";
 import { useFirebaseUser } from "@/lib/firebase/auth";
@@ -17,10 +17,6 @@ module
     if (v === null || v === undefined || !Number.isFinite(v)) return "—"
     const cents = Math.round(v * 100) / 100
     return `${signed && cents > 0 ? "+" : cents < 0 ? "−" : ""}$${Math.abs(cents).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  }
-
-  function leverageStops(max: number): number[] {
-    return [...new Set([1, 2, 5, 10, 20, 50, 100].filter((x) => x < max).concat(max))]
   }
 
 props { instId, base, tickSz, maxLeverage, ticker, markPx, startPersonal = false }: { instId: string; base: string; tickSz?: number; maxLeverage: number; ticker: OkxTicker | null; markPx?: number; startPersonal?: boolean }
@@ -266,48 +262,12 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position` }
   else
     .sim-form
-      .sim-sides(role="radiogroup" aria-label="Direction")
-        button(type="button" role="radio" aria-checked={side === "up"} className={cn("sim-side is-up", side === "up" && "is-active")} onClick={() => setSide("up")}) ▲ Up
-        button(type="button" role="radio" aria-checked={side === "down"} className={cn("sim-side is-down", side === "down" && "is-active")} onClick={() => setSide("down")}) ▼ Down
-
-      ScrubField(
-        ~ label="Amount"
-        ~ labelColor={side === 'up' ? "text-[#1b1b1b]" : 'text-white'}
-        ~ suffix={isPersonal ? "USDT" : "USD"}
-        ~ value={margin}
-        ~ min={0}
-        ~ max={amountLimit}
-        ~ step={0.01}
-        ~ dragStep={Math.max(0.01, Math.round(amountLimit) / 100)}
-        ~ rubberReach={0}
-        ~ size="lg"
-        ~ className="w-full! border_ border-(--border-muted) focus-within:border-(--text-muted)"
-        ~ chipColor="var(--bg-base)"
-        ~ accent={side === "up" ? "var(--buy)" : "#ff5c74"}
-        ~ showDirty={false}
-        ~ disabled={available === null || busy !== null}
-        ~ onChange={changeAmount}
+      PositionOrderControls(
+        ~ side={side} amount={margin} amountLimit={amountLimit} amountSuffix={isPersonal ? "USDT" : "USD"}
+        ~ leverage={leverage} maxLeverage={effMaxLeverage}
+        ~ amountDisabled={available === null || busy !== null}
+        ~ onSideChange={setSide} onAmountChange={changeAmount} onAmountPreset={setFraction} onLeverageChange={setLeverage}
         ~ )
-      .sim-chips
-        each f in [0.1, 0.25, 0.5, 1] key f
-          button.sim-chip(type="button" onClick={() => setFraction(f)}) #{f === 1 ? "Max" : `${f * 100}%`}
-
-      label.sim-field
-        span.sim-field-head
-          | Multiplier
-          strong #{leverage}×
-        input.sim-range(
-          ~ type="range"
-          ~ min="1"
-          ~ max={effMaxLeverage}
-          ~ step="1"
-          ~ value={leverage}
-          ~ style={{ "--fill": `${effMaxLeverage > 1 ? ((leverage - 1) / (effMaxLeverage - 1)) * 100 : 100}%` }}
-          ~ onInput={(e: Event) => setLeverage(Number((e.target as HTMLInputElement).value))}
-          ~ )
-      .sim-chips
-        each x in leverageStops(effMaxLeverage) key x
-          button(type="button" className={cn("sim-chip", leverage === x && "is-active")} onClick={() => setLeverage(x)}) #{x}×
 
       dl.sim-rows
         .sim-row

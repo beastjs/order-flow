@@ -1,0 +1,57 @@
+import ScrubField from "@/components/ui/scrubfield.btsx";
+import Squishy from "@/components/ui/squishy.btsx";
+
+module
+  export const MAX_EXIT_TARGET = Number.MAX_SAFE_INTEGER / 100;
+
+  interface Props {
+    kind: "stop-loss" | "take-profit";
+    value: number;
+    enabled: boolean;
+    disabled?: boolean;
+    min: number;
+    max: number;
+    label: string;
+    ariaLabel: string;
+    suffix?: string;
+    dragStep: number;
+    onToggle: (enabled: boolean) => void;
+    onChange: (value: number) => void;
+  }
+
+props { kind, value, enabled, disabled, min, max, label, ariaLabel, suffix = "USD", dragStep, onToggle, onChange }: Props
+setup const stop = kind === "stop-loss";
+
+.pos-exit-target
+  Squishy(
+    ~ height={20}
+    ~ width={32}
+    ~ label={stop ? "Stop loss" : "Take profit"}
+    ~ className={stop ? "pos-exit-toggle w-full! capitalize!" : "pos-exit-toggle"}
+    ~ checked={enabled}
+    ~ disabled={disabled || min === max}
+    ~ trackColor="var(--text-muted)"
+    ~ trackOnColor="#f0f0f0"
+    ~ thumbColor="var(--border)"
+    ~ thumbOnColor="var(--bg-base)"
+    ~ onChange={onToggle}
+    ~ )
+  ScrubField(
+    ~ label={label}
+    ~ ariaLabel={ariaLabel}
+    ~ suffix={suffix}
+    ~ value={value}
+    ~ min={min}
+    ~ max={max}
+    ~ step={0.01}
+    ~ dragStep={dragStep}
+    ~ size="lg"
+    ~ rubberReach={0}
+    ~ showFill={true}
+    ~ accent={stop ? "#fafafa" : "#2fd897"}
+    ~ chipColor={stop ? "#ff5c74" : "#dddddd40"}
+    ~ labelColor={stop ? "text-white!" : "text-(--bg-base)"}
+    ~ className={stop ? "w-full! text-white! border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!" : "w-full! _border border-(--border)! disabled:border-(--border-muted)! focus-within:border-(--text-muted)!"}
+    ~ disabled={disabled || !enabled}
+    ~ onChange={onChange}
+    ~ )

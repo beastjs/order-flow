@@ -2,6 +2,7 @@ import { useEffect, useLinkedState, useState } from "octane";
 import { Link } from "@octanejs/tanstack-router";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import PositionExitModal from "./PositionExitModal.btsx";
+import FollowUpOrderModal from "./FollowUpOrderModal.btsx";
 import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
 import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
 import { convexErrorMessage } from "@/hooks/useConvex";
@@ -42,7 +43,7 @@ component ExitTargetChip
       span.pos-exit-chip-price(className='portrait:hidden') #{price}
 
 component PositionRow
-  props { row, mark, exit, pnl, busy, disabled, onClose, onExitTargets }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void; onExitTargets: (row: OpenPositionRow) => void }
+  props { row, mark, exit, pnl, busy, disabled, onClose, onExitTargets, onFollowUp }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void; onExitTargets: (row: OpenPositionRow) => void; onFollowUp: (row: OpenPositionRow) => void }
   setup
     const p = row.position;
     const canClose = pnl !== null && Boolean(exit);
@@ -51,13 +52,14 @@ component PositionRow
     const takeProfit = p.exitTargets?.takeProfit ?? null;
     const hasExitTargets = stopLoss !== null || takeProfit !== null;
     const editExitTargets = () => onExitTargets(row);
+    const followUpBase = p.followUpOrder?.instId.split("-")[0];
   article.pos-article(className='portrait:flex-col! portrait:rounded-md! hover:border-(--text-secondary)/50! transition-[border-color] duration-300 ease-out' data-side={p.side})
     div.pos-row
       Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
         AssetGlyph(base={row.base} size={38})
         span.pos-asset-name
           strong #{row.base}
-          span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "↑ Up" : "↓ Down"} #{p.leverage}X
+          span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "↑" : "↓"} #{p.leverage}X
       .pos-cell(className='portrait:hidden!')
         span.pos-label Size
         span #{fmtSize(p.size)}
@@ -73,11 +75,30 @@ component PositionRow
       .pos-cell(className='portrait:hidden!')
         span.pos-label Margin
         span #{usd(p.margin)}
+
       .pos-cell.pos-pnl(className='portrait:items-end!')
         span.pos-label(className='portrait:hidden!') PnL
-        span.pos-pnl-val(className={cn('portrait:text-right portrait:font-[600]', pnlClass)})
+        span.pos-pnl-val(className={cn('portrait:text-lg! portrait:text-right portrait:font-[600]', pnlClass)})
           span(className='portrait:block!') #{usd(pnl, true)}
           small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100)}
+      .pos-cell.pos-follow-up-cell
+        button.pos-follow-up(
+          ~ className='portrait:bg-transparent! portrait:hover:bg-(--border)!'
+          ~ type="button"
+          ~ data-armed={Boolean(followUpBase)}
+          ~ aria-label={`${followUpBase ? "Edit" : "Set"} ${row.base} follow-up order`}
+          ~ aria-haspopup="dialog"
+          ~ disabled={disabled}
+          ~ onClick={() => onFollowUp(row)}
+          ~ )
+          Icon(name="bolt" className="size-4.5 shrink-0 text-orange-300")
+          span
+            | Triggers
+            if followUpBase
+              span.pos-follow-up-destination
+                span(className="portrait:hidden") #{" · "}
+                | #{followUpBase}
+
     .pos-row-actions
       if hasExitTargets
         .pos-exit-chips
@@ -109,7 +130,7 @@ setup
   const [error, setError] = useState<string | null>(null);
   const [lastFill, setLastFill] = useState<(SimResult & { base: string }) | null>(null);
   const [bulkResult, setBulkResult] = useState<Awaited<ReturnType<typeof open.closeAll>> | null>(null);
-  const [target, setTarget] = useState<{ key: string; openedAt: number; mode: typeof open.mode } | null>(null);
+  const [target, setTarget] = useState<{ key: string; openedAt: number; mode: typeof open.mode; kind: "exit" | "follow-up" } | null>(null);
   const [showTotalTargets, setShowTotalTargets] = useLinkedState(open.loading ? null : open.mode, (): boolean => false);
   const targetRow = target?.mode === open.mode && !open.loading
     ? open.rows.find((row) => row.key === target.key && row.position.openedAt === target.openedAt)
@@ -265,14 +286,17 @@ section.pos(aria-label="Paper positions")
           ~ busy={closing === item.row.key}
           ~ disabled={closing !== null || confirming}
           ~ onClose={close}
-          ~ onExitTargets={(row: OpenPositionRow) => setTarget({ key: row.key, openedAt: row.position.openedAt, mode: open.mode })}
+          ~ onExitTargets={(row: OpenPositionRow) => setTarget({ key: row.key, openedAt: row.position.openedAt, mode: open.mode, kind: "exit" })}
+          ~ onFollowUp={(row: OpenPositionRow) => setTarget({ key: row.key, openedAt: row.position.openedAt, mode: open.mode, kind: "follow-up" })}
           ~ )
       empty
         .pos-empty
           p No open paper positions.
           Link.lp-btn.lp-btn-ghost(to="/perps") Browse markets
 
-  if targetRow
+  if targetRow && target?.kind === "follow-up"
+    FollowUpOrderModal(row={targetRow} onSave={(order) => open.setFollowUpOrder(targetRow, order)} onClose={() => setTarget(null)})
+  elseif targetRow
     PositionExitModal(row={targetRow} mode={open.mode} onSave={(targets) => open.setExitTargets(targetRow, targets)} onClose={() => setTarget(null)})
   if showTotalTargets && !open.loading
     PositionExitModal(total={{ targets: open.totalExitTargets, margin: totalMargin }} mode={open.mode} onSave={open.setTotalExitTargets} onClose={() => setShowTotalTargets(false)})

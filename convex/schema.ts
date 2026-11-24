@@ -17,6 +17,18 @@ export const exitTargetFields = {
   stopLoss: v.union(v.number(), v.null()),
   takeProfit: v.union(v.number(), v.null()),
 };
+export const followUpOrder = v.object({
+  instId: v.string(),
+  side,
+  margin: v.number(),
+  leverage: v.number(),
+  exitTargets: v.object(exitTargetFields),
+});
+const followUpResult = v.union(
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("opened") }),
+  v.object({ status: v.literal("failed"), error: v.string() }),
+);
 // USDT = paper trading balance; USD = real top-ups (never touched by Reset).
 export const currency = v.union(v.literal("USDT"), v.literal("USD"));
 export const fundsMode = v.union(v.literal("paper"), v.literal("live"));
@@ -93,6 +105,7 @@ export default defineSchema({
     mode: fundsMode,
     balance: v.number(),
     locked: v.number(),
+    paperResetAt: v.optional(v.number()),
     totalExitTargets: v.optional(v.object({ ...exitTargetFields, setAt: v.number() })),
   })
     .index("by_userId_and_currency", ["userId", "currency"])
@@ -119,6 +132,8 @@ export default defineSchema({
     closedAt: v.optional(v.number()),
     exitTargets: v.optional(v.object({ ...exitTargetFields, setAt: v.number() })),
     autoExitReason: v.optional(autoExitReason),
+    followUpOrder: v.optional(followUpOrder),
+    followUpResult: v.optional(followUpResult),
   })
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_userId_and_closedAt", ["userId", "closedAt"])

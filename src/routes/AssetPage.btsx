@@ -56,12 +56,12 @@ component PositionUserCounts
   section.ap-position-users(aria-label="Users with open positions")
     .ap-position-user-sides
       .ap-position-user-side
-
         span.is-up
           Icon(name='user' className='size-4.5')
         strong #{data ? countFormat.format(data.up) : "—"}
       .ap-position-user-side
-        span.is-down ↓
+        span.is-down
+          Icon(name='user' className='size-4.5')
         strong #{data ? countFormat.format(data.down) : "—"}
     if error || failed
       span.ap-position-user-status Counts unavailable

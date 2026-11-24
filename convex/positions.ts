@@ -1,18 +1,17 @@
-import { v } from "convex/values";
+import { v, type Infer } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator, type FunctionReturnType } from "convex/server";
 import { action, internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import schema, { category, exitTargetFields, positionStatus, side } from "./schema";
+import schema, { category, exitTargetFields, followUpOrder, positionStatus, side } from "./schema";
 import { currentUser, requireUser } from "./lib/auth";
 import { writeLog } from "./lib/log";
 import { assetPositionCounts, hasOpenPositions, startPositionCountBackfill, syncAssetPositionCounts } from "./lib/positionCounts";
 import { fetchAllMarks, fetchQuote, fetchSwap, fetchSwapQuotes } from "./lib/okx";
-import { requireFunds } from "./funds";
-import { TAKER_FEE, autoExitLabels, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, priceTotalExit, totalExitReason, validateExitTargets, validateTotalExitTargets, type AutoExitReason, type PaperPosition } from "../src/lib/paper/math";
+import { getFunds, requireFunds } from "./funds";
+import { MAX_PAPER_MARGIN, TAKER_FEE, autoExitLabels, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, priceTotalExit, totalExitReason, validateExitTargets, validateFollowUpOrder, validateTotalExitTargets, type AutoExitReason, type ExitTargets, type PaperPosition } from "../src/lib/paper/math";
 
-const MAX_MARGIN = 1_000_000;
 const SWEEP_BATCH = 500;
 
 const toPaper = (p: Doc<"positions">): PaperPosition => ({
@@ -25,6 +24,7 @@ const toPaper = (p: Doc<"positions">): PaperPosition => ({
   openFee: p.openFee,
   openedAt: p.openedAt,
   exitTargets: p.exitTargets,
+  followUpOrder: p.followUpOrder,
 });
 
 const usd = (n: number) => `${n < 0 ? "−" : n > 0 ? "+" : ""}$${Math.abs(n).toFixed(2)}`;
@@ -158,7 +158,7 @@ export const open = action({
   returns: v.id("positions"),
   handler: async (ctx, args): Promise<Id<"positions">> => {
     if (!(await ctx.auth.getUserIdentity())) throw new Error("Not signed in.");
-    if (!Number.isFinite(args.margin) || args.margin <= 0 || args.margin > MAX_MARGIN) throw new Error("Invalid amount.");
+    if (!Number.isFinite(args.margin) || args.margin <= 0 || args.margin > MAX_PAPER_MARGIN) throw new Error("Invalid amount.");
     if (!Number.isInteger(args.leverage) || args.leverage < 1) throw new Error("Invalid multiplier.");
 
     const swap = await fetchSwap(args.instId);
@@ -177,60 +177,60 @@ export const open = action({
   },
 });
 
+const pricedOpen = v.object({
+  instId: v.string(), base: v.string(), category, side,
+  margin: v.number(), leverage: v.number(), entry: v.number(),
+});
+
+async function openForUser(
+  ctx: MutationCtx, userId: Id<"users">, args: Infer<typeof pricedOpen>,
+  followUp?: { exitTargets: ExitTargets; closedAt: number },
+): Promise<{ positionId: Id<"positions"> } | { error: string }> {
+  const existing = await ctx.db.query("positions")
+    .withIndex("by_userId_and_instId_and_status", (q) =>
+      q.eq("userId", userId).eq("instId", args.instId).eq("status", "open"))
+    .first();
+  if (existing) return { error: `Close your open ${args.base} position first.` };
+
+  const funds = await getFunds(ctx, userId);
+  if (!funds) return { error: "No funds account." };
+  if (followUp && (funds.paperResetAt ?? -Infinity) >= followUp.closedAt) {
+    return { error: "The paper balance was reset." };
+  }
+  const now = Date.now();
+  const p = openPosition(args.instId, args.side, args.margin, args.leverage, args.entry, now);
+  const cost = p.margin + p.openFee;
+  if (cost > funds.balance + 1e-9) return { error: "Not enough paper balance." };
+  const targets = followUp?.exitTargets;
+  const exitTargets = targets && (targets.stopLoss !== null || targets.takeProfit !== null)
+    ? { ...targets, setAt: now } : undefined;
+
+  const positionId = await ctx.db.insert("positions", {
+    ...args, userId, size: p.size, openFee: p.openFee, status: "open", openedAt: now, exitTargets,
+  });
+  await syncAssetPositionCounts(ctx, p.instId, userId);
+  const balanceAfter = funds.balance - cost;
+  await ctx.db.patch("funds", funds._id, { balance: balanceAfter, locked: funds.locked + p.margin });
+  await ctx.db.insert("activity", {
+    userId,
+    kind: "position_opened",
+    message: `${followUp ? "Follow-up opened" : "Opened"} ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${args.base} at ${p.entry}`,
+    positionId,
+    instId: args.instId,
+    amount: -cost,
+    balanceAfter,
+  });
+  return { positionId };
+}
+
 export const openPriced = internalMutation({
-  args: {
-    instId: v.string(),
-    base: v.string(),
-    category,
-    side,
-    margin: v.number(),
-    leverage: v.number(),
-    entry: v.number(),
-  },
+  args: pricedOpen.fields,
   returns: v.id("positions"),
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
-    const existing = await ctx.db
-      .query("positions")
-      .withIndex("by_userId_and_instId_and_status", (q) =>
-        q.eq("userId", user._id).eq("instId", args.instId).eq("status", "open"),
-      )
-      .first();
-    if (existing) throw new Error(`Close your open ${args.base} position first.`);
-
-    const now = Date.now();
-    const p = openPosition(args.instId, args.side, args.margin, args.leverage, args.entry, now);
-    const funds = await requireFunds(ctx, user._id);
-    const cost = p.margin + p.openFee;
-    if (cost > funds.balance + 1e-9) throw new Error("Not enough paper balance.");
-
-    const positionId = await ctx.db.insert("positions", {
-      userId: user._id,
-      instId: args.instId,
-      base: args.base,
-      category: args.category,
-      side: p.side,
-      margin: p.margin,
-      leverage: p.leverage,
-      entry: p.entry,
-      size: p.size,
-      openFee: p.openFee,
-      status: "open",
-      openedAt: now,
-    });
-    await syncAssetPositionCounts(ctx, p.instId, user._id);
-    const balanceAfter = funds.balance - cost;
-    await ctx.db.patch("funds", funds._id, { balance: balanceAfter, locked: funds.locked + p.margin });
-    await ctx.db.insert("activity", {
-      userId: user._id,
-      kind: "position_opened",
-      message: `Opened ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${args.base} at ${p.entry}`,
-      positionId,
-      instId: args.instId,
-      amount: -cost,
-      balanceAfter,
-    });
-    return positionId;
+    const result = await openForUser(ctx, user._id, args);
+    if ("error" in result) throw new Error(result.error);
+    return result.positionId;
   },
 });
 
@@ -265,6 +265,7 @@ async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: numbe
     realized: fill.realized,
     closedAt: fill.closedAt,
     autoExitReason: reason,
+    followUpResult: fill.followUpResult,
   });
   await syncAssetPositionCounts(ctx, p.instId, p.userId);
 
@@ -287,6 +288,9 @@ async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: numbe
     amount: credit,
     balanceAfter,
   });
+  if (p.followUpOrder) {
+    await ctx.scheduler.runAfter(0, internal.positions.executeFollowUp, { positionId: p._id });
+  }
   return fill.realized;
 }
 
@@ -318,6 +322,70 @@ export const setExitTargets = mutation({
     await ctx.db.patch("positions", positionId, {
       exitTargets: stopLoss === null && takeProfit === null ? undefined : { stopLoss, takeProfit, setAt: Date.now() },
     });
+    return null;
+  },
+});
+
+export const setFollowUpOrder = mutation({
+  args: { positionId: v.id("positions"), order: v.union(followUpOrder, v.null()) },
+  returns: v.null(),
+  handler: async (ctx, { positionId, order }) => {
+    const user = await requireUser(ctx);
+    const position = await ctx.db.get("positions", positionId);
+    if (!position || position.userId !== user._id || position.status !== "open") {
+      throw new Error("Position not found or already closed.");
+    }
+    const error = order && validateFollowUpOrder(order);
+    if (error) throw new Error(error);
+    await ctx.db.patch("positions", positionId, { followUpOrder: order ?? undefined });
+    return null;
+  },
+});
+
+export const pendingFollowUp = internalQuery({
+  args: { positionId: v.id("positions") },
+  returns: v.union(followUpOrder, v.null()),
+  handler: async (ctx, { positionId }) => {
+    const source = await ctx.db.get("positions", positionId);
+    return source?.followUpResult?.status === "pending" ? source.followUpOrder ?? null : null;
+  },
+});
+
+const followUpQuote = v.union(v.object({ base: v.string(), category, entry: v.number() }), v.object({ error: v.string() }));
+
+export const completeFollowUp = internalMutation({
+  args: { positionId: v.id("positions"), quote: followUpQuote },
+  returns: v.null(),
+  handler: async (ctx, { positionId, quote }) => {
+    const source = await ctx.db.get("positions", positionId);
+    if (!source?.followUpOrder || source.closedAt === undefined || source.followUpResult?.status !== "pending") return null;
+    const { exitTargets, ...order } = source.followUpOrder;
+    const result = "error" in quote ? quote : await openForUser(ctx, source.userId, { ...order, ...quote }, {
+      exitTargets, closedAt: source.closedAt,
+    });
+    await ctx.db.patch("positions", positionId, {
+      followUpResult: "error" in result ? { status: "failed", error: result.error } : { status: "opened" },
+    });
+    return null;
+  },
+});
+
+export const executeFollowUp = internalAction({
+  args: { positionId: v.id("positions") },
+  returns: v.null(),
+  handler: async (ctx, { positionId }) => {
+    const order: Infer<typeof followUpOrder> | null = await ctx.runQuery(internal.positions.pendingFollowUp, { positionId });
+    if (!order) return null;
+
+    let quote: Infer<typeof followUpQuote>;
+    try {
+      const [swap, market] = await Promise.all([fetchSwap(order.instId), fetchQuote(order.instId)]);
+      const error = validateFollowUpOrder(order, swap.maxLeverage);
+      quote = error ? { error } : { base: swap.base, category: swap.category, entry: order.side === "up" ? market.ask : market.bid };
+    } catch (error) {
+      quote = { error: error instanceof Error ? error.message : "Could not get a market quote." };
+    }
+    await ctx.runMutation(internal.positions.completeFollowUp, { positionId, quote });
     return null;
   },
 });

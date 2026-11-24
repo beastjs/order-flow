@@ -1,17 +1,45 @@
 import { useEffect, useSyncExternalStore } from "octane";
 import { useConvexAuth } from "@/hooks/useConvex";
 import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
-import { paperStore } from "@/lib/paper/paper";
+import { fetchTicker, findPerp } from "@/lib/okx";
+import { paperStore, validateFollowUpOrder, type FollowUpOrder } from "@/lib/paper/paper";
+
+module
+  async function priceFollowUp(order: FollowUpOrder) {
+    try {
+      const [instrument, ticker] = await Promise.all([findPerp(order.instId), fetchTicker(order.instId)]);
+      if (!instrument || instrument.state !== "live" || instrument.settleCcy !== "USDT") {
+        return { error: "The selected perpetual is unavailable." } as const;
+      }
+      const error = validateFollowUpOrder(order, instrument.maxLeverage || 1);
+      return error ? { error } : { entry: order.side === "up" ? ticker.askPx : ticker.bidPx };
+    } catch {
+      return { error: "Could not get a market quote." } as const;
+    }
+  }
 
 setup
   const auth = useConvexAuth();
-  const { positions, totalExitTargets } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  const { positions, totalExitTargets, pendingFollowUps } = useSyncExternalStore(paperStore.subscribe, paperStore.get, paperStore.get);
+  const pending = pendingFollowUps?.[0];
   const enabled = !auth.isLoading && !auth.isAuthenticated;
   const ids = enabled ? Object.values(positions)
-    .filter((position) => totalExitTargets || position.exitTargets)
+    .filter((position) => totalExitTargets || position.exitTargets || position.followUpOrder)
     .map((position) => position.instId) : [];
   const tickers = useOkxTickers(ids, 250);
   const marks = useOkxMarkPrices(ids, 250);
+
+  useEffect(() => {
+    if (!enabled || !pending) return;
+    let active = true;
+    void priceFollowUp(pending.order).then((quote) => {
+      const complete = () => { if (active) paperStore.completeFollowUp(pending, quote); };
+      if (!active) return;
+      if (navigator.locks) return navigator.locks.request("cfx-paper-follow-up", complete).catch(complete);
+      complete();
+    });
+    return () => { active = false; };
+  }, [enabled, pending]);
 
   useEffect(() => {
     if (!enabled) return;

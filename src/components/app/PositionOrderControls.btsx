@@ -1,0 +1,74 @@
+import type { PaperSide } from "@/lib/paper/math";
+import { cn } from "@/lib/utils";
+import ScrubField from "@/components/ui/scrubfield.btsx";
+
+module
+  interface Props {
+    side: PaperSide;
+    amount: number;
+    amountLimit: number;
+    amountSuffix: string;
+    amountDragStep?: number;
+    leverage: number;
+    maxLeverage: number;
+    disabled?: boolean;
+    amountDisabled?: boolean;
+    onSideChange: (side: PaperSide) => void;
+    onAmountChange: (amount: number) => void;
+    onAmountPreset?: (fraction: number) => void;
+    onLeverageChange: (leverage: number) => void;
+  }
+
+props { side, amount, amountLimit, amountSuffix, amountDragStep = Math.max(0.01, Math.round(amountLimit) / 100), leverage, maxLeverage, disabled, amountDisabled, onSideChange, onAmountChange, onAmountPreset, onLeverageChange }: Props
+setup
+  const stops = [1, 2, 5, 10, 20, 50, 100].filter((step) => step < maxLeverage).concat(maxLeverage);
+  const fill = maxLeverage > 1 ? ((leverage - 1) / (maxLeverage - 1)) * 100 : 100;
+
+.contents(style={{ "--tone": side === "up" ? "var(--buy)" : "var(--sell)" }})
+  .sim-sides(role="radiogroup" aria-label="Direction")
+    button.sim-side.is-up(type="button" role="radio" aria-checked={side === "up"} className={side === "up" && "is-active"} disabled={disabled} onClick={() => onSideChange("up")}) ▲ Up
+    button.sim-side.is-down(type="button" role="radio" aria-checked={side === "down"} className={side === "down" && "is-active"} disabled={disabled} onClick={() => onSideChange("down")}) ▼ Down
+
+  ScrubField(
+    ~ label="Amount"
+    ~ ariaLabel={`Amount (${amountSuffix})`}
+    ~ labelColor={side === "up" ? "text-[#1b1b1b]" : "text-white"}
+    ~ suffix={amountSuffix}
+    ~ value={amount}
+    ~ min={0}
+    ~ max={amountLimit}
+    ~ step={0.01}
+    ~ dragStep={amountDragStep}
+    ~ rubberReach={0}
+    ~ size="lg"
+    ~ className="w-full! border_ border-(--border-muted) focus-within:border-(--text-muted)"
+    ~ chipColor="var(--bg-base)"
+    ~ accent={side === "up" ? "var(--buy)" : "#ff5c74"}
+    ~ showDirty={false}
+    ~ disabled={disabled || amountDisabled}
+    ~ onChange={onAmountChange}
+    ~ )
+  if onAmountPreset
+    .sim-chips
+      each fraction in [0.1, 0.25, 0.5, 1] key fraction
+        button.sim-chip(type="button" disabled={disabled} onClick={() => onAmountPreset(fraction)}) #{fraction === 1 ? "Max" : `${fraction * 100}%`}
+
+  label.sim-field
+    span.sim-field-head
+      | Multiplier
+      strong #{leverage}×
+    input.sim-range(
+      ~ type="range"
+      ~ aria-label="Multiplier"
+      ~ aria-valuetext={`${leverage}×`}
+      ~ min="1"
+      ~ max={maxLeverage}
+      ~ step="1"
+      ~ value={leverage}
+      ~ style={{ "--fill": `${fill}%` }}
+      ~ disabled={disabled}
+      ~ onInput={(event) => onLeverageChange(Number(event.currentTarget.value))}
+      ~ )
+  .sim-chips
+    each step in stops key step
+      button(type="button" className={cn("sim-chip", leverage === step && "is-active")} disabled={disabled} onClick={() => onLeverageChange(step)}) #{step}×

@@ -18,6 +18,16 @@ export interface ExitTargets {
   takeProfit: number | null
 }
 
+export interface FollowUpOrder {
+  instId: string
+  side: PaperSide
+  margin: number
+  leverage: number
+  exitTargets: ExitTargets
+}
+
+export type FollowUpResult = { status: 'pending' } | { status: 'opened' } | { status: 'failed'; error: string }
+
 export interface ExitQuote {
   bid?: number
   ask?: number
@@ -36,6 +46,7 @@ export interface PaperPosition {
   openFee: number
   openedAt: number
   exitTargets?: ExitTargets
+  followUpOrder?: FollowUpOrder
 }
 
 export interface PaperFill {
@@ -50,6 +61,8 @@ export interface PaperFill {
   liquidated: boolean
   exitTargets?: ExitTargets
   autoExitReason?: AutoExitReason
+  followUpOrder?: FollowUpOrder
+  followUpResult?: FollowUpResult
   openedAt: number
   closedAt: number
 }
@@ -58,6 +71,7 @@ export interface PaperFill {
 export const TAKER_FEE = 0.0005
 export const MAINT_MARGIN = 0.005
 export const STARTING_BALANCE = 10_000
+export const MAX_PAPER_MARGIN = 1_000_000
 
 const dir = (side: PaperSide) => (side === 'up' ? 1 : -1)
 
@@ -114,6 +128,16 @@ export function validateExitTargets(p: PaperPosition, { stopLoss, takeProfit }: 
       return 'Enter a positive take profit with a valid trigger price.'
   }
   return null
+}
+
+export function validateFollowUpOrder(order: FollowUpOrder, maxLeverage?: number): string | null {
+  if (!/^[A-Z0-9]{1,20}-USDT-SWAP$/.test(order.instId)) return 'Choose a supported USDT perpetual.'
+  if (!Number.isFinite(order.margin) || order.margin <= 0 || order.margin > MAX_PAPER_MARGIN) return 'Enter a valid amount.'
+  if (!Number.isSafeInteger(order.leverage) || order.leverage < 1) return 'Enter a whole-number multiplier of at least 1×.'
+  if (maxLeverage !== undefined && order.leverage > maxLeverage) return `The maximum multiplier is ${maxLeverage}×.`
+  // Dollar targets scale with notional, so their validity is independent of the entry price.
+  const position = openPosition(order.instId, order.side, order.margin, order.leverage, 1, 0)
+  return validateExitTargets(position, order.exitTargets)
 }
 
 function targetReached({ stopLoss, takeProfit }: ExitTargets, pnl: number) {
@@ -206,6 +230,7 @@ export function closePosition(p: PaperPosition, exit: number, liquidated = false
     liquidated,
     openedAt: p.openedAt,
     closedAt: now,
-    ...(p.exitTargets && { exitTargets: { ...p.exitTargets } })
+    ...(p.exitTargets && { exitTargets: { ...p.exitTargets } }),
+    ...(p.followUpOrder && { followUpOrder: p.followUpOrder, followUpResult: { status: 'pending' } })
   }
 }

@@ -46,6 +46,74 @@ describe("users + funds", () => {
 });
 
 describe("positions", () => {
+  it.each(["manual", "take profit"])("opens a one-shot follow-up after a %s close", async (reason) => {
+    const { t, alice, bob } = await setup();
+    const source = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    const instId = reason === "manual" ? AAPL.instId : "BTC-USDT-SWAP";
+    const order = { instId, side: "down" as const, margin: 200, leverage: 3, exitTargets: { stopLoss: -10, takeProfit: 20 } };
+    await expect(bob.mutation(api.positions.setFollowUpOrder, { positionId: source, order })).rejects.toThrow(/not found/);
+    await expect(alice.mutation(api.positions.setFollowUpOrder, { positionId: source, order: { ...order, margin: 0 } })).rejects.toThrow(/amount/);
+    await alice.mutation(api.positions.setFollowUpOrder, { positionId: source, order });
+
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const data = String(input).includes("instruments")
+        ? [{ state: "live", settleCcy: "USDT", lever: "10", instCategory: "1" }]
+        : [{ bidPx: "112", askPx: "113" }];
+      return Response.json({ code: "0", data });
+    });
+    try {
+      if (reason === "manual") {
+        await alice.action(api.positions.close, { positionId: source });
+      } else {
+        await alice.mutation(api.positions.setExitTargets, { positionId: source, stopLoss: null, takeProfit: 10 });
+        const position = (await alice.query(api.positions.openFor, { instId: AAPL.instId }))!;
+        expect(await t.mutation(internal.positions.settleExitTargets, {
+          checkedAt: position.exitTargets!.setAt, quotes: [{ positionId: source, exit: 112, mark: 112 }],
+        })).toBe(1);
+      }
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await t.action(internal.positions.executeFollowUp, { positionId: source });
+      expect(fetchMock).toHaveBeenCalledTimes(reason === "manual" ? 3 : 2);
+      const position = (await alice.query(api.positions.openFor, { instId }))!;
+      expect(position).toMatchObject({ side: "down", entry: 112, margin: 200, leverage: 3, exitTargets: order.exitTargets });
+      expect(position._id).not.toBe(source);
+      expect(position.followUpOrder).toBeUndefined();
+      expect(await bob.query(api.positions.openFor, { instId })).toBeNull();
+      const [closed] = (await alice.query(api.positions.history, { paginationOpts: page })).page;
+      expect(closed).toMatchObject({ _id: source, followUpResult: { status: "opened" } });
+      const funds = (await alice.query(api.funds.mine, {}))!;
+      expect(funds.locked).toBe(200);
+      expect(funds.balance).toBeCloseTo(STARTING_BALANCE + closed.realized! - 200 - 600 * TAKER_FEE);
+    } finally {
+      fetchMock.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the original close when the follow-up cannot be funded", async () => {
+    const { t, alice } = await setup();
+    const source = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    const order = { instId: AAPL.instId, side: "up" as const, margin: STARTING_BALANCE, leverage: 2, exitTargets: { stopLoss: null, takeProfit: null } };
+    await alice.mutation(api.positions.setFollowUpOrder, { positionId: source, order });
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => Response.json({
+      code: "0", data: String(input).includes("instruments")
+        ? [{ state: "live", settleCcy: "USDT", lever: "10" }] : [{ bidPx: "99", askPx: "100" }],
+    }));
+    try {
+      const realized = await alice.mutation(internal.positions.settle, { positionId: source, exit: 100, liquidated: true, asOwner: false });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(await alice.query(api.positions.openFor, { instId: AAPL.instId })).toBeNull();
+      const [closed] = (await alice.query(api.positions.history, { paginationOpts: page })).page;
+      expect(closed).toMatchObject({ status: "liquidated", followUpResult: { status: "failed", error: "Not enough paper balance." } });
+      expect((await alice.query(api.funds.mine, {}))?.balance).toBeCloseTo(STARTING_BALANCE + realized);
+    } finally {
+      fetchMock.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it.each([
     { stopLoss: null, takeProfit: 15, bid: 114, ask: 104, reason: "total_take_profit" },
     { stopLoss: -15, takeProfit: null, bid: 86, ask: 96, reason: "total_stop_loss" },

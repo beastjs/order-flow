@@ -50,6 +50,38 @@ describe("paper position math", () => {
 describe("paper store", () => {
   beforeEach(() => paperStore.reset());
 
+  it("queues a cross-asset follow-up after total TP and processes it once", () => {
+    const instId = "BTC-USDT-SWAP";
+    const destination = "ETH-USDT-SWAP";
+    const exitTargets = { stopLoss: -10, takeProfit: 25 };
+    paperStore.open(instId, "up", 100, 2, 100);
+    paperStore.setTotalExitTargets({ stopLoss: null, takeProfit: 8 });
+    const openedAt = paperStore.get().positions[instId].openedAt;
+    expect(paperStore.setFollowUpOrder(instId, openedAt, { instId: destination, side: "down", margin: 200, leverage: 3, exitTargets })).toBeNull();
+    paperStore.checkTotalExitTargets(() => ({ bid: 105, ask: 106, mark: 105 }));
+
+    const pending = paperStore.get().pendingFollowUps![0];
+    expect(paperStore.get().history[0].followUpResult).toEqual({ status: "pending" });
+    paperStore.completeFollowUp(pending, { entry: 99 });
+    const completed = paperStore.get();
+    paperStore.completeFollowUp(pending, { entry: 100 });
+    expect(paperStore.get()).toBe(completed);
+    expect(completed.positions[destination]).toMatchObject({ side: "down", margin: 200, leverage: 3, entry: 99, exitTargets });
+    expect(completed.positions[destination].followUpOrder).toBeUndefined();
+    expect(completed.history[0].followUpResult).toEqual({ status: "opened" });
+    expect(completed.balance).toBeCloseTo(STARTING_BALANCE + completed.history[0].realized - 200 - 600 * TAKER_FEE);
+  });
+
+  it("removes a follow-up from the source before it closes", () => {
+    const instId = "BTC-USDT-SWAP";
+    paperStore.open(instId, "up", 100, 2, 100);
+    const openedAt = paperStore.get().positions[instId].openedAt;
+    paperStore.setFollowUpOrder(instId, openedAt, { instId, side: "up", margin: 50, leverage: 2, exitTargets: { stopLoss: null, takeProfit: null } });
+    expect(paperStore.setFollowUpOrder(instId, openedAt, null)).toBeNull();
+    expect(paperStore.close(instId, 102)?.followUpResult).toBeUndefined();
+    expect(paperStore.get().pendingFollowUps).toBeUndefined();
+  });
+
   it("checks total targets against the full basket at market after fees", () => {
     paperStore.open("LONG", "up", 100, 2, 100);
     paperStore.open("SHORT", "down", 100, 2, 100);
