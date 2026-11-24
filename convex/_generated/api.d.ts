@@ -17,10 +17,13 @@ import type * as lib_chain from "../lib/chain.js";
 import type * as lib_depositMatch from "../lib/depositMatch.js";
 import type * as lib_log from "../lib/log.js";
 import type * as lib_okx from "../lib/okx.js";
+import type * as lib_okxCredentials from "../lib/okxCredentials.js";
 import type * as lib_okxTrade from "../lib/okxTrade.js";
 import type * as lib_okxTradeCore from "../lib/okxTradeCore.js";
+import type * as lib_positionCounts from "../lib/positionCounts.js";
 import type * as liveTrading from "../liveTrading.js";
 import type * as logs from "../logs.js";
+import type * as okxConnections from "../okxConnections.js";
 import type * as positions from "../positions.js";
 import type * as users from "../users.js";
 
@@ -40,10 +43,13 @@ declare const fullApi: ApiFromModules<{
   "lib/depositMatch": typeof lib_depositMatch;
   "lib/log": typeof lib_log;
   "lib/okx": typeof lib_okx;
+  "lib/okxCredentials": typeof lib_okxCredentials;
   "lib/okxTrade": typeof lib_okxTrade;
   "lib/okxTradeCore": typeof lib_okxTradeCore;
+  "lib/positionCounts": typeof lib_positionCounts;
   liveTrading: typeof liveTrading;
   logs: typeof logs;
+  okxConnections: typeof okxConnections;
   positions: typeof positions;
   users: typeof users;
 }>;

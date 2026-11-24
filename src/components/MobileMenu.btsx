@@ -4,11 +4,13 @@ import { Icon } from "@/lib/icons";
 import { useWallet } from "@/wallet/context.btsx";
 import WalletModal from "./WalletModal.btsx";
 import TopUpModal from "./TopUpModal.btsx";
+import OkxConnectionModal from "./OkxConnectionModal.btsx";
 import { Avatar, signInErrorMessage } from "./SignButton.btsx";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
 import { getAccountLabel } from "@/lib/firebase/accounts";
 import { useAvailableBalance, useOpenPositions } from "@/hooks/usePaperAccount";
+import { usePersonalPositions } from "@/hooks/useLiveAccount";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { api } from "../../convex/_generated/api";
 import { cn } from "@/lib/utils";
@@ -22,13 +24,13 @@ module
   const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
 
 component Panel
-  props { onClose, onConnectWallet, onTopUp }: { onClose: () => void; onConnectWallet: () => void; onTopUp: () => void }
+  props { onClose, onConnectWallet, onTopUp, onOkx }: { onClose: () => void; onConnectWallet: () => void; onTopUp: () => void; onOkx: () => void }
   setup
     const location = useLocation();
     const onPositions = location.pathname === "/perps" && (location.search as { tab?: string }).tab === "positions";
     const onMarkets = location.pathname.startsWith("/perps") && !onPositions;
     const onTerminal = location.pathname.startsWith("/terminal");
-    const openCount = useOpenPositions().rows.length;
+    const openCount = useOpenPositions().rows.length + usePersonalPositions().rows.length;
     const available = useAvailableBalance();
     const authed = useConvexAuth().isAuthenticated;
     const usdBalance = useConvexQuery(api.funds.usd, authed ? {} : "skip").data;
@@ -65,11 +67,16 @@ component Panel
           small #{available.mode === "cloud" ? "Paper balance · your account" : "Practice balance"}
         strong #{usd(available.balance)}
       if user
-        button.mobile-menu-row(type="button" disabled={!authed} onClick={onTopUp})
-          span
-            | USD balance
-            small Top up with USDC / USDT
-          strong #{usd(usdBalance)}
+        fragment
+          button.mobile-menu-row(type="button" disabled={!authed} onClick={onTopUp})
+            span
+              | USD balance
+              small Top up with USDC / USDT
+            strong #{usd(usdBalance)}
+          button.mobile-menu-row(type="button" disabled={!authed} onClick={onOkx})
+            span
+              | My OKX
+              small API connection
 
     .mobile-menu-section
       if wallet.isConnected && wallet.address
@@ -111,6 +118,7 @@ setup
   const [open, setOpen] = useState(false);
   const [walletModal, setWalletModal] = useState(false);
   const [topUp, setTopUp] = useState(false);
+  const [okxUser, setOkxUser] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const close = () => setOpen(false);
 
@@ -157,6 +165,8 @@ setup
     else
       Icon(name="menu" size={18})
   if open
-    | #{createPortal(createElement(Panel, { onClose: close, onConnectWallet: () => { setOpen(false); setWalletModal(true); }, onTopUp: () => { setOpen(false); setTopUp(true); } }), document.body)}
+    | #{createPortal(createElement(Panel, { onClose: close, onConnectWallet: () => { setOpen(false); setWalletModal(true); }, onTopUp: () => { setOpen(false); setTopUp(true); }, onOkx: () => { setOpen(false); setOkxUser(user?.uid ?? null); } }), document.body)}
   WalletModal(open={walletModal && !wallet.isConnected} onClose={() => setWalletModal(false)})
   TopUpModal(open={topUp && Boolean(user)} onClose={() => setTopUp(false)})
+  if user && okxUser === user.uid
+    OkxConnectionModal(onClose={() => setOkxUser(null)})

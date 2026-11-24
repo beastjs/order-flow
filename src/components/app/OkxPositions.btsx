@@ -1,0 +1,28 @@
+import { Link } from "@octanejs/tanstack-router";
+import { usePersonalPositions } from "@/hooks/useLiveAccount";
+import { AssetGlyph } from "./AssetIndex.btsx";
+import { fmtPrice, fmtSize } from "./assetFormat";
+
+setup const { rows, error } = usePersonalPositions();
+
+if error || rows.length
+  section.trade-history(aria-label="My OKX positions")
+    header.ap-panel-head
+      h2 My OKX positions
+    if error
+      p.sim-error(role="alert") Could not load your My OKX positions.
+    else
+      .lp-asset-grid.trade-history-grid
+        each position in rows key position._id
+          Link.asset-index.asset-index-link(to="/perps/$assetId" params={{ assetId: position.base }} search={{ trade: "personal" }} aria-label={`Manage ${position.base} position on My OKX`})
+            AssetGlyph(base={position.base} size={24})
+            span.asset-index-name
+              strong #{position.base}
+              span.pos-side(className={position.side === "up" ? "is-up" : "is-down"}) #{position.side === "up" ? "Up" : "Down"} · #{position.leverage}× · #{position.okxMode === "demo" ? "Demo" : "Live"}
+            span.asset-index-name
+              if position.status === "open"
+                fragment
+                  strong #{fmtSize(position.size)} #{position.base}
+                  span.sim-muted Entry #{fmtPrice(position.entry)}
+              else
+                span(role="status") #{position.status === "opening" ? "Opening on OKX…" : "Closing on OKX…"}

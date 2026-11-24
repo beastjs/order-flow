@@ -1,13 +1,14 @@
 // ============================================================
-// OKX TRADING — signed REST calls for the platform account.
+// OKX TRADING — signed REST calls for platform and personal accounts.
 // Actions only (mutations cannot fetch). Demo mode adds the
 // `x-simulated-trading: 1` header, which routes every call to
 // OKX's demo-trading environment with simulated funds.
 // ============================================================
 
-import { readTradingConfig, signOkx, type TradingConfig } from "./okxTradeCore";
+import { readTradingConfig, signOkx, type OkxAccount, type TradingConfig } from "./okxTradeCore";
 
 const REST = "https://www.okx.com";
+const PERSONAL_REST = "https://openapi.okx.com";
 
 export class OkxApiError extends Error {
   constructor(
@@ -27,13 +28,13 @@ export function tradingConfig(): TradingConfig {
   return readTradingConfig(process.env);
 }
 
-function requireCredentials(cfg: TradingConfig) {
+export function platformAccount(cfg: TradingConfig): OkxAccount {
   if (!cfg.mode || !cfg.credentials) throw new Error("Real-order trading is not enabled.");
-  return { mode: cfg.mode, ...cfg.credentials };
+  return { mode: cfg.mode, credentials: cfg.credentials };
 }
 
-async function privateCall<T>(method: "GET" | "POST", path: string, body?: object): Promise<T[]> {
-  const { mode, key, secret, passphrase } = requireCredentials(tradingConfig());
+async function privateCall<T>(account: OkxAccount, method: "GET" | "POST", path: string, body?: object, submitBy?: number): Promise<T[]> {
+  const { mode, credentials: { key, secret, passphrase } } = account;
   const payload = body ? JSON.stringify(body) : "";
   const timestamp = new Date().toISOString();
   const headers: Record<string, string> = {
@@ -44,8 +45,11 @@ async function privateCall<T>(method: "GET" | "POST", path: string, body?: objec
     "OK-ACCESS-PASSPHRASE": passphrase,
   };
   if (mode === "demo") headers["x-simulated-trading"] = "1";
+  if (submitBy !== undefined) headers.expTime = String(submitBy);
 
-  const res = await fetch(`${REST}${path}`, { method, headers, body: payload || undefined });
+  const res = await fetch(`${account.personal ? PERSONAL_REST : REST}${path}`, {
+    method, headers, body: payload || undefined, redirect: "error",
+  });
   let json: { code?: string; msg?: string; data?: Array<T & { sCode?: string; sMsg?: string }> };
   try {
     json = await res.json();
@@ -58,19 +62,47 @@ async function privateCall<T>(method: "GET" | "POST", path: string, body?: objec
     const reason = first?.sMsg || json.msg || "unknown error";
     throw new OkxApiError(`OKX ${json.code}${first?.sCode ? `/${first.sCode}` : ""}: ${reason}`, json.code ?? "?", first?.sCode);
   }
-  return json.data ?? [];
+  if (!Array.isArray(json.data)) throw new OkxApiError("OKX returned an invalid response.", "?");
+  return json.data;
+}
+
+export async function getAccountConfig(account: OkxAccount) {
+  const [config] = await privateCall<{ uid: string; perm: string; posMode: string; acctLv: string }>(account, "GET", "/api/v5/account/config");
+  return config;
+}
+
+export async function getAvailableUsdt(account: OkxAccount): Promise<number> {
+  const [balance] = await privateCall<{ details: { ccy: string; availBal: string }[] }>(account, "GET", "/api/v5/account/balance?ccy=USDT");
+  if (!balance) return 0;
+  if (!Array.isArray(balance?.details)) throw new Error("OKX balance is unavailable.");
+  const available = Number(balance.details.find((row) => row.ccy === "USDT")?.availBal ?? 0);
+  if (!Number.isFinite(available)) throw new Error("OKX balance is unavailable.");
+  return Math.max(0, available);
+}
+
+export async function getIsolatedPositionSize(account: OkxAccount, instId: string, posSide: "long" | "short"): Promise<number> {
+  const rows = await privateCall<{ instId: string; posSide: string; mgnMode: string; pos: string }>(
+    account, "GET", `/api/v5/account/positions?instId=${encodeURIComponent(instId)}`,
+  );
+  const position = rows.find((row) => row.instId === instId && row.posSide === posSide && row.mgnMode === "isolated");
+  const size = position ? Number(position.pos) : 0;
+  if (!Number.isFinite(size) || size < 0) throw new Error("OKX position size is unavailable.");
+  return size;
 }
 
 /** Orders need long/short (hedge) mode so users' longs and shorts don't net out. */
-export async function ensureLongShortMode(): Promise<void> {
-  const [cfg] = await privateCall<{ posMode: string }>("GET", "/api/v5/account/config");
+export async function ensureLongShortMode(account: OkxAccount): Promise<void> {
+  const cfg = await getAccountConfig(account);
   if (cfg?.posMode === "long_short_mode") return;
-  await privateCall("POST", "/api/v5/account/set-position-mode", { posMode: "long_short_mode" });
+  if (account.personal) throw new Error("Switch your OKX account to Long/short mode first.");
+  await privateCall(account, "POST", "/api/v5/account/set-position-mode", { posMode: "long_short_mode" });
 }
 
-/** Exchange-side leverage for the whole platform account on this instrument (cross margin). */
-export async function setLeverage(instId: string, lever: number): Promise<void> {
-  await privateCall("POST", "/api/v5/account/set-leverage", { instId, lever: String(lever), mgnMode: "cross" });
+export async function setLeverage(account: OkxAccount, instId: string, lever: number, posSide: "long" | "short"): Promise<void> {
+  await privateCall(account, "POST", "/api/v5/account/set-leverage", {
+    instId, lever: String(lever), mgnMode: account.personal ? "isolated" : "cross",
+    ...(account.personal ? { posSide } : {}),
+  });
 }
 
 export interface PlaceOrderArgs {
@@ -80,20 +112,22 @@ export interface PlaceOrderArgs {
   sz: string;
   clOrdId: string;
   reduceOnly?: boolean;
+  submitBy: number;
 }
 
-/** Market order. Idempotent per clOrdId: OKX rejects a duplicate clOrdId, it never fills twice. */
-export async function placeMarketOrder(a: PlaceOrderArgs): Promise<{ ordId: string }> {
-  const [row] = await privateCall<{ ordId: string }>("POST", "/api/v5/trade/order", {
+export async function placeMarketOrder(account: OkxAccount, a: PlaceOrderArgs): Promise<{ ordId: string }> {
+  const [row] = await privateCall<{ ordId: string; sCode?: string; sMsg?: string }>(account, "POST", "/api/v5/trade/order", {
     instId: a.instId,
-    tdMode: "cross",
+    tdMode: account.personal ? "isolated" : "cross",
     side: a.side,
     posSide: a.posSide,
     ordType: "market",
     sz: a.sz,
     clOrdId: a.clOrdId,
-    ...(a.reduceOnly ? { reduceOnly: true } : {}),
-  });
+    // Long/short SWAP orders close the specified side implicitly on OKX.
+    ...(a.reduceOnly && !account.personal ? { reduceOnly: true } : {}),
+  }, a.submitBy);
+  if (row?.sCode && row.sCode !== "0") throw new OkxApiError(`OKX ${row.sCode}: ${row.sMsg ?? "Order rejected"}`, "1", row.sCode);
   if (!row?.ordId) throw new OkxApiError("OKX accepted the order without an order id.", "?");
   return { ordId: row.ordId };
 }
@@ -110,10 +144,10 @@ export interface OkxOrderState {
 }
 
 /** Look an order up by client id. Null when OKX has no such order (it was never placed). */
-export async function getOrder(instId: string, clOrdId: string): Promise<OkxOrderState | null> {
+export async function getOrder(account: OkxAccount, instId: string, clOrdId: string): Promise<OkxOrderState | null> {
   try {
     const [o] = await privateCall<Record<string, string>>(
-      "GET",
+      account, "GET",
       `/api/v5/trade/order?instId=${encodeURIComponent(instId)}&clOrdId=${encodeURIComponent(clOrdId)}`,
     );
     if (!o) return null;

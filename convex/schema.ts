@@ -49,6 +49,14 @@ export const livePositionStatus = v.union(
   v.literal("closed"),
   v.literal("liquidated"),
 );
+export const okxMode = v.union(v.literal("demo"), v.literal("live"));
+export const okxConnectionFields = {
+  mode: okxMode,
+  accountUid: v.string(),
+  keySuffix: v.string(),
+  iv: v.string(),
+  ciphertext: v.string(),
+};
 export const liveOrderKind = v.union(v.literal("open"), v.literal("close"), v.literal("liquidation"));
 export const liveOrderStatus = v.union(
   v.literal("pending"),
@@ -175,11 +183,17 @@ export default defineSchema({
     .index("by_chainId_and_txHash", ["chainId", "txHash"])
     .index("by_userId", ["userId"]),
 
-  // REAL positions, held in the platform's OKX account. OKX nets every user's
-  // orders on an instrument into one exchange position; this ledger is each
-  // user's share: their margin (from the USD balance), entry, size and PnL.
+  okxConnections: defineTable({ userId: v.id("users"), ...okxConnectionFields })
+    .index("by_userId", ["userId"])
+    .index("by_mode_and_accountUid", ["mode", "accountUid"]),
+
+  // Orders with a connection trade against the user's OKX balance. Legacy
+  // positions use the platform account and the CFX USD ledger.
   livePositions: defineTable({
     userId: v.id("users"),
+    okxConnectionId: v.optional(v.id("okxConnections")),
+    okxMode: v.optional(okxMode),
+    closedExternally: v.optional(v.boolean()),
     instId: v.string(),
     base: v.string(),
     category,
@@ -208,12 +222,17 @@ export default defineSchema({
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_userId_and_closedAt", ["userId", "closedAt"])
     .index("by_userId_and_instId_and_status", ["userId", "instId", "status"])
+    .index("by_userId_and_status_and_okxConnectionId", ["userId", "status", "okxConnectionId"])
+    .index("by_userId_and_okxConnectionId_and_instId_and_status", ["userId", "okxConnectionId", "instId", "status"])
+    .index("by_okxConnectionId_and_status", ["okxConnectionId", "status"])
+    .index("by_okxConnectionId_and_status_and_instId", ["okxConnectionId", "status", "instId"])
     .index("by_status_and_instId", ["status", "instId"]),
 
   // Every order sent (or about to be sent) to OKX. Written BEFORE placement
   // with a unique clOrdId so a crash can always be reconciled.
   liveOrders: defineTable({
     userId: v.id("users"),
+    okxConnectionId: v.optional(v.id("okxConnections")),
     positionId: v.id("livePositions"),
     instId: v.string(),
     kind: liveOrderKind,
@@ -233,10 +252,12 @@ export default defineSchema({
     /** Fee charged (positive USD). */
     fee: v.optional(v.number()),
     error: v.optional(v.string()),
+    lastReconciledAt: v.optional(v.number()),
     attempts: v.number(),
   })
     .index("by_clOrdId", ["clOrdId"])
     .index("by_status", ["status"])
+    .index("by_status_and_lastReconciledAt", ["status", "lastReconciledAt"])
     .index("by_userId", ["userId"])
     .index("by_positionId", ["positionId"]),
 

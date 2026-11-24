@@ -5,6 +5,7 @@ import { isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
 import { getAccountLabel } from "@/lib/firebase/accounts";
 import TopUpModal from "./TopUpModal.btsx";
+import OkxConnectionModal from "./OkxConnectionModal.btsx";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { api } from "../../convex/_generated/api";
 // ─── Sign-in button ─────────────────────────────────────────────
@@ -48,7 +49,7 @@ component Item
         small #{hint}
 
 component AccountItems
-  props { onError, onTopUp }: { onError: (message: string | null) => void; onTopUp: () => void }
+  props { onError, onTopUp, onOkx }: { onError: (message: string | null) => void; onTopUp: () => void; onOkx: () => void }
   setup
     const { user } = useFirebaseUser();
     const accounts = useRememberedAccounts();
@@ -67,6 +68,7 @@ component AccountItems
             span #{user.email}
     MenuSection(title="Funds")
       Item(label={usdLabel} hint="Top up" disabled={!authed} onClick={onTopUp})
+      Item(label="My OKX" hint="API connection" disabled={!authed} onClick={onOkx})
     if others.length
       MenuSection(title="Switch account")
         each a in others key a.uid
@@ -80,6 +82,7 @@ setup
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [topUpOpen, setTopUpOpen] = useState(false);
+  const [okxUser, setOkxUser] = useState<string | null>(null);
   const signIn = () => {
     setBusy(true);
     setError(null);
@@ -96,7 +99,7 @@ fragment
       ~ buttonClassName="account-trigger"
       ~ label={createElement(Avatar, { photoURL: user.photoURL, name: user.displayName, email: user.email })}
       ~ )
-      AccountItems(onError={setError} onTopUp={() => setTopUpOpen(true)})
+      AccountItems(onError={setError} onTopUp={() => setTopUpOpen(true)} onOkx={() => setOkxUser(user.uid)})
   else
     button(
       ~ className="account-signin"
@@ -111,3 +114,5 @@ fragment
       ~ )
       Icon(name="user-settings" size={24})
   TopUpModal(open={topUpOpen && Boolean(user)} onClose={() => setTopUpOpen(false)})
+  if user && okxUser === user.uid
+    OkxConnectionModal(onClose={() => setOkxUser(null)})

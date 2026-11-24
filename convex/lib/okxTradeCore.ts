@@ -5,6 +5,8 @@
 
 export type TradingMode = "demo" | "live";
 export type TradingAccess = "admins" | "all";
+export type OkxCredentials = { key: string; secret: string; passphrase: string };
+export type OkxAccount = { mode: TradingMode; credentials: OkxCredentials; personal?: true };
 
 export interface TradingConfig {
   /** Null when trading is off (no keys, or OKX_TRADING_MODE unset/invalid). */
@@ -16,7 +18,7 @@ export interface TradingConfig {
   maxUserNotionalUsd: number;
   /** Platform cap on user leverage (also capped by the instrument's max). */
   maxLeverage: number;
-  credentials: { key: string; secret: string; passphrase: string } | null;
+  credentials: OkxCredentials | null;
 }
 
 const positive = (raw: string | undefined, fallback: number) => {

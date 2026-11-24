@@ -5,9 +5,11 @@ import { debounce, useQueryStates } from "@octanejs/nuqs";
 import { perpsParams, type PerpsFilter, type PerpsSort } from "@/lib/url/perpsParams";
 import SiteNav from "./SiteNav.btsx";
 import OpenPositions from "@/components/app/OpenPositions.btsx";
+import OkxPositions from "@/components/app/OkxPositions.btsx";
 import TradeHistory from "@/components/app/TradeHistory.btsx";
 import type { PerpsTab } from "@/router";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
+import { usePersonalPositions } from "@/hooks/useLiveAccount";
 import AssetIndex from "@/components/app/AssetIndex.btsx";
 import { useOkxTickerSnapshot } from "@/hooks/useOkx";
 import { useHlPerps } from "@/hooks/useHyperliquid";
@@ -86,7 +88,7 @@ setup
   const query = params.q;
   const isHl = venue === "hyperliquid";
   const hlPerps = useHlPerps(isHl);
-  const openCount = useOpenPositions().rows.length;
+  const openCount = useOpenPositions().rows.length + usePersonalPositions().rows.length;
   const [perps, setPerps] = useState<OkxPerpInstrument[]>([]);
   const [error, setError] = useState<string | null>(null);
   // A new venue is a new page of results: push it. Category, sort and search carry over.
@@ -190,7 +192,9 @@ setup
     PerpsTabs(tab={tab} venue={venue} marketCount={counts.all} openCount={openCount})
 
   if tab === "positions"
-    OpenPositions
+    fragment
+      OpenPositions
+      OkxPositions
   elseif tab === "history"
     TradeHistory
       PerpsTabs(tab={tab} venue={venue} marketCount={counts.all} openCount={openCount})

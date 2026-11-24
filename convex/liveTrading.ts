@@ -1,5 +1,5 @@
 // ============================================================
-// REAL ORDERS on the platform OKX account.
+// OKX orders on the platform account or a user's connected account.
 //
 // Ledger model: every user's orders go through ONE OKX account (cross
 // margin, long/short mode). OKX nets them into one exchange position per
@@ -11,10 +11,10 @@
 //   place + poll (action) → OKX market order, read back the fill
 //   settle (mutation, idempotent) → book the fill, release unused reservation
 //   reconcile (cron)    → resolves any order left `pending` by a crash/timeout
-// Nothing can trade unless OKX keys + OKX_TRADING_MODE (demo|live) are set.
+// Personal positions use isolated margin and settle directly on OKX.
 // ============================================================
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import {
   action,
@@ -32,26 +32,31 @@ import { writeLog } from "./lib/log";
 import { syncAssetPositionCounts } from "./lib/positionCounts";
 import { getUsdFunds } from "./funds";
 import { fetchAllMarks, fetchQuote, fetchSwap } from "./lib/okx";
-import { contractsForNotional, subtractSz } from "./lib/okxTradeCore";
+import { contractsForNotional, subtractSz, type OkxAccount } from "./lib/okxTradeCore";
+import { ACTIVE_LIVE_STATUSES as OPEN_STATUSES, connectionForUser, personalAccount, personalTradingEnabled } from "./lib/okxCredentials";
 import {
   OkxApiError,
   ensureLongShortMode,
+  getIsolatedPositionSize,
   getOrder,
   isFinalState,
   placeMarketOrder,
+  platformAccount,
   setLeverage,
   tradingConfig,
   type OkxOrderState,
+  type PlaceOrderArgs,
 } from "./lib/okxTrade";
 import { liquidationPrice, type PaperPosition } from "../src/lib/paper/math";
 
 /** Reserve 0.1% of notional for the fee (OKX taker is 0.05% at the base tier). */
 const FEE_RESERVE_RATE = 0.001;
-const OPEN_STATUSES = ["opening", "open", "closing"] as const;
+const personalVenue = v.optional(v.literal("personal"));
 const POLL_ATTEMPTS = 6;
 const POLL_DELAY_MS = 400;
 /** A pending order unknown to OKX after this long was never placed. */
 const NEVER_PLACED_AFTER_MS = 120_000;
+const SUBMISSION_WINDOW_MS = 30_000;
 const SWEEP_BATCH = 200;
 /** OKX: service unavailable, request timeout, system busy, system error. */
 const AMBIGUOUS_CODES = new Set(["50001", "50004", "50013", "50026"]);
@@ -74,21 +79,28 @@ const toPaper = (p: Doc<"livePositions">): PaperPosition => ({
 
 // ─── access ─────────────────────────────────────────────────
 
-async function tradeAccess(ctx: QueryCtx | MutationCtx) {
+async function tradeAccess(ctx: QueryCtx | MutationCtx, personal: boolean) {
   const user = await requireUser(ctx);
   const cfg = tradingConfig();
+  if (personal) {
+    if (!personalTradingEnabled()) throw new ConvexError("Trading with your own OKX account is unavailable.");
+    const connection = await connectionForUser(ctx, user._id);
+    if (!connection) throw new ConvexError("Connect your OKX account first.");
+    return { user, cfg, connection };
+  }
   if (!cfg.mode) throw new Error("Real-order trading is not enabled.");
   if (cfg.access === "admins" && !(await isAdmin(ctx, user))) {
     throw new Error("Real-order trading is limited to admins for now.");
   }
-  return { user, cfg };
+  return { user, cfg, connection: null };
 }
 
-async function openLiveFor(ctx: QueryCtx | MutationCtx, userId: Id<"users">, instId: string) {
+async function openLiveFor(ctx: QueryCtx | MutationCtx, userId: Id<"users">, instId: string, connectionId?: Id<"okxConnections">) {
   for (const status of OPEN_STATUSES) {
     const p = await ctx.db
       .query("livePositions")
-      .withIndex("by_userId_and_instId_and_status", (q) => q.eq("userId", userId).eq("instId", instId).eq("status", status))
+      .withIndex("by_userId_and_okxConnectionId_and_instId_and_status", (q) =>
+        q.eq("userId", userId).eq("okxConnectionId", connectionId).eq("instId", instId).eq("status", status))
       .first();
     if (p) return p;
   }
@@ -130,11 +142,28 @@ export const config = query({
 
 /** The caller's live position on one instrument (opening/open/closing), or null. */
 export const openFor = query({
-  args: { instId: v.string() },
+  args: { instId: v.string(), venue: personalVenue },
   returns: v.union(schema.doc("livePositions"), v.null()),
-  handler: async (ctx, { instId }) => {
+  handler: async (ctx, { instId, venue }) => {
     const user = await currentUser(ctx);
-    return user ? await openLiveFor(ctx, user._id, instId) : null;
+    if (!user) return null;
+    const connection = venue && await connectionForUser(ctx, user._id);
+    if (venue && !connection) return null;
+    return await openLiveFor(ctx, user._id, instId, connection?._id);
+  },
+});
+
+export const personalPositions = query({
+  args: {},
+  returns: v.array(schema.doc("livePositions")),
+  handler: async (ctx) => {
+    const user = await currentUser(ctx);
+    const connection = user && await connectionForUser(ctx, user._id);
+    if (!connection) return [];
+    const rows = await Promise.all(OPEN_STATUSES.map((status) => ctx.db.query("livePositions")
+      .withIndex("by_okxConnectionId_and_status", (q) => q.eq("okxConnectionId", connection._id).eq("status", status))
+      .order("desc").take(50)));
+    return rows.flat().sort((a, b) => b._creationTime - a._creationTime);
   },
 });
 
@@ -169,11 +198,11 @@ export const history = query({
 });
 
 export const accessCheck = internalQuery({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    await tradeAccess(ctx);
-    return null;
+  args: { venue: personalVenue },
+  returns: v.union(v.null(), schema.doc("okxConnections")),
+  handler: async (ctx, { venue }) => {
+    const { connection } = await tradeAccess(ctx, venue === "personal");
+    return connection;
   },
 });
 
@@ -191,34 +220,36 @@ export const reserveOpen = internalMutation({
     sz: v.string(),
     ctVal: v.number(),
     estNotional: v.number(),
+    connectionId: v.optional(v.id("okxConnections")),
   },
-  returns: v.object({ orderId: v.id("liveOrders"), positionId: v.id("livePositions"), clOrdId: v.string() }),
+  returns: v.object({ orderId: v.id("liveOrders"), positionId: v.id("livePositions"), clOrdId: v.string(), submitBy: v.number() }),
   handler: async (ctx, a) => {
-    const { user, cfg } = await tradeAccess(ctx);
-    if (a.leverage > cfg.maxLeverage) throw new Error(`Max multiplier is ${cfg.maxLeverage}×.`);
-    if (a.estNotional > cfg.maxOrderUsd * 1.02) throw new Error(`Max order size is $${cfg.maxOrderUsd}.`);
-    if (await openLiveFor(ctx, user._id, a.instId)) throw new Error(`You already have a live ${a.base} position.`);
+    const { user, cfg, connection } = await tradeAccess(ctx, !!a.connectionId);
+    if (connection?._id !== a.connectionId) throw new ConvexError("Your OKX connection changed. Review and submit the order again.");
+    if (a.leverage > cfg.maxLeverage) throw new ConvexError(`Max multiplier is ${cfg.maxLeverage}×.`);
+    if (a.estNotional > cfg.maxOrderUsd * 1.02) throw new ConvexError(`Max order size is $${cfg.maxOrderUsd}.`);
+    if (await openLiveFor(ctx, user._id, a.instId, connection?._id)) throw new ConvexError(`You already have a live ${a.base} position on this account.`);
 
     let openNotional = 0;
     for (const status of OPEN_STATUSES) {
-      const rows = await ctx.db
-        .query("livePositions")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", status))
-        .take(200);
-      for (const p of rows) openNotional += p.margin * p.leverage;
+      const positions = await ctx.db.query("livePositions")
+        .withIndex("by_userId_and_status_and_okxConnectionId", (q) =>
+          q.eq("userId", user._id).eq("status", status).eq("okxConnectionId", connection?._id)).take(200);
+      for (const p of positions) openNotional += p.margin * p.leverage;
     }
     if (openNotional + a.estNotional > cfg.maxUserNotionalUsd) {
-      throw new Error(`That would exceed your $${cfg.maxUserNotionalUsd} live exposure limit.`);
+      throw new ConvexError(`That would exceed your $${cfg.maxUserNotionalUsd} live exposure limit.`);
     }
 
-    const funds = await getUsdFunds(ctx, user._id);
+    const funds = connection ? null : await getUsdFunds(ctx, user._id);
     const reserved = a.margin + a.estNotional * FEE_RESERVE_RATE;
-    if (!funds || funds.balance + 1e-9 < reserved) {
+    if (!connection && (!funds || funds.balance + 1e-9 < reserved)) {
       throw new Error(`Not enough USD balance (need $${reserved.toFixed(2)} incl. fees). Top up first.`);
     }
 
     const positionId = await ctx.db.insert("livePositions", {
       userId: user._id,
+      ...(connection ? { okxConnectionId: connection._id, okxMode: connection.mode } : {}),
       instId: a.instId,
       base: a.base,
       category: a.category,
@@ -235,6 +266,7 @@ export const reserveOpen = internalMutation({
     const clOrdId = newClOrdId("o");
     const orderId = await ctx.db.insert("liveOrders", {
       userId: user._id,
+      okxConnectionId: connection?._id,
       positionId,
       instId: a.instId,
       kind: "open",
@@ -242,17 +274,17 @@ export const reserveOpen = internalMutation({
       clOrdId,
       sz: a.sz,
       status: "pending",
-      reservedUsd: reserved,
+      reservedUsd: connection ? undefined : reserved,
       margin: a.margin,
       leverage: a.leverage,
       attempts: 0,
     });
-    await ctx.db.patch("funds", funds._id, { balance: funds.balance - reserved, locked: funds.locked + reserved });
+    if (funds) await ctx.db.patch("funds", funds._id, { balance: funds.balance - reserved, locked: funds.locked + reserved });
     await writeLog(ctx, "info", "liveTrading.reserveOpen", `reserved ${a.instId}`, {
       userId: user._id,
-      data: { orderId, clOrdId, sz: a.sz, reserved, mode: cfg.mode },
+      data: { orderId, clOrdId, sz: a.sz, reserved: connection ? 0 : reserved, mode: connection?.mode ?? cfg.mode },
     });
-    return { orderId, positionId, clOrdId };
+    return { orderId, positionId, clOrdId, submitBy: Date.now() + SUBMISSION_WINDOW_MS };
   },
 });
 
@@ -261,10 +293,10 @@ export const reserveClose = internalMutation({
   args: { positionId: v.id("livePositions"), kind: liveOrderKind, asOwner: v.boolean() },
   returns: v.union(
     v.null(),
-    v.object({ orderId: v.id("liveOrders"), clOrdId: v.string(), instId: v.string(), side, sz: v.string() }),
+    v.object({ orderId: v.id("liveOrders"), clOrdId: v.string(), instId: v.string(), side, sz: v.string(), submitBy: v.number(),
+      userId: v.id("users"), connectionId: v.optional(v.id("okxConnections")) }),
   ),
   handler: async (ctx, { positionId, kind, asOwner }) => {
-    if (!tradingConfig().mode) throw new Error("Real-order trading is not enabled.");
     const p = await ctx.db.get("livePositions", positionId);
     if (asOwner) {
       const user = await requireUser(ctx);
@@ -274,11 +306,16 @@ export const reserveClose = internalMutation({
       if (asOwner) throw new Error("This position is not open (it may be opening or already closing).");
       return null;
     }
+    if (p.okxConnectionId) {
+      if (kind === "liquidation") return null;
+      if (!personalTradingEnabled()) throw new ConvexError("Trading with your own OKX account is unavailable.");
+    } else if (!tradingConfig().mode) throw new Error("Real-order trading is not enabled.");
     await ctx.db.patch("livePositions", positionId, { status: "closing" });
     await syncAssetPositionCounts(ctx, p.instId, p.userId);
     const clOrdId = newClOrdId(kind === "liquidation" ? "l" : "c");
     const orderId = await ctx.db.insert("liveOrders", {
       userId: p.userId,
+      okxConnectionId: p.okxConnectionId,
       positionId,
       instId: p.instId,
       kind,
@@ -288,14 +325,15 @@ export const reserveClose = internalMutation({
       status: "pending",
       attempts: 0,
     });
-    return { orderId, clOrdId, instId: p.instId, side: p.side, sz: p.contractsSz };
+    return { orderId, clOrdId, instId: p.instId, side: p.side, sz: p.contractsSz, userId: p.userId,
+      connectionId: p.okxConnectionId, submitBy: Date.now() + SUBMISSION_WINDOW_MS };
   },
 });
 
 // ─── settle / reject (idempotent) ────────────────────────────
 
 async function releaseOpen(ctx: MutationCtx, order: Doc<"liveOrders">, reason: string) {
-  const funds = await getUsdFunds(ctx, order.userId);
+  const funds = order.okxConnectionId ? null : await getUsdFunds(ctx, order.userId);
   const reserved = order.reservedUsd ?? 0;
   if (funds && reserved > 0) {
     await ctx.db.patch("funds", funds._id, { balance: funds.balance + reserved, locked: Math.max(0, funds.locked - reserved) });
@@ -376,9 +414,9 @@ async function applyOpenFill(ctx: MutationCtx, order: Doc<"liveOrders">, filledS
   const p = await ctx.db.get("livePositions", order.positionId);
   if (!p) return;
   const frac = Math.min(1, Number(filledSz) / Number(order.sz));
-  const margin = (order.margin ?? 0) * frac;
+  const margin = p.okxConnectionId ? Number(filledSz) * p.ctVal * avgPx / p.leverage : (order.margin ?? 0) * frac;
   const reserved = order.reservedUsd ?? 0;
-  const funds = await getUsdFunds(ctx, order.userId);
+  const funds = order.okxConnectionId ? null : await getUsdFunds(ctx, order.userId);
   const balanceAfter = (funds?.balance ?? 0) + reserved - margin - cost;
   if (funds) {
     await ctx.db.patch("funds", funds._id, {
@@ -399,10 +437,9 @@ async function applyOpenFill(ctx: MutationCtx, order: Doc<"liveOrders">, filledS
   await ctx.db.insert("activity", {
     userId: order.userId,
     kind: "live_position_opened",
-    message: `Opened LIVE ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${avgPx}`,
+    message: `Opened ${p.okxMode ? `My OKX ${p.okxMode}` : "LIVE"} ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${avgPx}`,
     instId: p.instId,
-    amount: -(margin + cost),
-    balanceAfter,
+    ...(funds ? { amount: -(margin + cost), balanceAfter } : {}),
   });
   await writeLog(ctx, "info", "liveTrading.open", `filled ${p.instId}`, {
     userId: order.userId,
@@ -421,10 +458,10 @@ async function applyCloseFill(ctx: MutationCtx, order: Doc<"liveOrders">, filled
   const openFeePart = p.openFee * frac;
   // A user can lose at most their margin; any gap loss beyond it is the platform's.
   const credit = Math.max(0, marginPart + pnl - cost);
-  const realized = credit - marginPart - openFeePart;
+  const realized = p.okxConnectionId ? pnl - cost - openFeePart : credit - marginPart - openFeePart;
   const liquidated = order.kind === "liquidation";
 
-  const funds = await getUsdFunds(ctx, p.userId);
+  const funds = p.okxConnectionId ? null : await getUsdFunds(ctx, p.userId);
   const balanceAfter = (funds?.balance ?? 0) + credit;
   if (funds) {
     await ctx.db.patch("funds", funds._id, { balance: balanceAfter, locked: Math.max(0, funds.locked - marginPart) });
@@ -454,25 +491,31 @@ async function applyCloseFill(ctx: MutationCtx, order: Doc<"liveOrders">, filled
   await ctx.db.insert("activity", {
     userId: p.userId,
     kind: liquidated ? "live_position_liquidated" : "live_position_closed",
-    message: `${liquidated ? "Liquidated" : "Closed"} LIVE ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${avgPx} · ${usd(realized)}`,
+    message: `${liquidated ? "Liquidated" : "Closed"} ${p.okxMode ? `My OKX ${p.okxMode}` : "LIVE"} ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${avgPx} · ${usd(realized)}`,
     instId: p.instId,
-    amount: credit,
-    balanceAfter,
+    ...(funds ? { amount: credit, balanceAfter } : {}),
   });
   await writeLog(ctx, liquidated ? "warn" : "info", "liveTrading.close", `${order.kind} filled ${p.instId}`, {
     userId: p.userId,
-    data: { orderId: order._id, filledSz, avgPx, fee: cost, realized, platformLoss: Math.max(0, -(marginPart + pnl - cost)) },
+    data: { orderId: order._id, filledSz, avgPx, fee: cost, realized, ...(funds ? { platformLoss: Math.max(0, -(marginPart + pnl - cost)) } : {}) },
   });
 }
 
 // ─── placement (actions) ─────────────────────────────────────
 
-type OrderOutcome = "filled" | "rejected" | "pending";
+type OrderOutcome = "filled" | "rejected" | "pending" | "closed_externally";
+
+async function accountForOrder(ctx: ActionCtx, userId: Id<"users">, connectionId?: Id<"okxConnections">): Promise<OkxAccount> {
+  if (!connectionId) return platformAccount(tradingConfig());
+  const connection = await ctx.runQuery(internal.okxConnections.readForOrder, { connectionId, userId });
+  if (!connection) throw new ConvexError("The OKX connection for this position is unavailable.");
+  return await personalAccount(connection);
+}
 
 /** Poll a just-placed order until it's final, then settle. Pending if OKX hasn't finished. */
-async function pollAndSettle(ctx: ActionCtx, orderId: Id<"liveOrders">, instId: string, clOrdId: string): Promise<OrderOutcome> {
+async function pollAndSettle(ctx: ActionCtx, account: OkxAccount, orderId: Id<"liveOrders">, instId: string, clOrdId: string): Promise<OrderOutcome> {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
-    const o: OkxOrderState | null = await getOrder(instId, clOrdId).catch(() => null);
+    const o: OkxOrderState | null = await getOrder(account, instId, clOrdId).catch(() => null);
     if (o && isFinalState(o.state)) {
       await ctx.runMutation(internal.liveTrading.settleOrder, {
         orderId,
@@ -497,17 +540,23 @@ async function pollAndSettle(ctx: ActionCtx, orderId: Id<"liveOrders">, instId: 
  */
 async function sendAndSettle(
   ctx: ActionCtx,
+  account: OkxAccount,
   orderId: Id<"liveOrders">,
-  order: { instId: string; side: "buy" | "sell"; posSide: "long" | "short"; sz: string; clOrdId: string; reduceOnly: boolean },
+  order: PlaceOrderArgs,
 ): Promise<{ outcome: OrderOutcome; error: string | null }> {
+  if (Date.now() >= order.submitBy) {
+    const reason = "Order preparation timed out. Review the order and try again.";
+    await ctx.runMutation(internal.liveTrading.rejectOrder, { orderId, reason, status: "failed" });
+    return { outcome: "rejected", error: reason };
+  }
   try {
-    await placeMarketOrder(order);
+    await placeMarketOrder(account, order);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     // Definitive: a per-order rejection (sCode), or a request-level error OKX
     // returns before accepting anything. NOT definitive: timeouts/busy codes,
     // where the order may still have been placed — leave those to reconcile.
-    const ambiguous = e instanceof OkxApiError && AMBIGUOUS_CODES.has(e.code);
+    const ambiguous = e instanceof OkxApiError && (AMBIGUOUS_CODES.has(e.code) || (e.sCode && AMBIGUOUS_CODES.has(e.sCode)));
     if (e instanceof OkxApiError && !ambiguous && (e.sCode || e.code === "1" || /^5\d{4}$/.test(e.code))) {
       await ctx.runMutation(internal.liveTrading.rejectOrder, { orderId, reason: message, status: "rejected" });
       return { outcome: "rejected", error: message };
@@ -515,12 +564,12 @@ async function sendAndSettle(
     await ctx.scheduler.runAfter(5_000, internal.liveTrading.reconcileOne, { orderId });
     return { outcome: "pending", error: `Order status unknown (${message}); it will be reconciled automatically.` };
   }
-  return { outcome: await pollAndSettle(ctx, orderId, order.instId, order.clOrdId), error: null };
+  return { outcome: await pollAndSettle(ctx, account, orderId, order.instId, order.clOrdId), error: null };
 }
 
 const orderResult = v.object({
   positionId: v.id("livePositions"),
-  outcome: v.union(v.literal("filled"), v.literal("rejected"), v.literal("pending")),
+  outcome: v.union(v.literal("filled"), v.literal("rejected"), v.literal("pending"), v.literal("closed_externally")),
   error: v.union(v.string(), v.null()),
   /** Close only, once filled: net PnL booked and the actual exit price. */
   realized: v.union(v.number(), v.null()),
@@ -540,33 +589,37 @@ export const getPosition = internalQuery({
   handler: async (ctx, { positionId }) => await ctx.db.get("livePositions", positionId),
 });
 
-/** Open a REAL position: market order on the platform OKX account, funded from the caller's USD balance. */
+/** Open a market order on the requested OKX account. */
 export const open = action({
-  args: { instId: v.string(), side, margin: v.number(), leverage: v.number() },
+  args: { instId: v.string(), side, margin: v.number(), leverage: v.number(), venue: personalVenue, connectionRevision: v.optional(v.string()) },
   returns: orderResult,
   handler: async (ctx, args): Promise<OrderResult> => {
     if (!(await ctx.auth.getUserIdentity())) throw new Error("Not signed in.");
-    await ctx.runQuery(internal.liveTrading.accessCheck, {});
+    const connection: Doc<"okxConnections"> | null = await ctx.runQuery(internal.liveTrading.accessCheck, { venue: args.venue });
     const cfg = tradingConfig();
-    if (!Number.isFinite(args.margin) || args.margin <= 0) throw new Error("Invalid amount.");
-    if (!Number.isInteger(args.leverage) || args.leverage < 1) throw new Error("Invalid multiplier.");
+    if (connection && connection.iv !== args.connectionRevision) {
+      throw new ConvexError("Your OKX connection changed. Review and submit the order again.");
+    }
+    if (!Number.isFinite(args.margin) || args.margin <= 0) throw new ConvexError("Invalid amount.");
+    if (!Number.isInteger(args.leverage) || args.leverage < 1) throw new ConvexError("Invalid multiplier.");
 
     const swap = await fetchSwap(args.instId);
     const maxLev = Math.min(cfg.maxLeverage, swap.maxLeverage);
-    if (args.leverage > maxLev) throw new Error(`Max multiplier for ${swap.base} is ${maxLev}×.`);
+    if (args.leverage > maxLev) throw new ConvexError(`Max multiplier for ${swap.base} is ${maxLev}×.`);
     const notional = args.margin * args.leverage;
-    if (notional > cfg.maxOrderUsd) throw new Error(`Max order size is $${cfg.maxOrderUsd} (amount × multiplier).`);
+    if (notional > cfg.maxOrderUsd) throw new ConvexError(`Max order size is $${cfg.maxOrderUsd} (amount × multiplier).`);
 
     const quote = await fetchQuote(args.instId);
     const price = args.side === "up" ? quote.ask : quote.bid;
     const sz = contractsForNotional(notional, price, swap);
     if (!sz) {
       const minUsd = Number(swap.minSz) * swap.ctVal * price;
-      throw new Error(`Below ${swap.base}'s minimum order (~$${minUsd.toFixed(2)} notional).`);
+      throw new ConvexError(`Below ${swap.base}'s minimum order (~$${minUsd.toFixed(2)} notional).`);
     }
     // Margin follows the whole lots actually ordered, not the rounded-away remainder.
     const estNotional = Number(sz) * swap.ctVal * price;
     const margin = estNotional / args.leverage;
+    const account = connection ? await personalAccount(connection) : platformAccount(cfg);
 
     const r = await ctx.runMutation(internal.liveTrading.reserveOpen, {
       instId: swap.instId,
@@ -578,27 +631,51 @@ export const open = action({
       sz,
       ctVal: swap.ctVal,
       estNotional,
+      connectionId: connection?._id,
     });
 
+    const posSide = args.side === "up" ? "long" : "short";
     try {
-      await ensureLongShortMode();
+      await ensureLongShortMode(account);
+      if (connection && await getIsolatedPositionSize(account, swap.instId, posSide) > 0) {
+        throw new Error("Close your existing OKX isolated position for this market and side before opening through CFX.");
+      }
       // Exchange leverage is account-wide per instrument: pin it to the platform cap.
-      await setLeverage(swap.instId, maxLev);
+      await setLeverage(account, swap.instId, connection ? args.leverage : maxLev, posSide);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       await ctx.runMutation(internal.liveTrading.rejectOrder, { orderId: r.orderId, reason: `Account setup failed: ${reason}`, status: "rejected" });
       return { positionId: r.positionId, outcome: "rejected", error: `Account setup failed: ${reason}`, realized: null, exit: null };
     }
 
-    const { outcome, error } = await sendAndSettle(ctx, r.orderId, {
+    const { outcome, error } = await sendAndSettle(ctx, account, r.orderId, {
       instId: swap.instId,
       side: args.side === "up" ? "buy" : "sell",
-      posSide: args.side === "up" ? "long" : "short",
+      posSide,
       sz,
       clOrdId: r.clOrdId,
       reduceOnly: false,
+      submitBy: r.submitBy,
     });
     return { positionId: r.positionId, outcome, error, realized: null, exit: null };
+  },
+});
+
+export const settleExternalClose = internalMutation({
+  args: { orderId: v.id("liveOrders") },
+  returns: v.boolean(),
+  handler: async (ctx, { orderId }) => {
+    const order = await ctx.db.get("liveOrders", orderId);
+    if (!order?.okxConnectionId || order.kind !== "close" || order.status !== "pending") return false;
+    const p = await ctx.db.get("livePositions", order.positionId);
+    if (p?.status !== "closing") return false;
+    await ctx.db.patch("liveOrders", orderId, { status: "failed", error: "OKX position already closed before submission." });
+    await ctx.db.patch("livePositions", p._id, { status: "closed", closedAt: Date.now(), closedExternally: true, realized: undefined });
+    await ctx.db.insert("activity", {
+      userId: p.userId, kind: "live_position_closed", message: `${p.base} position already closed on OKX`, instId: p.instId,
+    });
+    await syncAssetPositionCounts(ctx, p.instId, p.userId);
+    return true;
   },
 });
 
@@ -610,13 +687,33 @@ export const close = action({
     if (!(await ctx.auth.getUserIdentity())) throw new Error("Not signed in.");
     const r = await ctx.runMutation(internal.liveTrading.reserveClose, { positionId, kind: "close", asOwner: true });
     if (!r) throw new Error("This position is not open.");
-    const { outcome, error } = await sendAndSettle(ctx, r.orderId, {
+    const posSide = r.side === "up" ? "long" : "short";
+    let account: OkxAccount;
+    try {
+      account = await accountForOrder(ctx, r.userId, r.connectionId);
+      if (account.personal) {
+        await ensureLongShortMode(account);
+        const exchangeSize = await getIsolatedPositionSize(account, r.instId, posSide);
+        if (exchangeSize === 0) {
+          const settled: boolean = await ctx.runMutation(internal.liveTrading.settleExternalClose, { orderId: r.orderId });
+          if (!settled) throw new Error("The position changed while checking OKX. Refresh and try again.");
+          return { positionId, outcome: "closed_externally", error: null, realized: null, exit: null };
+        }
+        if (exchangeSize !== Number(r.sz)) throw new Error("Your position size changed on OKX. Close the remaining position in OKX, then return here to update CFX.");
+      }
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "Could not read the OKX position.";
+      await ctx.runMutation(internal.liveTrading.rejectOrder, { orderId: r.orderId, reason, status: "rejected" });
+      return { positionId, outcome: "rejected", error: reason, realized: null, exit: null };
+    }
+    const { outcome, error } = await sendAndSettle(ctx, account, r.orderId, {
       instId: r.instId,
       side: r.side === "up" ? "sell" : "buy",
-      posSide: r.side === "up" ? "long" : "short",
+      posSide,
       sz: r.sz,
       clOrdId: r.clOrdId,
       reduceOnly: true,
+      submitBy: r.submitBy,
     });
     const after = outcome === "filled" ? await ctx.runQuery(internal.liveTrading.getPosition, { positionId }) : null;
     return { positionId, outcome, error, realized: after?.realized ?? null, exit: after?.exit ?? null };
@@ -635,7 +732,7 @@ export const pendingOrders = internalQuery({
   args: {},
   returns: v.array(schema.doc("liveOrders")),
   handler: async (ctx) =>
-    await ctx.db.query("liveOrders").withIndex("by_status", (q) => q.eq("status", "pending")).take(50),
+    await ctx.db.query("liveOrders").withIndex("by_status_and_lastReconciledAt", (q) => q.eq("status", "pending")).take(50),
 });
 
 export const bumpAttempts = internalMutation({
@@ -643,7 +740,7 @@ export const bumpAttempts = internalMutation({
   returns: v.null(),
   handler: async (ctx, { orderId }) => {
     const o = await ctx.db.get("liveOrders", orderId);
-    if (o && o.status === "pending") await ctx.db.patch("liveOrders", orderId, { attempts: o.attempts + 1 });
+    if (o && o.status === "pending") await ctx.db.patch("liveOrders", orderId, { attempts: o.attempts + 1, lastReconciledAt: Date.now() });
     return null;
   },
 });
@@ -652,7 +749,8 @@ async function reconcile(ctx: ActionCtx, order: Doc<"liveOrders">): Promise<void
   if (order.status !== "pending") return;
   let state: OkxOrderState | null;
   try {
-    state = await getOrder(order.instId, order.clOrdId);
+    const account = await accountForOrder(ctx, order.userId, order.okxConnectionId);
+    state = await getOrder(account, order.instId, order.clOrdId);
   } catch {
     await ctx.runMutation(internal.liveTrading.bumpAttempts, { orderId: order._id });
     return; // OKX unreachable: try again next sweep
@@ -683,7 +781,6 @@ export const reconcileOne = internalAction({
   args: { orderId: v.id("liveOrders") },
   returns: v.null(),
   handler: async (ctx, { orderId }) => {
-    if (!tradingConfig().mode) return null;
     const order = await ctx.runQuery(internal.liveTrading.getOrderRow, { orderId });
     if (order) await reconcile(ctx, order);
     return null;
@@ -694,7 +791,6 @@ export const reconcilePending = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    if (!tradingConfig().mode) return null;
     const orders = await ctx.runQuery(internal.liveTrading.pendingOrders, {});
     for (const order of orders) {
       // Give the placing action time to finish its own polling first.
@@ -711,7 +807,7 @@ export const openLivePositions = internalQuery({
   handler: async (ctx) =>
     await ctx.db
       .query("livePositions")
-      .withIndex("by_status_and_instId", (q) => q.eq("status", "open"))
+      .withIndex("by_okxConnectionId_and_status_and_instId", (q) => q.eq("okxConnectionId", undefined).eq("status", "open"))
       .take(SWEEP_BATCH),
 });
 
@@ -720,7 +816,9 @@ export const sweepLiquidations = internalAction({
   args: {},
   returns: v.number(),
   handler: async (ctx): Promise<number> => {
-    if (!tradingConfig().mode) return 0;
+    const cfg = tradingConfig();
+    if (!cfg.mode) return 0;
+    const account = platformAccount(cfg);
     const positions = await ctx.runQuery(internal.liveTrading.openLivePositions, {});
     if (positions.length === 0) return 0;
     const marks = await fetchAllMarks();
@@ -732,13 +830,14 @@ export const sweepLiquidations = internalAction({
       if (p.side === "up" ? mark > liq : mark < liq) continue;
       const r = await ctx.runMutation(internal.liveTrading.reserveClose, { positionId: p._id, kind: "liquidation", asOwner: false });
       if (!r) continue;
-      await sendAndSettle(ctx, r.orderId, {
+      await sendAndSettle(ctx, account, r.orderId, {
         instId: r.instId,
         side: r.side === "up" ? "sell" : "buy",
         posSide: r.side === "up" ? "long" : "short",
         sz: r.sz,
         clOrdId: r.clOrdId,
         reduceOnly: true,
+        submitBy: r.submitBy,
       });
       count++;
     }

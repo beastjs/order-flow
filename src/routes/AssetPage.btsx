@@ -69,7 +69,7 @@ component PositionUserCounts
 setup
   const scrollRef = useSmoothScroll<HTMLDivElement>();
   const { assetId } = useParams({ strict: false }) as { assetId: string };
-  const search = useSearch({ strict: false }) as { venue?: "hyperliquid" };
+  const search = useSearch({ strict: false }) as { venue?: "hyperliquid"; trade?: "personal" };
   const venue: MarketVenue = search.venue === "hyperliquid" ? "hyperliquid" : "okx";
   const isHl = venue === "hyperliquid";
   const [range, setRange] = useState<RangeKey>("1d");
@@ -150,7 +150,7 @@ setup
             if okxTwin
               Link.lp-btn(to="/perps/$assetId" params={{ assetId: okxTwin }} search={{}}) Open #{okxTwin} on OKX →
         elseif inst
-          PositionSimulator(instId={inst.instId} base={inst.base} tickSz={tick} maxLeverage={inst.maxLeverage} ticker={v.okxTicker} markPx={v.markPx})
+          PositionSimulator(key={`${inst.instId}:${search.trade ?? ""}`} instId={inst.instId} base={inst.base} tickSz={tick} maxLeverage={inst.maxLeverage} ticker={v.okxTicker} markPx={v.markPx} startPersonal={search.trade === "personal"})
         else
           section.sim(aria-busy="true")
             header.sim-head

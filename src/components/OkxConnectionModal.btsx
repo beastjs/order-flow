@@ -1,0 +1,108 @@
+import { useForm, useStore } from "@octanejs/tanstack-form";
+import { createElement, useEffect, useRef, useState } from "octane";
+import { api } from "../../convex/_generated/api";
+import { useOkxConnection } from "@/hooks/useLiveAccount";
+import { convexErrorMessage } from "@/hooks/useConvex";
+import { convex } from "@/lib/convex/client";
+
+module
+  const fields = [
+    { name: "key", label: "API key" },
+    { name: "secret", label: "Secret key" },
+    { name: "passphrase", label: "API passphrase" },
+  ] as const;
+
+component CredentialInput
+  props { label, name, value, onInput }: { label: string; name: string; value: string; onInput: (value: string) => void }
+  label.sim-field
+    span #{label}
+    .sim-input
+      input(type="password" name={name} value={value} autoComplete="off" spellCheck={false} maxLength={256} required onInput={(e) => onInput(e.currentTarget.value)})
+
+component EnvironmentInput
+  props { mode, onChange }: { mode: "demo" | "live"; onChange: (mode: "demo" | "live") => void }
+  label.sim-field
+    span OKX environment
+    select.sim-input(className="w-full" value={mode} onChange={(e) => onChange(e.currentTarget.value === "live" ? "live" : "demo")})
+      option(value="demo") Demo trading
+      option(value="live") Live trading
+
+props { onClose }: { onClose: () => void }
+setup
+  const { data, error: statusError } = useOkxConnection();
+  const connection = data?.connection;
+  const dialog = useRef<HTMLDialogElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const form = useForm({
+    defaultValues: { mode: "demo" as "demo" | "live", key: "", secret: "", passphrase: "" },
+    onSubmit: async ({ value }) => {
+      if (!convex) return;
+      setError(null);
+      try {
+        await convex.action(api.okxConnections.connect, value);
+        form.reset();
+        onClose();
+      } catch (e) {
+        setError(convexErrorMessage(e));
+      }
+    },
+  });
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const busy = submitting || disconnecting;
+  const Field = form.Field;
+
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+
+  const disconnect = async () => {
+    if (!convex || busy) return;
+    setDisconnecting(true);
+    setError(null);
+    try {
+      await convex.mutation(api.okxConnections.disconnect, {});
+      form.reset();
+      onClose();
+    } catch (e) {
+      setError(convexErrorMessage(e));
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+dialog.wallet-modal.topup(className="m-auto! backdrop:bg-black/70 [&:not([open])]:hidden!" ref={dialog} aria-labelledby="okx-connection-title" onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }})
+  header.wallet-modal-head
+    h2#okx-connection-title My OKX
+    button.wallet-modal-close(type="button" aria-label="Close" disabled={busy} onClick={onClose}) ×
+  if statusError
+    p.sim-error(role="alert") Could not load your OKX connection.
+  elseif !data
+    p.topup-note(role="status") Loading your OKX connection…
+  else
+    fragment
+      if connection
+        .topup-status(role="status")
+          strong #{connection.mode === "demo" ? "OKX demo account connected" : "OKX live account connected"}
+          span API key ending in #{connection.keySuffix}
+      if !data.enabled
+        p.topup-note My OKX trading is unavailable on this deployment.
+      elseif !connection || editing
+        form.topup-step(aria-busy={submitting} onSubmit={(e) => { e.preventDefault(); if (!busy) void form.handleSubmit(); }})
+          p.topup-note Use a dedicated global OKX sub-account in Futures or Multi-currency margin mode with Long/short positions. Create a key with Read and Trade permissions only.
+          fieldset.topup-step(className="min-w-0 border-0 p-0" disabled={busy})
+            Field(name="mode" children={(field) => createElement(EnvironmentInput, { mode: field.state.value, onChange: field.handleChange })})
+            each fieldInfo in fields key fieldInfo.name
+              Field(name={fieldInfo.name} children={(field) => createElement(CredentialInput, { ...fieldInfo, value: field.state.value, onInput: field.handleChange })})
+          button.sim-submit.is-up(type="submit" disabled={busy}) #{submitting ? "Verifying key…" : connection ? "Verify and replace key" : "Connect to OKX"}
+      if connection && !editing
+        .sim-confirm-actions
+          if data.enabled
+            button.sim-chip(type="button" disabled={busy} onClick={() => { form.reset({ mode: connection.mode, key: "", secret: "", passphrase: "" }); setError(null); setEditing(true); }}) Replace key
+          button.sim-chip(type="button" disabled={busy} onClick={disconnect}) #{disconnecting ? "Disconnecting…" : "Disconnect"}
+  if error
+    p.sim-error(role="alert") #{error}
+

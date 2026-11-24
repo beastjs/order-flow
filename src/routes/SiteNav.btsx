@@ -5,6 +5,7 @@ import SignButton from "@/components/SignButton.btsx";
 import BalancePill from "@/components/BalancePill.btsx";
 import MobileMenu from "@/components/MobileMenu.btsx";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
+import { usePersonalPositions } from "@/hooks/useLiveAccount";
 import { useFirebaseUser } from "@/lib/firebase/auth";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,7 @@ setup
   const onPositions = location.pathname === "/perps" && (location.search as { tab?: string }).tab === "positions";
   const onMarkets = location.pathname.startsWith("/perps") && !onPositions;
   const onTerminal = location.pathname.startsWith("/terminal");
-  const openCount = useOpenPositions().rows.length;
+  const openCount = useOpenPositions().rows.length + usePersonalPositions().rows.length;
   const { user } = useFirebaseUser();
 
 header.site-nav

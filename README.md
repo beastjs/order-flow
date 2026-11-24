@@ -69,3 +69,15 @@ bun install
 bun run beast-ui init --package-manager bun
 bun run beast-ui icons init --framework beast
 ```
+
+## My OKX trading
+
+Set `OKX_USER_KEY_ENCRYPTION_KEY` on the Convex deployment to a randomly generated 32-byte hex key. Keep it stable and use a separate value for each deployment. Convex uses it to encrypt user credentials at rest. My OKX becomes available when the deployment has a valid key.
+
+```sh
+openssl rand -hex 32 | bunx convex env set OKX_USER_KEY_ENCRYPTION_KEY
+```
+
+Signed-in users can connect a demo or live key under **Account → My OKX**. Use a dedicated global OKX sub-account with Futures or Multi-currency margin account mode, Long/short position mode, and an API key with Read and Trade permissions. Fund the OKX trading account with USDT and select **My OKX** on an OKX market to place isolated-margin market orders. OKX applies its own margin and liquidation rules. If a position is closed in OKX, use **Close position** in CFX to verify that it is flat and update the history.
+
+Users can replace a key for the same OKX account and environment while positions are active. Close the positions and wait for pending orders to settle before switching accounts, switching environments, or disconnecting. See the [OKX API guide](https://www.okx.com/docs-v5/en/).

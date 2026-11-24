@@ -29,7 +29,7 @@ component TradeRow
     const base = saved ? trade.base : trade.instId.split("-")[0];
     const liquidated = saved ? trade.status === "liquidated" : trade.liquidated;
     const autoExit = "autoExitReason" in trade ? trade.autoExitReason : undefined;
-    const settlement = liquidated ? "Liquidated" : autoExit === "stop_loss" ? "Stop loss" : autoExit === "take_profit" ? "Take profit" : "Closed";
+    const settlement = okx && trade.closedExternally ? "Closed on OKX" : liquidated ? "Liquidated" : autoExit === "stop_loss" ? "Stop loss" : autoExit === "take_profit" ? "Take profit" : "Closed";
     const size = saved ? trade.size : trade.margin * trade.leverage / trade.entry;
     const openFee = saved ? trade.openFee : trade.margin * trade.leverage * TAKER_FEE;
     const targets = "exitTargets" in trade ? trade.exitTargets : undefined;
@@ -46,6 +46,8 @@ component TradeRow
         span.asset-index-name
           strong #{base}
           span.pos-side(className={trade.side === "up" ? "is-up" : "is-down"}) #{trade.side === "up" ? "Up" : "Down"} · #{trade.leverage}×
+          if okx
+            span.sim-muted #{trade.okxMode ? `My OKX · ${trade.okxMode === "demo" ? "Demo" : "Live"}` : "CFX · USD"}
 
       dl.trade-history-metrics
         div
@@ -151,7 +153,7 @@ setup
     .lp-toolbar
       .lp-segmented(role="group" aria-label="Trading account")
         button.lp-seg(type="button" className={cn(venue === "paper" && "is-active")} aria-pressed={venue === "paper"} onClick={() => setVenue("paper")}) Paper · USDT
-        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")}) OKX · USD
+        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")}) OKX
 
 section.trade-history(aria-label="Closed positions")
   if auth.isLoading

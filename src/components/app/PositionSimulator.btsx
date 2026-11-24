@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "octane";
 import type { OkxTicker } from "@/lib/okx";
 import { MAINT_MARGIN, TAKER_FEE, estimateClosePnl, liquidationPrice, metrics, openPosition, type PaperSide } from "@/lib/paper/math";
 import { maxMargin, usePaperAccount, type SimResult } from "@/hooks/usePaperAccount";
-import { useLiveAccount } from "@/hooks/useLiveAccount";
+import { useLiveAccount, useOkxConnection } from "@/hooks/useLiveAccount";
 import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
 import ScrubField from "@/components/ui/scrubfield.btsx";
-import FlameUsage from "../canvasui/flame-usage.btsx";
 import PositionExitModal from "./PositionExitModal.btsx";
+import OkxConnectionModal from "../OkxConnectionModal.btsx";
+import { useFirebaseUser } from "@/lib/firebase/auth";
 
 module
   // Round first so a value like −0.001 prints "$0.00", not "−$0.00".
@@ -21,18 +22,25 @@ module
     return [...new Set([1, 2, 5, 10, 20, 50, 100].filter((x) => x < max).concat(max))]
   }
 
-props { instId, base, tickSz, maxLeverage, ticker, markPx }: { instId: string; base: string; tickSz?: number; maxLeverage: number; ticker: OkxTicker | null; markPx?: number }
+props { instId, base, tickSz, maxLeverage, ticker, markPx, startPersonal = false }: { instId: string; base: string; tickSz?: number; maxLeverage: number; ticker: OkxTicker | null; markPx?: number; startPersonal?: boolean }
 setup
   const account = usePaperAccount(instId);
-  // Paper (simulated) vs Live (real market orders on the platform OKX account).
-  const [venue, setVenue] = useState<"paper" | "live">("paper");
-  const liveAcct = useLiveAccount(instId, venue === "live");
+  const { user } = useFirebaseUser();
+  const { data: okxStatus, error: connectionError } = useOkxConnection();
+  const connection = user ? okxStatus?.connection : null;
+  const canPersonal = Boolean(user && (okxStatus?.enabled || connection));
+  const [venue, setVenue] = useState<"paper" | "live" | "personal">(startPersonal ? "personal" : "paper");
+  const isPersonal = venue === "personal";
+  const isLive = venue !== "paper";
+  const liveAcct = useLiveAccount(instId, venue, connection?.revision);
   const liveCfg = liveAcct.config;
   const canLive = Boolean(liveCfg?.canTrade);
-  const isLive = venue === "live" && canLive;
+  const tradeMode = isPersonal ? connection?.mode : liveCfg?.mode;
+  const [okxUser, setOkxUser] = useState<string | null>(null);
+  const manageOkx = () => setOkxUser(user?.uid ?? null);
   const position = isLive ? liveAcct.position : account.position;
   const effMaxLeverage = isLive ? Math.max(1, Math.min(maxLeverage, liveCfg?.maxLeverage ?? 1)) : maxLeverage;
-  const [confirming, setConfirming] = useState(false);
+  const [confirmation, setConfirmation] = useState<string | null>(null);
   const [exitTargetKey, setExitTargetKey] = useState<string | null>(null);
   const paperPositionKey = isLive ? null : account.positionKey;
   const [side, setSide] = useState<PaperSide>("up");
@@ -46,6 +54,7 @@ setup
   const [leverage, setLeverage] = useState(Math.min(10, maxLeverage));
   const [error, setError] = useState<string | null>(null);
   const [lastFill, setLastFill] = useState<SimResult | null>(null);
+  const [closedExternally, setClosedExternally] = useState(false);
   const [busy, setBusy] = useState<"open" | "close" | "reset" | null>(null);
 
   useEffect(() => {
@@ -54,9 +63,10 @@ setup
 
   // Switching venue: drop any pending confirmation and stale result.
   useEffect(() => {
-    setConfirming(false);
+    setConfirmation(null);
     setExitTargetKey(null);
     setLastFill(null);
+    setClosedExternally(false);
     setError(null);
   }, [venue]);
 
@@ -68,6 +78,7 @@ setup
   const exitFor = (s: PaperSide) => (s === "up" ? quote.bid : quote.ask);
 
   const available = isLive ? liveAcct.balance : account.balance;
+  const openAllowed = isPersonal ? Boolean(connection && okxStatus?.enabled) : !isLive || canLive;
   const amountLimit = Math.max(0, available ?? 0);
   const margin = Math.min(amount, amountLimit);
   // Live: also capped by the server's per-order notional limit.
@@ -80,13 +91,15 @@ setup
   const preview = margin > 0 && entryEst ? openPosition(instId, side, margin, leverage, entryEst) : null;
   const live = position && mark ? metrics(position, mark) : null;
   const closePnl = position && live ? estimateClosePnl(position, live.pnl, exitFor(position.side)) : null;
+  const confirmationKey = JSON.stringify([venue, connection?.revision, side, margin, leverage]);
+  const confirming = confirmation === confirmationKey;
 
   // Practice mode only: the client is the risk engine. Signed in, the server sweep liquidates.
   useEffect(() => {
-    if (account.mode !== "local" || !position || !mark) return;
+    if (isLive || account.mode !== "local" || !position || !mark) return;
     const liq = liquidationPrice(position);
     if (position.side === "up" ? mark <= liq : mark >= liq) setLastFill(account.liquidateLocal(liq));
-  }, [account.mode, position, mark]);
+  }, [account.mode, isLive, position, mark]);
 
   const run = async (kind: "open" | "close" | "reset", task: () => Promise<string | null>) => {
     setBusy(kind);
@@ -98,23 +111,29 @@ setup
     }
   };
   const submit = () => {
-    if (!preview || overBalance || available === null || busy !== null || inFlight) return;
+    if (!openAllowed || !preview || overBalance || available === null || busy !== null || inFlight) return;
     // Real money: first tap shows exactly what will be sent; second tap sends it.
     if (isLive && !confirming) {
-      setConfirming(true);
+      setConfirmation(confirmationKey);
       return;
     }
-    setConfirming(false);
+    setConfirmation(null);
     return run("open", async () => {
       const err = isLive ? await liveAcct.open(side, margin, leverage) : await account.open(side, margin, leverage, quote);
-      if (!err) setLastFill(null);
+      if (!err) {
+        setLastFill(null);
+        setClosedExternally(false);
+      }
       return err;
     });
   };
   const close = () =>
     run("close", async () => {
-      const { result, error: err } = isLive ? await liveAcct.close() : await account.close(quote);
+      const { result, error: err, closedExternally: external } = isLive
+        ? await liveAcct.close()
+        : { ...await account.close(quote), closedExternally: false };
       if (result) setLastFill(result);
+      setClosedExternally(Boolean(external));
       return err;
     });
   const reset = () =>
@@ -139,34 +158,53 @@ setup
     if (available !== null) setAmount((value) => Math.min(value, amountLimit));
   }, [available, amountLimit]);
 
-  useEffect(() => {
-  if (live && position){
-    console.clear()
-    console.log(`PNL ${usd(closePnl, true)} EXIT ${(exitFor(position.side) ?? 0)} | SIZEp ${position.size} | FEEo ${position.openFee} | Fee ${TAKER_FEE}`)
-  }
-  },[live, position])
-
   // canvas#source(style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;")
 section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live" : account.mode})
-  header.sim-head
-    h2 #{isLive ? "Trade on OKX" : "Simulate a position"}
-    if canLive
+  header.sim-head(className="flex-wrap gap-y-2")
+    h2 #{isPersonal ? "Trade with My OKX" : isLive ? "Trade on OKX" : "Simulate a position"}
+    if canLive || canPersonal || isLive
       .sim-venue(role="radiogroup" aria-label="Trading venue")
-        button(type="button" role="radio" aria-checked={!isLive} className={cn("sim-venue-opt", !isLive && "is-active")} disabled={busy !== null || inFlight} onClick={() => setVenue("paper")}) Paper
-        button(type="button" role="radio" aria-checked={isLive} className={cn("sim-venue-opt is-live", isLive && "is-active")} disabled={busy !== null} onClick={() => setVenue("live")}) Live
-    elseif !isLive
+        button(type="button" role="radio" aria-checked={!isLive} className={cn("sim-venue-opt", !isLive && "is-active")} disabled={busy !== null} onClick={() => setVenue("paper")}) Paper
+        if canLive || venue === "live"
+          button(type="button" role="radio" aria-checked={venue === "live"} className={cn("sim-venue-opt is-live", venue === "live" && "is-active")} disabled={busy !== null} onClick={() => setVenue("live")}) Live
+        if canPersonal || isPersonal
+          button(type="button" role="radio" aria-checked={isPersonal} className={cn("sim-venue-opt is-live", isPersonal && "is-active")} disabled={busy !== null} onClick={() => setVenue("personal")}) My OKX
+    else
       span.sim-balance
         span.sim-mode-dot
         button.sim-link(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset balance
   p(className={cn("sim-mode", (account.mode === "cloud" || isLive) && "is-cloud", isLive && "is-live")})
-    if isLive
+    if isPersonal && connection
+      | #{tradeMode === "demo" ? "OKX demo · simulated USDT" : "OKX live · real USDT"} · key ending in #{connection.keySuffix}
+    elseif venue === "live"
       | #{liveCfg?.mode === "demo" ? "OKX demo trading · simulated funds on OKX · your USD balance" : "LIVE on OKX · real funds · your USD balance"}
     // else
     //   | #{account.mode === "cloud" ? "Saved to your account · priced by the server" : account.loading ? "Checking your account…" : "Practice mode · sign in to save positions"}
-  if canLive && !isLive && account.mode === "cloud"
+  if (canLive || canPersonal) && !isLive && account.mode === "cloud"
     button.sim-link.sim-reset-inline(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset paper balance
+  if isPersonal && connection
+    fragment
+      .sim-confirm-actions
+        button.sim-chip(type="button" aria-haspopup="dialog" disabled={busy !== null} onClick={manageOkx}) Manage key
+        if !position && openAllowed
+          button.sim-chip(type="button" disabled={busy !== null || inFlight || loading} onClick={liveAcct.refreshBalance}) Refresh balance
+      if available !== null && !position
+        p.sim-mode #{available.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDT available on OKX
 
-  if loading
+  if isPersonal && !connection
+    if !user
+      p.sim-note Sign in to connect your OKX account.
+    elseif connectionError
+      p.sim-error(role="alert") Could not load your OKX connection.
+    elseif !okxStatus
+      p.sim-loading(role="status") Checking your OKX connection…
+    elseif okxStatus.enabled
+      button.sim-submit.is-up(type="button" aria-haspopup="dialog" onClick={manageOkx}) Connect OKX API key
+    else
+      p.sim-note My OKX trading is unavailable.
+  elseif !openAllowed && !position
+    p.sim-note #{isPersonal ? "My OKX trading is unavailable." : liveCfg?.reason ?? "Checking trading access…"}
+  elseif loading
     .sim-loading(role="status") Loading your account…
   elseif inFlight && !position
     .sim-loading Placing your order on OKX…
@@ -192,9 +230,10 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         .sim-row
           dt Mark
           dd #{fmtPrice(mark, tickSz)}
-        .sim-row
-          dt Liq. price (est.)
-          dd.is-down #{fmtPrice(liquidationPrice(position), tickSz)}
+        if !isPersonal
+          .sim-row
+            dt Liq. price (est.)
+            dd.is-down #{fmtPrice(liquidationPrice(position), tickSz)}
         // .sim-row
         //   dt Notional
         //   dd #{usd(live.notional)}
@@ -216,9 +255,10 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
               ~ onSave={account.setExitTargets}
               ~ onClose={() => setExitTargetKey(null)}
               ~ )
-      .sim-risk(className='' title="Distance from liquidation")
-        .sim-risk-bar(style={{ width: `${(live?.safety ?? 0) * 100}%` }} data-danger={live && live.safety < 0.25 ? "1" : "0"})
-      button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight || !live || (!isLive && !exitFor(position.side))} onClick={close})
+      if !isPersonal
+        .sim-risk(className='' title="Distance from liquidation")
+          .sim-risk-bar(style={{ width: `${(live?.safety ?? 0) * 100}%` }} data-danger={live && live.safety < 0.25 ? "1" : "0"})
+      button.sim-submit.sim-close(type="button" disabled={busy !== null || inFlight || (isPersonal ? !openAllowed : !live || (!isLive && !exitFor(position.side)))} onClick={close})
         | #{busy === "close" || liveAcct.status === "closing" ? (isLive ? "Closing on OKX…" : "Closing…") : `Close position` }
   else
     .sim-form
@@ -229,7 +269,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
       ScrubField(
         ~ label="Amount"
         ~ labelColor={side === 'up' ? "text-[#1b1b1b]" : 'text-white'}
-        ~ suffix={isLive ? "USD" : "USD"}
+        ~ suffix={isPersonal ? "USDT" : "USD"}
         ~ value={margin}
         ~ min={0}
         ~ max={amountLimit}
@@ -272,9 +312,10 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         .sim-row
           dt Entry (est.)
           dd #{fmtPrice(entryEst, tickSz)}
-        .sim-row
-          dt Liq. price (est.)
-          dd #{preview ? fmtPrice(liquidationPrice(preview), tickSz) : "—"}
+        if !isPersonal
+          .sim-row
+            dt Liq. price (est.)
+            dd #{preview ? fmtPrice(liquidationPrice(preview), tickSz) : "—"}
         // .sim-row
         //   dt Fee (#{(TAKER_FEE * 100).toFixed(2)}%)
         //   dd #{preview ? usd(preview.openFee) : "—"}
@@ -283,27 +324,35 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
         p.sim-error #{isLive && available !== null && maxMargin(available, leverage) > orderCap ? `Max order is $${liveCfg?.maxOrderUsd} notional — max ${usd(affordable)} at ${leverage}×.` : `Exceeds your available balance — max ${usd(affordable)} at ${leverage}× (amount + ${(TAKER_FEE * 100).toFixed(2)}% fee on the position).`}
       if confirming && preview
         .sim-confirm(role="alertdialog" aria-label="Confirm real order")
-          strong #{liveCfg?.mode === "demo" ? "Place a demo order on OKX?" : "Place a REAL order on OKX?"}
-          p Market #{side === "up" ? "buy (Up)" : "sell (Down)"} of ~#{fmtSize(preview.size)} #{base} at ~#{fmtPrice(entryEst, tickSz)}, #{leverage}×, using #{usd(margin)} of your USD balance. Size is rounded down to whole contracts; the price, size and fee you get are OKX's actual fill.
+          strong #{tradeMode === "demo" ? "Place a demo order on OKX?" : "Place a real order on OKX?"}
+          p Market #{side === "up" ? "buy (Up)" : "sell (Down)"} of ~#{fmtSize(preview.size)} #{base} at ~#{fmtPrice(entryEst, tickSz)}, #{leverage}×, using #{isPersonal ? `${margin.toFixed(2)} USDT from your OKX account` : `${usd(margin)} of your CFX USD balance`}. OKX determines the final fill price and fee.
           .sim-confirm-actions
-            button.sim-chip(type="button" onClick={() => setConfirming(false)}) Cancel
+            button.sim-chip(type="button" onClick={() => setConfirmation(null)}) Cancel
             button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={overBalance || available === null || busy !== null || inFlight} onClick={submit}) Confirm order
       else
         button(type="button" className={cn("sim-submit", side === "up" ? "is-up" : "is-down")} disabled={!preview || overBalance || available === null || busy !== null || inFlight} onClick={submit})
-          | #{busy === "open" ? (isLive ? "Placing on OKX…" : "Placing…") : `${side === "up" ? "Go Up" : "Go Down"} ${leverage}× · ${preview ? usd(margin) : ""}${isLive ? (liveCfg?.mode === "demo" ? " · demo" : " · LIVE") : ""}`}
+          | #{busy === "open" ? (isLive ? "Placing on OKX…" : "Placing…") : `${side === "up" ? "Go Up" : "Go Down"} ${leverage}× · ${preview ? usd(margin) : ""}${isLive ? (tradeMode === "demo" ? " · demo" : " · LIVE") : ""}`}
 
   if error
-    p.sim-error #{error}
-  if account.closedRemotely
+    p.sim-error(role="alert") #{error}
+  if isLive && liveAcct.balanceError
+    p.sim-error(role="alert") #{liveAcct.balanceError}
+  if closedExternally
+    p.sim-result(role="status") This position was already closed on OKX. CFX has updated your position list.
+  elseif !isLive && account.closedRemotely
     p.sim-result Your #{base} position closed. See Trade history for the fill.
   elseif lastFill
     p(className={cn("sim-result", lastFill.realized >= 0 ? "is-up" : "is-down")})
       | #{lastFill.liquidated ? "Liquidated" : "Closed"} #{lastFill.side === "up" ? "Up" : "Down"} #{lastFill.leverage}× at #{fmtPrice(lastFill.exit, tickSz)} · #{usd(lastFill.realized, true)} (#{fmtPct((lastFill.realized / lastFill.margin) * 100)})
 
-  if isLive
+  if isPersonal && connection
+    p.sim-note Isolated margin · OKX handles liquidation. Use your dedicated account for CFX orders so position sizes stay in sync.
+  elseif venue === "live"
     p.sim-note Market orders on OKX #{liveCfg?.mode === "demo" ? "demo trading" : "(real funds)"} · fills, fees and size from OKX · max $#{liveCfg?.maxOrderUsd} per order · liquidated at #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin.
     // else
     //   p.sim-note Live OKX prices · fills cross the spread · #{(MAINT_MARGIN * 100).toFixed(1)}% maintenance margin · no real funds.
+  if user && okxUser === user.uid
+    OkxConnectionModal(onClose={() => setOkxUser(null)})
   // canvas#output(
   //   ~ aria-hidden="true"
   //   ~ style="position: absolute; width: calc(100% + 80px); height: calc(100% + 335px); pointer-events: none; opacity: 0;"

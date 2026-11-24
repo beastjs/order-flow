@@ -34,9 +34,11 @@ component ExitTargetChip
     ~ disabled={disabled}
     ~ onClick={onEdit}
     ~ )
-    span #{stop ? "SL" : "TP"}
-    span #{amount}
-    span.pos-exit-chip-price · #{price}
+    span
+      span(className='text-(--text-primary) font-[450] pr-1.5!') #{stop ? "SL" : "TP"}
+      span #{amount}
+    // span ·
+    span.pos-exit-chip-price #{price}
 
 component PositionRow
   props { row, mark, exit, pnl, busy, disabled, onClose, onExitTargets }: { row: OpenPositionRow; mark?: number; exit?: number; pnl: number | null; busy: boolean; disabled: boolean; onClose: (row: OpenPositionRow) => void; onExitTargets: (row: OpenPositionRow) => void }
@@ -173,21 +175,27 @@ setup
     }
   };
 
-section.pos
+section.pos(aria-label="Paper positions")
   .pos-overview
     .pos-summary(className='portait:py-2!')
       .pos-stat
-        span Open positions
+        span
+        // strong #{usd(open.balance)}
+      .pos-stat
+        span Available balance
+        strong #{usd(open.balance)}
+      .pos-stat
+        span Open paper positions
         strong #{open.loading ? "—" : open.rows.length}
       .pos-stat
         span Margin in use
         strong #{usd(totalMargin)}
       .pos-stat
+        span Set TP/SL
+      .pos-stat
         span Unrealized PnL
         strong(className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
-      .pos-stat
-        span Available balance
-        strong #{usd(open.balance)}
+
     div(className='border-b border-(--border) py-5!')
       if (!open.loading && open.rows.length > 0) || closing === "all"
         button.pos-close.pos-close-all(
@@ -241,7 +249,7 @@ section.pos
           ~ )
       empty
         .pos-empty
-          p No open positions.
+          p No open paper positions.
           Link.lp-btn.lp-btn-ghost(to="/perps") Browse markets
 
   if targetRow

@@ -1402,7 +1402,7 @@
   display: grid;
   flex: 1;
   min-width: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   /*border-radius: var(--radius-card);*/
   overflow: hidden;
@@ -1418,8 +1418,9 @@
   min-width: 0;
 }
 .pos-stat span {
-  color: var(--text-muted);
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-mono);
 }
 .pos-stat strong {
   font-family: var(--font-sans);
@@ -1519,15 +1520,17 @@
 .pos-exit-chip {
   --target-color: var(--buy);
   display: inline-flex;
+  justify-content: space-between;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0 5px;
   max-width: 100%;
+  min-width: 160px;
   min-height: 32px;
   padding: 8px 8px;
-  border: 1px solid color-mix(in oklab, var(--target-color) 24%, var(--border));
+  border: 1px solid color-mix(in oklab, var(--target-color) 12%, var(--border));
   border-radius: 1px;
-  background: color-mix(in oklab, var(--target-color) 8%, var(--bg-panel));
+  background: color-mix(in oklab, var(--target-color) 4%, var(--bg-panel));
   color: var(--target-color);
   cursor: pointer;
   font-size: 13px;

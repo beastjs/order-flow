@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'octane'
 import { getFunctionName, type FunctionArgs, type FunctionReference, type FunctionReturnType } from 'convex/server'
 import { convex, convexAuthStore, type ConvexAuthState } from '@/lib/convex/client'
+import { ConvexError } from 'convex/values'
 
 // ─── Convex hooks for Octane ─────────────────────────────────────
 // There is no Octane binding for convex/react, so these sit on the
@@ -51,6 +52,7 @@ export function useConvexQuery<Q extends FunctionReference<'query'>>(
 
 /** Human-readable message from a Convex function error ("Uncaught Error: X" → "X"). */
 export function convexErrorMessage(error: unknown): string {
+  if (error instanceof ConvexError && typeof error.data === 'string') return error.data
   const raw = error instanceof Error ? error.message : String(error)
   const match = raw.match(/Uncaught Error: ([^\n]+)/)
   return (match ? match[1] : raw).replace(/\s+at .*$/s, '').trim()

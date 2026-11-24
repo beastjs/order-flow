@@ -31,7 +31,10 @@ const assetRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'perps/$assetId',
   component: AssetPage,
-  validateSearch: validateVenue
+  validateSearch: (search): VenueSearch & { trade?: 'personal' } => ({
+    ...validateVenue(search),
+    ...(search.trade === 'personal' ? { trade: 'personal' } : {})
+  })
 })
 
 // Old /predictions URLs (bookmarks, shared links) → /perps, keeping the tab and asset.
