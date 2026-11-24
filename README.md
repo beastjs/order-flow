@@ -70,6 +70,13 @@ bun run beast-ui init --package-manager bun
 bun run beast-ui icons init --framework beast
 ```
 
+## Paper Total TP/SL polling
+
+Set `PAPER_TOTAL_EXIT_POLL_SECONDS` to a positive whole number of seconds. The default is `60`.
+For development, put it in `.env` and start the backend with `bun run dev:convex`.
+This copies the value to the configured Convex dev deployment before pushing the backend.
+For other deployments, set it under **Settings → Environment Variables** in the Convex dashboard and redeploy to apply the new interval.
+
 ## My OKX trading
 
 Set `OKX_USER_KEY_ENCRYPTION_KEY` on the Convex deployment to a randomly generated 32-byte hex key. Keep it stable and use a separate value for each deployment. Convex uses it to encrypt user credentials at rest. My OKX becomes available when the deployment has a valid key.

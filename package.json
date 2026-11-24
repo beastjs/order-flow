@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "rsbuild dev",
+    "dev:convex": "bun scripts/convex-dev.ts",
     "build": "rsbuild build",
     "preview": "rsbuild preview",
     "typecheck": "tsrx-tsc --noEmit",

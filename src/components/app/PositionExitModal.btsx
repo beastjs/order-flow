@@ -91,7 +91,7 @@ dialog.pos-exit-dialog(
       ~ onChange={(value) => { setTakeProfit(value); setError(null); }}
       ~ )
     if total
-      p.pos-exit-note #{mode === "cloud" ? "Checked every minute." : "Checked as prices update while the app is open."} Targets clear when all positions close.
+      p.pos-exit-note #{mode === "cloud" ? "Checked on the server at regular intervals." : "Checked as prices update while the app is open."} Targets clear when all positions close.
     if error
       p.sim-error(role="alert") #{error}
     footer
