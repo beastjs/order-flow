@@ -102,7 +102,14 @@ component TradeRow
           div
             dt Follow-up order
             dd(className={followUpResult.status === "failed" ? "is-down" : undefined})
-              | #{followUpResult.status === "opened" ? `Opened ${followUpBase}` : followUpResult.status === "pending" ? `Opening ${followUpBase}…` : `${followUpBase} could not open. ${followUpResult.error}`}
+              if followUpResult.status === "opened"
+                | Opened #{followUpBase}
+              elseif followUpResult.status === "pending"
+                | Opening #{followUpBase}…
+              elseif followUpResult.status === "skipped"
+                | Skipped by trigger criteria
+              else
+                | #{followUpBase} could not open. #{followUpResult.error}
         div
           dt Opened
           dd #{trade.openedAt === undefined ? "—" : dateTime.format(trade.openedAt)}

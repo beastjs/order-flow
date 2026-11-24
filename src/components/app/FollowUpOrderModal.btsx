@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "octane";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import type { OpenPositionRow } from "@/hooks/usePaperAccount";
 import { fetchPerps, type OkxPerpInstrument } from "@/lib/okx";
-import { MAX_PAPER_MARGIN, validateFollowUpOrder, type FollowUpOrder } from "@/lib/paper/math";
+import { MAX_PAPER_MARGIN, followUpCriteria, validateFollowUpOrder, type FollowUpCriterion, type FollowUpOrder } from "@/lib/paper/math";
 import PositionOrderControls from "./PositionOrderControls.btsx";
 import ExitTargetField, { MAX_EXIT_TARGET } from "./ExitTargetField.btsx";
 import { cn } from '@/lib/utils';
@@ -14,6 +14,8 @@ setup
   const saved = row.position.followUpOrder;
   const dialog = useRef<HTMLDialogElement | null>(null);
   const title = useId();
+  const criteriaTitle = useId();
+  const criteriaHint = useId();
   const [instruments, setInstruments] = useState<OkxPerpInstrument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ setup
       takeProfit: saved?.exitTargets.takeProfit ?? 0,
       stopEnabled: saved?.exitTargets.stopLoss != null,
       profitEnabled: saved?.exitTargets.takeProfit != null,
+      criteria: saved?.criteria ?? [],
     },
     onSubmit: async ({ value }) => {
       const instrument = instruments.find(({ instId }) => instId === value.instId);
@@ -50,6 +53,7 @@ setup
       const order: FollowUpOrder = {
         instId: value.instId, side: value.side, margin: value.amount, leverage: value.multiplier,
         exitTargets: { stopLoss: value.stopEnabled ? value.stopLoss : null, takeProfit: value.profitEnabled ? value.takeProfit : null },
+        criteria: value.criteria,
       };
       const issue = validateFollowUpOrder(order, instrument.maxLeverage || 1);
       if (issue) setError(issue);
@@ -63,6 +67,12 @@ setup
   const maxLeverage = selected ? selected.maxLeverage || 1 : values.multiplier;
   const amountDragStep = Math.max(0.01, Math.round(row.position.margin) / 100);
   const targetDragStep = Math.max(0.01, Math.round(values.amount || row.position.margin) / 100);
+
+  const toggleCriterion = (criterion: FollowUpCriterion) => {
+    const selected = form.state.values.criteria;
+    form.setFieldValue("criteria", selected.includes(criterion) ? selected.filter((code) => code !== criterion) : [...selected, criterion]);
+    setError(null);
+  };
 
   const selectInstrument = (instId: string) => {
     const instrument = instruments.find((market) => market.instId === instId);
@@ -124,20 +134,23 @@ dialog.pos-exit-dialog(ref={dialog} aria-labelledby={title} onCancel={(event) =>
       ~ onAmountChange={(amount) => { form.setFieldValue("amount", amount); setError(null); }}
       ~ onLeverageChange={(multiplier) => { form.setFieldValue("multiplier", multiplier); setError(null); }}
       ~ )
-    div(className='flex items-center justify-between bg-base border-y border-(--border) border-dotted py-3!')
+    div(className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 bg-base border-y border-(--border) border-dotted py-3!')
       div(className='flex items-center justify-center')
         Icon(name='bolt' className='size-5 text-orange-300')
-        span(className='text-xl! text-(--text-primary)! px-1!')
+        span(id={criteriaTitle} className='text-xl! text-(--text-primary)! px-1!')
           strong Run on
-      div(className='flex items-center justify-center gap-2')
-
-
-        button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! w-13 text-[15px]!", {"brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]! font-bold!":false, 'text-white!': false})} disabled={false} onClick={undefined}) NL
-        button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! w-13 text-[15px]!", {"brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]! font-bold!":false, 'text-white!': false})} disabled={false} onClick={undefined}) NP
-        button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! w-13 text-[15px]!", {"brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]! font-bold!":false, 'text-white!': false})} disabled={false} onClick={undefined}) TP
-        button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! w-13 text-[15px]!", {"brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]! font-bold!":true, 'text-white!': false})} disabled={false} onClick={undefined}) SL
-        button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! w-13 text-[15px]!", {"brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]! font-bold!":false, 'text-white!': false})} disabled={false} onClick={undefined}) LQ
-        button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! w-13 text-[15px]!", {"brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]! font-bold!":false, 'text-white!': false})} disabled={false} onClick={undefined}) CL
+      div(role="group" aria-labelledby={criteriaTitle} aria-describedby={criteriaHint} className='grid w-full grid-cols-6 gap-1.5 sm:w-auto')
+        each criterion in followUpCriteria key criterion.code
+          button.sim-chip(
+            ~ type="button"
+            ~ className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-bold! text-[15px]! sm:w-12", values.criteria.includes(criterion.code) && "brightness-100! hover:bg-orange-300/60! bg-orange-300! text-[#101010]!")}
+            ~ aria-label={`${criterion.code} ${criterion.label}`}
+            ~ aria-pressed={values.criteria.includes(criterion.code)}
+            ~ title={criterion.label}
+            ~ disabled={busy}
+            ~ onClick={() => toggleCriterion(criterion.code)}
+            ~ ) #{criterion.code}
+      p.pos-exit-note(id={criteriaHint} className="basis-full") #{values.criteria.length ? "Runs when any selected criterion matches." : "Runs on any close."}
 
     fieldset(className="grid min-w-0 gap-4" disabled={busy})
       legend.pos-exit-note(className="mb-1 text-xl!") TP/SL

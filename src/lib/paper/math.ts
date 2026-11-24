@@ -18,15 +18,33 @@ export interface ExitTargets {
   takeProfit: number | null
 }
 
+export const followUpCriteria = [
+  { code: 'NL', label: 'Net loss' },
+  { code: 'NP', label: 'Net profit' },
+  { code: 'TP', label: 'Take profit' },
+  { code: 'SL', label: 'Stop loss' },
+  { code: 'LQ', label: 'Liquidation' },
+  { code: 'CL', label: 'Manual close' }
+] as const
+export type FollowUpCriterion = (typeof followUpCriteria)[number]['code']
+
+const autoExitCriteria = {
+  stop_loss: 'SL',
+  take_profit: 'TP',
+  total_stop_loss: 'SL',
+  total_take_profit: 'TP'
+} satisfies Record<AutoExitReason, FollowUpCriterion>
+
 export interface FollowUpOrder {
   instId: string
   side: PaperSide
   margin: number
   leverage: number
   exitTargets: ExitTargets
+  criteria?: FollowUpCriterion[]
 }
 
-export type FollowUpResult = { status: 'pending' } | { status: 'opened' } | { status: 'failed'; error: string }
+export type FollowUpResult = { status: 'pending' } | { status: 'opened' } | { status: 'skipped' } | { status: 'failed'; error: string }
 
 export interface ExitQuote {
   bid?: number
@@ -135,6 +153,9 @@ export function validateFollowUpOrder(order: FollowUpOrder, maxLeverage?: number
   if (!Number.isFinite(order.margin) || order.margin <= 0 || order.margin > MAX_PAPER_MARGIN) return 'Enter a valid amount.'
   if (!Number.isSafeInteger(order.leverage) || order.leverage < 1) return 'Enter a whole-number multiplier of at least 1×.'
   if (maxLeverage !== undefined && order.leverage > maxLeverage) return `The maximum multiplier is ${maxLeverage}×.`
+  if (order.criteria && (order.criteria.length > followUpCriteria.length || new Set(order.criteria).size !== order.criteria.length)) {
+    return 'Choose each close criterion only once.'
+  }
   // Dollar targets scale with notional, so their validity is independent of the entry price.
   const position = openPosition(order.instId, order.side, order.margin, order.leverage, 1, 0)
   return validateExitTargets(position, order.exitTargets)
@@ -218,7 +239,15 @@ function realizedPnl(p: PaperPosition, exit: number, liquidated: boolean): numbe
   return liquidated ? floor : Math.max(netPnlAtExit(p, exit), floor)
 }
 
-export function closePosition(p: PaperPosition, exit: number, liquidated = false, now = Date.now()): PaperFill {
+function matchesFollowUp(criteria: FollowUpCriterion[] | undefined, realized: number, liquidated: boolean, reason?: AutoExitReason): boolean {
+  if (!criteria?.length) return true
+  const closeCriterion = liquidated ? 'LQ' : reason ? autoExitCriteria[reason] : 'CL'
+  return criteria.includes(closeCriterion) || (realized < 0 && criteria.includes('NL')) || (realized > 0 && criteria.includes('NP'))
+}
+
+export function closePosition(p: PaperPosition, exit: number, liquidated = false, now = Date.now(), reason?: AutoExitReason): PaperFill {
+  const realized = realizedPnl(p, exit, liquidated)
+  const followUpOrder = p.followUpOrder
   return {
     instId: p.instId,
     side: p.side,
@@ -226,11 +255,15 @@ export function closePosition(p: PaperPosition, exit: number, liquidated = false
     margin: p.margin,
     entry: p.entry,
     exit,
-    realized: realizedPnl(p, exit, liquidated),
+    realized,
     liquidated,
     openedAt: p.openedAt,
     closedAt: now,
     ...(p.exitTargets && { exitTargets: { ...p.exitTargets } }),
-    ...(p.followUpOrder && { followUpOrder: p.followUpOrder, followUpResult: { status: 'pending' } })
+    ...(reason && !liquidated && { autoExitReason: reason }),
+    ...(followUpOrder && {
+      followUpOrder,
+      followUpResult: { status: matchesFollowUp(followUpOrder.criteria, realized, liquidated, reason) ? 'pending' : 'skipped' }
+    })
   }
 }

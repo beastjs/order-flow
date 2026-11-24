@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import { getFunctionName } from "convex/server";
 import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { STARTING_BALANCE, TAKER_FEE, exitPriceForPnl, netPnlAtExit } from "../src/lib/paper/math";
+import { STARTING_BALANCE, TAKER_FEE, exitPriceForPnl, netPnlAtExit, type FollowUpOrder } from "../src/lib/paper/math";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -50,7 +51,8 @@ describe("positions", () => {
     const { t, alice, bob } = await setup();
     const source = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
     const instId = reason === "manual" ? AAPL.instId : "BTC-USDT-SWAP";
-    const order = { instId, side: "down" as const, margin: 200, leverage: 3, exitTargets: { stopLoss: -10, takeProfit: 20 } };
+    const order: FollowUpOrder = { instId, side: "down", margin: 200, leverage: 3, exitTargets: { stopLoss: -10, takeProfit: 20 } };
+    if (reason === "take profit") order.criteria = ["NL", "TP"];
     await expect(bob.mutation(api.positions.setFollowUpOrder, { positionId: source, order })).rejects.toThrow(/not found/);
     await expect(alice.mutation(api.positions.setFollowUpOrder, { positionId: source, order: { ...order, margin: 0 } })).rejects.toThrow(/amount/);
     await alice.mutation(api.positions.setFollowUpOrder, { positionId: source, order });
@@ -89,6 +91,20 @@ describe("positions", () => {
       fetchMock.mockRestore();
       vi.useRealTimers();
     }
+  });
+
+  it("skips the follow-up when its criteria do not match and schedules no order", async () => {
+    const { t, alice } = await setup();
+    const source = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+    const order: FollowUpOrder = { instId: AAPL.instId, side: "up", margin: 50, leverage: 2, exitTargets: { stopLoss: null, takeProfit: null }, criteria: ["TP", "LQ"] };
+    await alice.mutation(api.positions.setFollowUpOrder, { positionId: source, order });
+
+    await alice.mutation(internal.positions.settle, { positionId: source, exit: 112, liquidated: false, asOwner: true });
+    expect(await alice.query(api.positions.openFor, { instId: AAPL.instId })).toBeNull();
+    const [closed] = (await alice.query(api.positions.history, { paginationOpts: page })).page;
+    expect(closed).toMatchObject({ status: "closed", followUpOrder: order, followUpResult: { status: "skipped" } });
+    const scheduled = await t.run(async (ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled.map(({ name }) => name)).not.toContain(getFunctionName(internal.positions.executeFollowUp));
   });
 
   it("keeps the original close when the follow-up cannot be funded", async () => {

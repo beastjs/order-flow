@@ -92,12 +92,12 @@ component PositionRow
           ~ onClick={() => onFollowUp(row)}
           ~ )
           Icon(name="bolt" className="size-4.5 shrink-0 text-orange-300")
-          span
-            | Triggers
+          div(className='flex items-center justify-start!')
             if followUpBase
-              span.pos-follow-up-destination
-                span(className="portrait:hidden") #{" · "}
-                | #{followUpBase}
+              p.pos-follow-up-destination(className='w-[48px]! text-left') #{followUpBase}
+            if followUpBase
+              p #{p.exitTargets?.stopLoss ? '↓' : '↑' }
+            p(className={cn({'hidden': followUpBase})}) Triggers
 
     .pos-row-actions
       if hasExitTargets

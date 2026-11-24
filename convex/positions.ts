@@ -256,7 +256,7 @@ export const close = action({
 });
 
 async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: number, liquidated: boolean, reason?: AutoExitReason): Promise<number> {
-  const fill = closePosition(toPaper(p), exit, liquidated, Date.now());
+  const fill = closePosition(toPaper(p), exit, liquidated, Date.now(), reason);
   const closeFee = liquidated ? 0 : p.size * fill.exit * TAKER_FEE;
   await ctx.db.patch("positions", p._id, {
     status: liquidated ? "liquidated" : "closed",
@@ -264,7 +264,7 @@ async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: numbe
     closeFee,
     realized: fill.realized,
     closedAt: fill.closedAt,
-    autoExitReason: reason,
+    autoExitReason: fill.autoExitReason,
     followUpResult: fill.followUpResult,
   });
   await syncAssetPositionCounts(ctx, p.instId, p.userId);
@@ -288,7 +288,7 @@ async function settlePosition(ctx: MutationCtx, p: Doc<"positions">, exit: numbe
     amount: credit,
     balanceAfter,
   });
-  if (p.followUpOrder) {
+  if (fill.followUpResult?.status === "pending") {
     await ctx.scheduler.runAfter(0, internal.positions.executeFollowUp, { positionId: p._id });
   }
   return fill.realized;
@@ -359,8 +359,8 @@ export const completeFollowUp = internalMutation({
   handler: async (ctx, { positionId, quote }) => {
     const source = await ctx.db.get("positions", positionId);
     if (!source?.followUpOrder || source.closedAt === undefined || source.followUpResult?.status !== "pending") return null;
-    const { exitTargets, ...order } = source.followUpOrder;
-    const result = "error" in quote ? quote : await openForUser(ctx, source.userId, { ...order, ...quote }, {
+    const { instId, side, margin, leverage, exitTargets } = source.followUpOrder;
+    const result = "error" in quote ? quote : await openForUser(ctx, source.userId, { instId, side, margin, leverage, ...quote }, {
       exitTargets, closedAt: source.closedAt,
     });
     await ctx.db.patch("positions", positionId, {

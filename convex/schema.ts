@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { followUpCriteria } from "../src/lib/paper/math";
 
 export const side = v.union(v.literal("up"), v.literal("down"));
 export const category = v.union(
@@ -23,10 +24,12 @@ export const followUpOrder = v.object({
   margin: v.number(),
   leverage: v.number(),
   exitTargets: v.object(exitTargetFields),
+  criteria: v.optional(v.array(v.union(...followUpCriteria.map(({ code }) => v.literal(code))))),
 });
 const followUpResult = v.union(
   v.object({ status: v.literal("pending") }),
   v.object({ status: v.literal("opened") }),
+  v.object({ status: v.literal("skipped") }),
   v.object({ status: v.literal("failed"), error: v.string() }),
 );
 // USDT = paper trading balance; USD = real top-ups (never touched by Reset).

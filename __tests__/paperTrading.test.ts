@@ -8,6 +8,8 @@ import {
   metrics,
   openPosition,
   paperStore,
+  type AutoExitReason,
+  type FollowUpCriterion,
 } from "@/lib/paper/paper";
 
 describe("paper position math", () => {
@@ -45,6 +47,33 @@ describe("paper position math", () => {
     const p = openPosition("X", "up", 100, 50, 200);
     expect(closePosition(p, 150, true).realized).toBeCloseTo(-(100 + 5000 * TAKER_FEE));
   });
+
+  const followUpCases: {
+    name: string; criteria?: FollowUpCriterion[]; exit: number; liquidated?: boolean; reason?: AutoExitReason; matches: boolean;
+  }[] = [
+    { name: "fees turn a flat price into a net loss", criteria: ["NL"], exit: 999, matches: true },
+    { name: "net profit on a manual close", criteria: ["NP"], exit: 1001, matches: true },
+    { name: "break-even is neither profit nor loss", criteria: ["NL", "NP"], exit: 1000, matches: false },
+    { name: "manual close can match at break-even", criteria: ["CL"], exit: 1000, matches: true },
+    { name: "net profit alone does not match a take-profit criterion", criteria: ["TP"], exit: 1001, matches: false },
+    { name: "individual take profit matches TP", criteria: ["TP"], exit: 1001, reason: "take_profit", matches: true },
+    { name: "total take profit matches TP", criteria: ["TP"], exit: 1001, reason: "total_take_profit", matches: true },
+    { name: "stop loss matches either selected reason", criteria: ["NP", "SL"], exit: 998, reason: "stop_loss", matches: true },
+    { name: "total stop loss matches SL", criteria: ["SL"], exit: 998, reason: "total_stop_loss", matches: true },
+    { name: "a loss on liquidation is not a stop-loss exit", criteria: ["SL"], exit: 998, liquidated: true, matches: false },
+    { name: "liquidation matches LQ", criteria: ["LQ"], exit: 998, liquidated: true, matches: true },
+    { name: "an automatic exit is not manual", criteria: ["CL"], exit: 1001, reason: "take_profit", matches: false },
+    { name: "empty criteria match any exit", criteria: [], exit: 1000, matches: true },
+    { name: "legacy orders match any exit", exit: 1000, matches: true },
+  ];
+  it.each(followUpCases)("$name", ({ criteria, exit, liquidated, reason, matches }) => {
+    const instId = "BTC-USDT-SWAP";
+    const position = {
+      ...openPosition(instId, "up", 100, 2, 999), size: 1, openFee: 0.5,
+      followUpOrder: { instId, side: "up" as const, margin: 50, leverage: 2, exitTargets: { stopLoss: null, takeProfit: null }, criteria },
+    };
+    expect(closePosition(position, exit, liquidated, 10, reason).followUpResult).toEqual({ status: matches ? "pending" : "skipped" });
+  });
 });
 
 describe("paper store", () => {
@@ -57,7 +86,7 @@ describe("paper store", () => {
     paperStore.open(instId, "up", 100, 2, 100);
     paperStore.setTotalExitTargets({ stopLoss: null, takeProfit: 8 });
     const openedAt = paperStore.get().positions[instId].openedAt;
-    expect(paperStore.setFollowUpOrder(instId, openedAt, { instId: destination, side: "down", margin: 200, leverage: 3, exitTargets })).toBeNull();
+    expect(paperStore.setFollowUpOrder(instId, openedAt, { instId: destination, side: "down", margin: 200, leverage: 3, exitTargets, criteria: ["TP"] })).toBeNull();
     paperStore.checkTotalExitTargets(() => ({ bid: 105, ask: 106, mark: 105 }));
 
     const pending = paperStore.get().pendingFollowUps![0];
@@ -79,6 +108,16 @@ describe("paper store", () => {
     paperStore.setFollowUpOrder(instId, openedAt, { instId, side: "up", margin: 50, leverage: 2, exitTargets: { stopLoss: null, takeProfit: null } });
     expect(paperStore.setFollowUpOrder(instId, openedAt, null)).toBeNull();
     expect(paperStore.close(instId, 102)?.followUpResult).toBeUndefined();
+    expect(paperStore.get().pendingFollowUps).toBeUndefined();
+  });
+
+  it("keeps a nonmatching close in history without queueing the follow-up", () => {
+    const instId = "BTC-USDT-SWAP";
+    paperStore.open(instId, "up", 100, 2, 100);
+    const openedAt = paperStore.get().positions[instId].openedAt;
+    paperStore.setFollowUpOrder(instId, openedAt, { instId, side: "up", margin: 50, leverage: 2, exitTargets: { stopLoss: null, takeProfit: null }, criteria: ["SL"] });
+    paperStore.close(instId, 99);
+    expect(paperStore.get().history[0].followUpResult).toEqual({ status: "skipped" });
     expect(paperStore.get().pendingFollowUps).toBeUndefined();
   });
 

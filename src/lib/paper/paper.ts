@@ -50,8 +50,8 @@ function commit(next: PaperState) {
 }
 
 function recordCloses(positions: PaperState['positions'], fills: PaperFill[], balance: number, totalExitTargets?: ExitTargets): void {
-  const pending = fills.flatMap(({ instId, openedAt, closedAt, followUpOrder }) =>
-    followUpOrder ? [{ instId, openedAt, closedAt, order: followUpOrder }] : [])
+  const pending = fills.flatMap(({ instId, openedAt, closedAt, followUpOrder, followUpResult }) =>
+    followUpOrder && followUpResult?.status === 'pending' ? [{ instId, openedAt, closedAt, order: followUpOrder }] : [])
   commit({
     balance, positions, totalExitTargets,
     history: [...fills, ...state.history].slice(0, 50),
@@ -154,9 +154,9 @@ export const paperStore = {
     const now = Date.now()
     let balance = state.balance
     const fills = basket.exits.map(({ position, exit, liquidated }) => {
-      const fill = closePosition(position, exit, liquidated, now)
+      const fill = closePosition(position, exit, liquidated, now, reason)
       balance += position.margin + position.openFee + fill.realized
-      return liquidated ? fill : { ...fill, autoExitReason: reason }
+      return fill
     })
     recordCloses({}, fills, balance)
   },
@@ -174,7 +174,7 @@ export const paperStore = {
   close(instId: string, exit: number, liquidated = false, reason?: AutoExitReason): PaperFill | null {
     const p = state.positions[instId]
     if (!p || !(exit > 0)) return null
-    const fill = { ...closePosition(p, exit, liquidated), autoExitReason: reason }
+    const fill = closePosition(p, exit, liquidated, Date.now(), reason)
     const { [instId]: _, ...rest } = state.positions
     // Margin + open fee were debited at open; return margin plus realized (realized already nets the open fee).
     recordCloses(rest, [fill], state.balance + p.margin + fill.realized + p.openFee,
