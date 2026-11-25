@@ -27,6 +27,7 @@
     "@octanejs/nuqs": "^0.1.56",
     "@octanejs/tanstack-form": "0.0.64",
     "@octanejs/tanstack-router": "0.3.2",
+    "@octanejs/tanstack-table": "^0.1.63",
     "@octanejs/zustand": "^0.1.69",
     "@rsbuild/plugin-node-polyfill": "^1.4.6",
     "beast-tsrx": "0.16.0",
@@ -57,5 +58,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
+  },
+  "patchedDependencies": {
+    "firebase-admin@14.5.1": "patches/firebase-admin@14.5.1.patch"
   }
 }

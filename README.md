@@ -70,6 +70,12 @@ bun run beast-ui init --package-manager bun
 bun run beast-ui icons init --framework beast
 ```
 
+## Asgard user directory
+
+The Users page requires a Firebase sign-in on the current origin and the `god` claim. Add the Asgard hostname to Firebase Authentication's authorized domains for Google sign-in. [Firebase Authentication settings](https://firebase.google.com/docs/auth/faq-and-troubleshooting#limit_your_authorized_authentication_domains)
+
+The directory API uses Firebase Admin credentials from `.env` with `bun run dev`, `.dev.vars` with `bun run cf:dev`, or the deployed Worker bindings. Supply `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY`, or a `FIREBASE_SERVICE_ACCOUNT_KEY` JSON secret. [Cloudflare Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
+
 ## Paper Total TP/SL polling
 
 Set `PAPER_TOTAL_EXIT_POLL_SECONDS` to a positive whole number of seconds. The default is `60`.

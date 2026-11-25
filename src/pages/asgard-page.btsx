@@ -23,11 +23,13 @@ main(className='asgard-frame')
       span(className='asgard-brand-mark') A
       span(className='asgard-brand-name') Asgard
     nav(className='asgard-nav' aria-label='Asgard')
-      Link(className='asgard-nav-link' to={overviewPath}) Overview
+      Link(className='asgard-nav-link' to={overviewPath} activeOptions={{ exact: true }}) Overview
+      Link(className='asgard-nav-link' to={`${base}/accounts`}) Accounts
+      Link(className='asgard-nav-link' to={`${base}/users`}) Users
     p(className='asgard-sidebar-foot') Back to the app
 
   section(className='asgard-content')
-    div(className='asgard-gate' role='status')
-      strong Open to everyone.
-      span No `god` session is checked on this console yet.
+    // div(className='asgard-gate' role='status')
+    //   strong Open to everyone.
+    //   span No `god` session is checked on this console yet.
     Outlet

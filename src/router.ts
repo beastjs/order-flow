@@ -1,4 +1,5 @@
 import { createRootRoute, createRoute, createRouter, redirect } from '@octanejs/tanstack-router'
+import { createConsoleFallbackRoutes, selectConsoleRouteTree } from './routes/consoleRoutes'
 import RootLayout from './routes/RootLayout.btsx'
 import Landing from './routes/Landing.btsx'
 import TerminalPage from './routes/TerminalPage.btsx'
@@ -54,9 +55,17 @@ const legacyAssetRoute = createRoute({
   }
 })
 
-export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute, terminalRoute, perpsRoute, assetRoute, legacyPerpsRoute, legacyAssetRoute])
-})
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  terminalRoute,
+  perpsRoute,
+  assetRoute,
+  legacyPerpsRoute,
+  legacyAssetRoute,
+  ...createConsoleFallbackRoutes(rootRoute)
+])
+
+export const router = createRouter({ routeTree: selectConsoleRouteTree() ?? routeTree })
 
 declare module '@octanejs/tanstack-router' {
   interface Register {

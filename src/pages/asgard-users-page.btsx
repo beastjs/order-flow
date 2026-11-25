@@ -1,0 +1,130 @@
+import { useEffect, useState } from 'octane'
+import type { User } from 'firebase/auth'
+import Button from '@/components/ui/button.btsx'
+import { isFirebaseConfigured } from '@/lib/firebase'
+import { signInWithGoogle, useFirebaseUser } from '@/lib/firebase/auth'
+import { asgardUsersApiPath, type AsgardUser, type AsgardDirectoryPage } from '@/lib/asgard/users'
+
+module
+  const emptyPage: AsgardDirectoryPage = { users: [], nextPageToken: null }
+
+  function appendUsers(current: AsgardUser[], next: AsgardUser[]) {
+    const byUid = new Map(current.map((user) => [user.uid, user]))
+    for (const user of next) byUid.set(user.uid, user)
+    return Array.from(byUid.values())
+  }
+
+component UserDirectory
+  props { user }: { user: User }
+  setup
+    const [page, setPage] = useState(emptyPage)
+    const [request, setRequest] = useState<{ pageToken: string | null }>({ pageToken: null })
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    function loadPage(pageToken: string | null) {
+      setLoading(true)
+      setError(null)
+      setRequest({ pageToken })
+    }
+
+    useEffect(() => {
+      const controller = new AbortController()
+      const { signal } = controller
+      const url = new URL(asgardUsersApiPath, window.location.origin)
+      if (request.pageToken) url.searchParams.set('pageToken', request.pageToken)
+
+      async function fetchPage() {
+        try {
+          const token = await user.getIdToken()
+          const response = await fetch(url, {
+            headers: { authorization: `Bearer ${token}` },
+            cache: 'no-store',
+            signal
+          })
+          if (signal.aborted) return
+          if (response.status === 401 || response.status === 403) {
+            setPage(emptyPage)
+            setError('A valid Asgard sign-in is required.')
+            return
+          }
+          if (!response.ok) throw new Error('Directory request failed.')
+
+          const result: AsgardDirectoryPage = await response.json()
+          if (signal.aborted) return
+          setPage((current) => ({
+            users: request.pageToken ? appendUsers(current.users, result.users) : result.users,
+            nextPageToken: result.nextPageToken
+          }))
+        } catch {
+          if (!signal.aborted) setError('Could not load users. Try again.')
+        } finally {
+          if (!signal.aborted) setLoading(false)
+        }
+      }
+
+      void fetchPage()
+      return () => controller.abort()
+    }, [user, request])
+
+  if page.users.length
+    ul.asgard-users(aria-label='Firebase users')
+      each account in page.users key account.uid
+        li.asgard-user
+          div
+            strong #{account.displayName || account.email || 'Unnamed user'}
+            if account.displayName && account.email
+              span.asgard-user-detail #{account.email}
+          code.asgard-user-id #{account.uid}
+          span.asgard-user-status #{account.disabled ? 'Disabled' : 'Active'}
+  if loading
+    p.asgard-user-feedback(role='status') Loading users…
+  elseif error
+    fragment
+      p.asgard-user-feedback(role='alert') #{error}
+      Button(variant='outline' onClick={() => loadPage(page.nextPageToken)}) Retry
+  elseif page.nextPageToken
+    Button(className='asgard-user-feedback' variant='outline' onClick={() => loadPage(page.nextPageToken)}) Load more users
+  elseif !page.users.length
+    p.asgard-user-feedback No users found.
+
+setup
+  const { user, isLoading, hasGodAccess, authError, refreshClaims } = useFirebaseUser()
+  const [signingIn, setSigningIn] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
+
+  async function signIn() {
+    setSigningIn(true)
+    setSignInError(null)
+    try {
+      await signInWithGoogle()
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'auth/popup-closed-by-user') {
+        setSignInError('Could not sign in to Asgard. Try again.')
+      }
+    } finally {
+      setSigningIn(false)
+    }
+  }
+
+header.asgard-masthead
+  h1.asgard-title Users
+
+if !isFirebaseConfigured
+  p(role='status') Asgard sign-in is unavailable.
+elseif isLoading
+  p(role='status') Checking Asgard access…
+elseif !user
+  fragment
+    p.asgard-user-feedback Sign in to view the user directory.
+    Button(onClick={signIn} disabled={signingIn}) #{signingIn ? 'Signing in…' : 'Sign in with Google'}
+    if signInError
+      p.asgard-user-feedback(role='alert') #{signInError}
+elseif authError
+  fragment
+    p.asgard-user-feedback(role='alert') Could not verify Asgard access.
+    Button(variant='outline' onClick={() => void refreshClaims()}) Retry
+elseif !hasGodAccess
+  p Asgard access is required to view users.
+else
+  UserDirectory(key={user.uid} user={user})

@@ -141,6 +141,43 @@
   opacity: 0.75;
 }
 
+.asgard-users {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-border, rgb(0 0 0 / 0.1));
+  border-radius: 0.625rem;
+}
+
+.asgard-user {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.asgard-user + .asgard-user {
+  border-top: 1px solid var(--color-border, rgb(0 0 0 / 0.1));
+}
+
+.asgard-user-detail {
+  display: block;
+}
+
+.asgard-user-detail,
+.asgard-user-id,
+.asgard-user-status {
+  font-size: 0.8125rem;
+  opacity: 0.75;
+}
+
+.asgard-user-feedback {
+  margin-block: 1rem;
+}
+
 @media (max-width: 48rem) {
   .asgard-frame {
     grid-template-columns: 1fr;
@@ -149,5 +186,19 @@
   .asgard-sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--color-border, rgb(0 0 0 / 0.1));
+  }
+
+  .asgard-user {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.25rem;
+  }
+
+  .asgard-user-id {
+    grid-row: 2;
+  }
+
+  .asgard-user-status {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

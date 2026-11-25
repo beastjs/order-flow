@@ -1,0 +1,32 @@
+diff --git a/lib/app/credential-internal.js b/lib/app/credential-internal.js
+index 5dfa22ccae026d5888f4ec04a41035f8b9a727b6..25e30b20718051ba0ac191c3b9c0ee7fc177d659 100644
+--- a/lib/app/credential-internal.js
++++ b/lib/app/credential-internal.js
+@@ -128,7 +128,26 @@ class ServiceAccountCredential {
+         if (this.googleAuth) {
+             return this.googleAuth;
+         }
+-        const { auth, client } = populateGoogleAuth(this.serviceAccountPathOrObject, this.httpAgent);
++        const keyFile = this.serviceAccountPathOrObject;
++        if (typeof keyFile !== 'string' && (keyFile.type === undefined || keyFile.type === 'service_account')) {
++            // ServiceAccount already validated the email and private key.
++            this.authClient = new google_auth_library_1.JWT({
++                email: this.clientEmail,
++                key: this.privateKey,
++                keyId: keyFile.private_key_id,
++                projectId: this.projectId,
++                quotaProjectId: keyFile.quota_project_id,
++                universeDomain: keyFile.universe_domain,
++                scopes: SCOPES,
++            });
++            this.googleAuth = new google_auth_library_1.GoogleAuth({
++                authClient: this.authClient,
++                projectId: this.projectId,
++                scopes: SCOPES,
++            });
++            return this.googleAuth;
++        }
++        const { auth, client } = populateGoogleAuth(keyFile, this.httpAgent);
+         this.googleAuth = auth;
+         this.authClient = client;
+         return this.googleAuth;

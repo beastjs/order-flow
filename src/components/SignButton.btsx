@@ -4,6 +4,9 @@ import Menu, { MenuSection } from "./ui/Menu.btsx";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
 import { getAccountLabel } from "@/lib/firebase/accounts";
+import { adminRoutePrefix, toAdminSubdomainHostname } from "@/lib/routing/admin-console";
+import { asgardRoutePrefix, toAsgardSubdomainHostname } from "@/lib/routing/asgard-console";
+import { supportsConsoleSubdomain } from "@/lib/routing/console-host";
 import TopUpModal from "./TopUpModal.btsx";
 import OkxConnectionModal from "./OkxConnectionModal.btsx";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
@@ -30,6 +33,13 @@ module
     return ((parts[0]?.[0] ?? "?") + (name && parts[1] ? parts[1][0] : "")).toUpperCase()
   }
 
+  function consoleHref(fallbackPath: string, toSubdomainHostname: (hostname: string) => string): string {
+    const url = new URL(window.location.origin);
+    if (!supportsConsoleSubdomain(url.hostname)) return fallbackPath;
+    url.hostname = toSubdomainHostname(url.hostname);
+    return url.href;
+  }
+
 component Avatar
   props { photoURL, name, email, size = 30 }: { photoURL: string | null; name: string | null; email: string | null; size?: number }
   setup const [failed, setFailed] = useState(false);
@@ -51,7 +61,7 @@ component Item
 component AccountItems
   props { onError, onTopUp, onOkx }: { onError: (message: string | null) => void; onTopUp: () => void; onOkx: () => void }
   setup
-    const { user } = useFirebaseUser();
+    const { user, isLoading, hasAdminClaim, hasGodAccess } = useFirebaseUser();
     const accounts = useRememberedAccounts();
     const authed = useConvexAuth().isAuthenticated;
     const usdBalance = useConvexQuery(api.funds.usd, authed ? {} : "skip").data;
@@ -69,6 +79,16 @@ component AccountItems
     MenuSection(title="Funds")
       Item(label={usdLabel} hint="Top up" disabled={!authed} onClick={onTopUp})
       Item(label="My OKX" hint="API connection" disabled={!authed} onClick={onOkx})
+    if user && !isLoading && (hasAdminClaim || hasGodAccess)
+      MenuSection(title="Consoles")
+        if hasAdminClaim
+          a.menu-item.menu-action(href={consoleHref(adminRoutePrefix, toAdminSubdomainHostname)} role="menuitem")
+            span.menu-item-text
+              span Admin
+        if hasGodAccess
+          a.menu-item.menu-action(href={consoleHref(asgardRoutePrefix, toAsgardSubdomainHostname)} role="menuitem")
+            span.menu-item-text
+              span Asgard
     if others.length
       MenuSection(title="Switch account")
         each a in others key a.uid

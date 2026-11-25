@@ -4,6 +4,7 @@ import { pluginTailwindcss } from "@rsbuild/plugin-tailwindcss";
 import { beastOctane } from "beast-tsrx/rsbuild";
 import { beastDevtools } from "@beastjs/devtools/rsbuild";
 import { beastPageBuilder } from "@beastjs/page-builder/rsbuild";
+import { asgardUsersApiPath } from "./src/lib/asgard/users";
 
 // `npx convex dev` owns CONVEX_URL in .env.local. Expose it to the browser as
 // PUBLIC_CONVEX_URL without a second copy in .env.local (a duplicate stops
@@ -22,6 +23,26 @@ export default defineConfig({
     },
   },
   html: { template: "./index.html" },
-  server: { historyApiFallback: true },
+  server: {
+    historyApiFallback: true,
+    async setup({ server }) {
+      const { handleAsgardUsers } = await import("./src/server/asgard-users");
+      server.middlewares.use(async (req, res, next) => {
+        const url = new URL(req.url ?? "/", "http://localhost");
+        if (url.pathname !== asgardUsersApiPath) return next();
+
+        try {
+          const response = await handleAsgardUsers(new Request(url, {
+            method: req.method,
+            headers: { authorization: req.headers.authorization ?? "" },
+          }));
+          res.writeHead(response.status, Object.fromEntries(response.headers));
+          res.end(await response.text());
+        } catch (error) {
+          next(error);
+        }
+      });
+    },
+  },
   plugins: [pluginTailwindcss(), ...beastOctane({ octane: { profile: process.env.NODE_ENV !== "production" } }), beastDevtools(), beastPageBuilder()],
 });
