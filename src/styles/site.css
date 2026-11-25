@@ -1523,6 +1523,9 @@
 .pos-pnl-val span {
     font-size: 18px;
 }
+.pos-pnl-val small {
+    font-size: 16px;
+}
 .pos-follow-up {
   display: inline-flex;
   align-items: center;
@@ -1566,12 +1569,12 @@
   flex-wrap: wrap;
   gap: 0 5px;
   max-width: 100%;
-  min-width: 180px;
+  min-width: 240px;
   min-height: 50px;
   padding: 13px 12px;
   border: 1px solid color-mix(in oklab, var(--target-color) 12%, var(--border));
   border-radius: 1px;
-  background: color-mix(in oklab, var(--target-color) 4%, var(--bg-panel));
+  background: color-mix(in oklab, var(--target-color) 1%, var(--bg-panel));
   color: var(--target-color);
   cursor: pointer;
   font-size: 14px;
@@ -1648,12 +1651,15 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: clamp(0.875rem, 4vw, 1.125rem);
+    font-size: clamp(1.15rem, 4vw, 1.25rem);
   }
   .pos-row-actions .pos-close {
     flex-shrink: 0;
     height: 50px;
   }
+}
+.pos-exit-chip-amount {
+    font-size: 1.25em;
 }
 .pos-exit-dialog {
   width: min(440px, calc(100% - 32px));
@@ -1925,12 +1931,12 @@
 .trade-history-metrics,
 .trade-history-details {
   display: grid;
-  gap: 10px 14px;
+  gap: 10px 16px;
   margin: 0;
 }
 .trade-history-metrics {
   grid-area: metrics;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   column-gap: inherit;
 }
 .trade-history-label,

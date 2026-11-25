@@ -9,7 +9,7 @@ import { convexErrorMessage } from "@/hooks/useConvex";
 import { estimateClosePnl, liquidationPrice, priceTotalExit, unrealizedPnl } from "@/lib/paper/math";
 import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
-import {Icon} from "@/lib/icons";
+import {Icon, type IconName} from "@/lib/icons";
 
 module
   const CLOSE_ALL_CONFIRM_MS = 5_000;
@@ -59,7 +59,10 @@ component PositionRow
         AssetGlyph(base={row.base} size={38})
         span.pos-asset-name
           strong #{row.base}
-          span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")}) #{p.side === "up" ? "↑" : "↓"} #{p.leverage}X
+          div(className='flex items-center')
+            span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")})
+              Icon(name={p.side as IconName} className='size-5')
+            span(className='font-[450]') #{p.leverage}x
       .pos-cell(className='portrait:hidden!')
         span.pos-label Size
         span #{fmtSize(p.size)}
@@ -72,7 +75,7 @@ component PositionRow
       .pos-cell(className='portrait:hidden!')
         span.pos-label Liq
         span.is-down #{mark ? fmtPrice(liquidationPrice(p)) : "—"}
-      .pos-cell(className='portrait:hidden!')
+      .pos-cell(className='hidden!')
         span.pos-label Margin
         span #{usd(p.margin)}
 
@@ -80,7 +83,7 @@ component PositionRow
         span.pos-label(className='portrait:hidden!') PnL
         span.pos-pnl-val(className={cn('portrait:text-lg! portrait:text-right portrait:font-[600]', pnlClass)})
           span(className='portrait:block!') #{usd(pnl, true)}
-          small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100, 0)}
+          small(className={cn(pnlClass, 'hidden lg:visible')}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100, 0)}
       .pos-cell.pos-follow-up-cell
         button.pos-follow-up(
           ~ className='portrait:bg-transparent! portrait:hover:bg-(--border)!'
@@ -109,7 +112,7 @@ component PositionRow
       else
         button(
           ~ type="button"
-          ~ className="flex items-center justify-center hover:bg-(--border) hover:brightness-135 transition-all duration-200 ease-out active:scale-97 w-55.5! border border-transparent hover:border-(--text-muted)/50 rounded-[1px]"
+          ~ className="flex items-center justify-center portrait:bg-(--border)/40 hover:bg-(--border) hover:brightness-135 transition-all duration-200 ease-out active:scale-97 md:w-74! w-full h-[50px] border border-transparent md:hover:border-(--text-muted)/50 rounded-[1px]"
           ~ aria-label={`Set ${row.base} stop loss and take profit`}
           ~ aria-haspopup="dialog"
           ~ disabled={disabled}
@@ -214,10 +217,10 @@ section.pos(aria-label="Paper positions")
         strong #{usd(totalMargin)}
 
 
-      .pos-stat(className='sm:col-span-2! flex! flex-col! items-center! portrait:px-2!')
-        span #{open.totalExitTargets ? "Total TP/SL" : "Set Total TP/SL"}
+      .pos-stat(className={cn('sm:col-span-2! flex! flex-col! items-center! portrait:px-2!', {'lg:mb-5!': open.totalExitTargets})})
+        span(className={open.totalExitTargets && 'lg:hidden' }) #{open.totalExitTargets ? "Total TP/SL" : "Set Total TP/SL"}
         if totalStopLoss !== null || totalTakeProfit !== null
-          .pos-exit-chips
+          .pos-exit-chips(className='lg:flex-row!')
             if totalStopLoss !== null
               ExitTargetChip(kind="stop-loss" value={totalStopLoss} disabled={false} onEdit={() => setShowTotalTargets(true)})
             if totalTakeProfit !== null
@@ -237,7 +240,7 @@ section.pos(aria-label="Paper positions")
         span Total PnL
         strong(title="Estimated combined PnL at market after fees" className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
 
-    div(className='border-b border-(--border) border-dashed py-6.5!')
+    div(className='border-b border-(--border) border-dashed lg:py-6.5!')
       if (!open.loading && open.rows.length > 0) || closing === "all"
         button.pos-close.pos-close-all(
           ~ className={cn("portrait:h-14! portrait:w-full h-16! w-54 rounded-[1px]!", confirming && "is-confirming text-white!")}

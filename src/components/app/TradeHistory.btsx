@@ -1,12 +1,13 @@
 import { useState, useSyncExternalStore } from "octane";
 import { Link } from "@octanejs/tanstack-router";
-import { api } from "../../../convex/_generated/api";
-import type { Doc } from "../../../convex/_generated/dataModel";
+import { api } from "@@/convex/_generated/api";
+import type { Doc } from "@@/convex/_generated/dataModel";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { autoExitLabels, paperStore, TAKER_FEE, type PaperFill } from "@/lib/paper/paper";
 import { cn } from "@/lib/utils";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
+import { Icon, type IconName } from '@/lib/icons';
 
 module
   type Venue = "paper" | "okx";
@@ -49,7 +50,10 @@ component TradeRow
         AssetGlyph(base={base} size={24})
         span.asset-index-name
           strong #{base}
-          span.pos-side(className={trade.side === "up" ? "is-up" : "is-down"}) #{trade.side === "up" ? "Up" : "Down"} · #{trade.leverage}×
+          div(className='flex items-center gap-0.5')
+            span.pos-side(className={cn(trade.side === "up" ? "is-up text-(--buy)!" : "is-down text-(--sell)!")})
+              Icon(name={trade.side as IconName} className='size-4')
+            span(className='font-[450] text-[13px]! text-(--text-secondary)') #{trade.leverage}x
           if okx
             span.sim-muted #{trade.okxMode ? `My OKX · ${trade.okxMode === "demo" ? "Demo" : "Live"}` : "CFX · USD"}
 
@@ -63,9 +67,12 @@ component TradeRow
         div
           dt #{okx ? "Final size" : "Size"}
           dd #{fmtSize(size)} #{base}
+        div
+          dt ROE
+          dd #{fmtPct(roe)}
       dl.trade-history-roe
-        dt ROE
-        dd #{fmtPct(roe)}
+        // dt ROE
+        // dd #{fmtPct(roe)}
       div.trade-history-result
         span.trade-history-label Realized PnL
         strong(className={pnlClass}) #{money(trade.realized, true)}
