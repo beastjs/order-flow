@@ -47,7 +47,7 @@ component PositionRow
   setup
     const p = row.position;
     const canClose = pnl !== null && Boolean(exit);
-    const pnlClass = pnl === null ? "" : pnl >= 0 ? "is-up" : "is-down";
+    const pnlClass = pnl === null ? "" : pnl >= 0 ? "is-up" : "is-down opacity-90";
     const stopLoss = p.exitTargets?.stopLoss ?? null;
     const takeProfit = p.exitTargets?.takeProfit ?? null;
     const hasExitTargets = stopLoss !== null || takeProfit !== null;
@@ -238,7 +238,7 @@ section.pos(aria-label="Paper positions")
             img(src="/tpsl.svg" className="h-12 w-18" alt="")
       .pos-stat(className='sm:col-span-2! flex! flex-col! items-center!')
         span Total PnL
-        strong(title="Estimated combined PnL at market after fees" className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down"}) #{usd(totalPnl, true)}
+        strong(title="Estimated combined PnL at market after fees" className={totalPnl === null ? "" : totalPnl >= 0 ? "is-up" : "is-down opacity-90"}) #{usd(totalPnl, true)}
 
     div(className='border-b border-(--border) border-dashed lg:py-6.5!')
       if (!open.loading && open.rows.length > 0) || closing === "all"

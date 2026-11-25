@@ -42,7 +42,7 @@ component TradeRow
     const followUpBase = followUp?.instId.split("-")[0];
     const priceInputs = { side: trade.side, entry: trade.entry, size, openFee };
     const closeFee = saved ? trade.closeFee : liquidated ? 0 : size * trade.exit * TAKER_FEE;
-    const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down";
+    const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down opacity-90";
     const roe = !okx && trade.realized !== undefined ? 100 * trade.realized / trade.margin : null;
   article.asset-index.trade-history-card(className='hover:bg-(--text-secondary)/5! hover:border-(--text-secondary)/50! transition-colors! duration-300! ease-out!')
     header.trade-history-overview
@@ -79,7 +79,7 @@ component TradeRow
     details.trade-history-disclosure
       summary
         span.trade-history-settlement
-          span(className={cn('font-sans font-bold! capitalize italic',{'is-down': liquidated})}) #{settlement}
+          span(className={cn('font-sans font-bold! capitalize italic',{'is-down opacity-85': liquidated})}) #{settlement}
           if trade.closedAt !== undefined
             time(className='font-mono text-(--text-muted)' dateTime={new Date(trade.closedAt).toISOString()}) #{dateTime.format(trade.closedAt)}
         span.trade-history-details-label
