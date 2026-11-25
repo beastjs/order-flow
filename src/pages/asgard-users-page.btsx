@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'octane'
+import { useEffect, useMemo, useRef, useState } from 'octane'
+import { unstable_createAdapterProvider, type unstable_AdapterInterface } from '@octanejs/nuqs/adapters/custom'
 import type { User } from 'firebase/auth'
+import NewDataTable from '@/components/table/new-data-table.btsx'
+import type { BuildColumnsOptions } from '@/components/table/lib/sheet-columns'
+import type { SheetTable } from '@/components/table/lib/sheets'
 import Button from '@/components/ui/button.btsx'
 import { isFirebaseConfigured } from '@/lib/firebase'
 import { signInWithGoogle, useFirebaseUser } from '@/lib/firebase/auth'
@@ -7,6 +11,26 @@ import { asgardUsersApiPath, type AsgardUser, type AsgardDirectoryPage } from '@
 
 module
   const emptyPage: AsgardDirectoryPage = { users: [], nextPageToken: null }
+  const userColumnOptions: BuildColumnsOptions = {
+    inferEditors: false,
+    badge: ({ name }) => name === 'Status' ? undefined : false
+  }
+
+  function useDirectoryTableQuery(): unstable_AdapterInterface {
+    const [searchParams, setSearchParams] = useState(() => new URLSearchParams())
+    const latest = useRef(searchParams)
+    return {
+      searchParams,
+      updateUrl(next) {
+        latest.current = new URLSearchParams(next)
+        setSearchParams(latest.current)
+      },
+      getSearchParamsSnapshot: () => new URLSearchParams(latest.current)
+    }
+  }
+
+  // Names and email addresses entered in table searches stay out of the URL.
+  const DirectoryTableQuery = unstable_createAdapterProvider(useDirectoryTableQuery)
 
   function appendUsers(current: AsgardUser[], next: AsgardUser[]) {
     const byUid = new Map(current.map((user) => [user.uid, user]))
@@ -21,6 +45,20 @@ component UserDirectory
     const [request, setRequest] = useState<{ pageToken: string | null }>({ pageToken: null })
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const sheet = useMemo<SheetTable>(() => ({
+      name: 'SuperCEX Users',
+      columns: ['Name', 'Email', 'Firebase UID', 'Status', 'Open Up', 'Open Down'],
+      rows: page.users.map((account) => [
+        account.displayName || 'Nobody',
+        account.email ?? '',
+        account.uid,
+        account.disabled ? 'Disabled' : 'Active',
+        account.openPositions ? String(account.openPositions.up) : '—',
+        account.openPositions ? String(account.openPositions.down) : '—',
+      ]),
+      totalRows: page.users.length,
+      truncated: false
+    }), [page.users])
 
     function loadPage(pageToken: string | null) {
       setLoading(true)
@@ -68,15 +106,11 @@ component UserDirectory
     }, [user, request])
 
   if page.users.length
-    ul.asgard-users(aria-label='Firebase users')
-      each account in page.users key account.uid
-        li.asgard-user
-          div
-            strong #{account.displayName || account.email || 'Unnamed user'}
-            if account.displayName && account.email
-              span.asgard-user-detail #{account.email}
-          code.asgard-user-id #{account.uid}
-          span.asgard-user-status #{account.disabled ? 'Disabled' : 'Active'}
+    div.asgard-users-table
+      DirectoryTableQuery
+        NewDataTable(sheet={sheet} columnOptions={userColumnOptions} readOnly)
+  if page.users.some((account) => !account.openPositions)
+    p.asgard-user-feedback(role='status') Open position counts are unavailable for some users.
   if loading
     p.asgard-user-feedback(role='status') Loading users…
   elseif error
@@ -107,9 +141,9 @@ setup
     }
   }
 
-header.asgard-masthead
-  h1.asgard-title Users
-
+// header.asgard-masthead
+//   h1.asgard-title Users
+//
 if !isFirebaseConfigured
   p(role='status') Asgard sign-in is unavailable.
 elseif isLoading

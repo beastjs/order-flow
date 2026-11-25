@@ -1,9 +1,9 @@
 import { Link, useLocation } from "@octanejs/tanstack-router";
-import { Wordmark } from "@/components/Logo.btsx";
-import WalletButton from "@/components/WalletButton.btsx";
-import SignButton from "@/components/SignButton.btsx";
-import BalancePill from "@/components/BalancePill.btsx";
-import MobileMenu from "@/components/MobileMenu.btsx";
+import { Wordmark } from "@/components/terminal/Logo.btsx";
+import WalletButton from "@/components/head/WalletButton.btsx";
+import SignButton from "@/components//head/SignButton.btsx";
+import BalancePill from "@/components/head/BalancePill.btsx";
+import MobileMenu from "@/components/terminal/MobileMenu.btsx";
 import { useOpenPositions } from "@/hooks/usePaperAccount";
 import { usePersonalPositions } from "@/hooks/useLiveAccount";
 import { useFirebaseUser } from "@/lib/firebase/auth";
@@ -25,13 +25,13 @@ header.site-nav
   nav.site-links
     Link(to="/perps" search={{}} className={cn(onMarkets && "is-active")} aria-current={onMarkets ? "page" : undefined}) Markets
     Link(to="/terminal" className={cn(onTerminal && "is-active")} aria-current={onTerminal ? "page" : undefined}) Terminal
-    Link(to="/perps" search={{ tab: "positions" }} className={cn(onPositions && "is-active")} aria-current={onPositions ? "page" : undefined})
+    Link(to="/perps" search={{ tab: "positions" }} className={cn('min-w-[32px]', onPositions && "is-active")} aria-current={onPositions ? "page" : undefined})
       | Positions
-      if openCount > 0
-        span.site-link-badge(aria-label={`${openCount} open`}) #{openCount}
+      span.site-link-badge(aria-label={`${openCount} open`}) #{openCount ?? 0}
   .site-wallet
-    if user
-      BalancePill
+    div(className='min-w-[160px]')
+      if user
+        BalancePill
     WalletButton
     SignButton
   // Phones: everything above collapses into this one menu (hidden on wider screens).

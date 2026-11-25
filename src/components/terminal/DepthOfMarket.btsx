@@ -9,7 +9,7 @@ import Panel from "@/components/ui/Panel.btsx";
 import type { OrderBookLevel } from "@/lib/types/market";
 import { useCallback, useRef, createElement } from "octane";
 import type { MouseEvent } from "octane";
-import PanelFooter from "./ui/PanelFooter.btsx";
+import PanelFooter from "@/components/ui/PanelFooter.btsx";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
 module
   // ─── Depth of Market ─────────────────────────────────────────────

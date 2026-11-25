@@ -9,10 +9,10 @@ import { STUDY_AXIS_W, STUDY_TIME_H, drawEmpty, drawTimeAxis, drawValueAxis } fr
 import { formatClock, formatCompact, formatPriceValue, priceDecimals, VENUE_LABEL } from "@/lib/format";
 import { useCallback, useMemo, useRef, useState, createElement, SetStateAction, Dispatch } from "octane";
 import type { MouseEvent } from "octane";
-import Segmented from "./ui/Segmented.btsx";
-import Stat from "./ui/Stat.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import Stat from "@/components/ui/Stat.btsx";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
-import Panel from "./ui/Panel.btsx";
+import Panel from "@/components/ui/Panel.btsx";
 import { Venue } from "@/lib/types/market";
 module
   type ValueProps = { sessionTotal: number; feedVenues: Venue[]; cascade: boolean; latestActive: boolean }

@@ -6,7 +6,7 @@ import { formatCompact, formatPriceValue, inferDecimals, priceDecimals, VENUE_LA
 import Panel from "@/components/ui/Panel.btsx";
 import type { OrderBookLevel, Venue } from "@/lib/types/market";
 import { useMemo, useState, createElement, type Dispatch, type SetStateAction } from "octane";
-import Segmented from "./ui/Segmented.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
 import { hideTooltip, showTooltip } from './GlobalTooltip.btsx';
 import { type OrderBookMode } from '@/lib/store/terminalStore';
 module

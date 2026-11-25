@@ -3,12 +3,11 @@ module "use client";
 import { useMarketClosed } from "@/hooks/useMarketClosed";
 import { useSessionStore, useThrottledSessionStore } from "@/lib/session/sessionContext";
 import { formatClock, formatCompact, formatPriceValue, priceDecimals, VENUE_SHORT } from "@/lib/format";
-import { Icon } from "@/lib/icons";
 import Panel from "@/components/ui/Panel.btsx";
 import type { NormalizedLiquidation, NormalizedTrade } from "@/lib/types/market";
 import { useMemo, useState, createElement } from "octane";
 import type { CSSProperties, Dispatch, SetStateAction } from "octane";
-import Segmented from "./ui/Segmented.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
 module
   // ─── Time & Sales ────────────────────────────────────────────────
   // Executed prints, newest first. Size is compared to the session's

@@ -56,13 +56,9 @@ component PositionUserCounts
   section.ap-position-users(aria-label="Users with open positions")
     .ap-position-user-sides
       .ap-position-user-side
-        span.is-up
-          Icon(name='user' className='size-4.5')
-        strong #{data ? countFormat.format(data.up) : "—"}
+        span.is-up #{data ? countFormat.format(data.up) : "—"}
       .ap-position-user-side
-        span.is-down
-          Icon(name='user' className='size-4.5')
-        strong #{data ? countFormat.format(data.down) : "—"}
+        span.is-down #{data ? countFormat.format(data.down) : "—"}
     if error || failed
       span.ap-position-user-status Counts unavailable
 
@@ -132,7 +128,7 @@ setup
               span(role="status") Loading market data…
           .ap-price(className='portrait:-space-y-1')
             span.ap-last(className='portrait:text-3xl! text-(--text-primary)!' title={fmtPrice(v.last, tick)}) #{fmtPrice(v.last, tick)}
-            span.ap-change(className={cn('portrait:text-sm! portrait:tracking-tightest', up ? "is-up" : "is-down")}) #{fmtPct(v.change)} · 24h
+            span.ap-change(className={cn('portrait:text-sm! portrait:tracking-tightest', up ? "is-up" : "is-down")}) #{fmtPct(v.change, 1)} · 24h
 
       .ap-main
         section.ap-chart-card
@@ -142,7 +138,7 @@ setup
                 if x.key === "live"
                   span.lp-live-dot
                 | #{x.label}
-          PriceChart(candles={v.candles} tickSz={tick} loading={v.candlesLoading})
+          PriceChart(key={`${venue}:${assetId}:${range}`} candles={v.candles} tickSz={tick} loading={v.candlesLoading} live={range === "live"})
         if isHl
           aside.ap-panel.ap-venue-note
             h2 Trade #{title}

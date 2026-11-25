@@ -10,8 +10,8 @@ import type { FootprintCandle, Timeframe } from "@/lib/types/market";
 import { useCallback, useMemo, useRef, useState, createElement, type Dispatch, type SetStateAction } from "octane";
 import type { MouseEvent } from "octane";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
-import Segmented from "./ui/Segmented.btsx";
-import Stat from "./ui/Stat.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import Stat from "@/components/ui/Stat.btsx";
 module
   type Regime = { label: string; tone: "muted" | "accent" | "warn" | "sell" }
   type FooterProps = {

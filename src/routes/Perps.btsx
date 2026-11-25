@@ -266,4 +266,5 @@ setup
             p.lp-grid-empty #{markets.length ? "No markets match your search." : "Loading markets…"}
 
   footer.site-foot
-    span #{VENUE_LABEL[venue]} public market data. Perpetual swaps are leveraged derivatives. Not investment advice.
+    span Data from #{VENUE_LABEL[venue]}
+    span SuperCEX

@@ -2,7 +2,7 @@ module "use client";
 import { useWallet } from "@/wallet/context.btsx";
 import { Icon } from "@/lib/icons";
 import { createElement, useCallback, useEffect, useState } from "octane";
-import Menu, { MenuSection } from "./ui/Menu.btsx";
+import Menu, { MenuSection } from "@/components/ui/Menu.btsx";
 import WalletModal from "./WalletModal.btsx";
 // ─── Wallet button ───────────────────────────────────────────────
 // Disconnected: a Connect button that opens the wallet picker modal.
@@ -73,11 +73,11 @@ setup
   }, [wallet.isConnected]);
 fragment
   if wallet.isConnected
-    Menu(hint="Wallet" label={createElement(Label, {})})
+    Menu(buttonClassName='min-w-[150px]' hint="Wallet" label={createElement(Label, {})})
       WalletItems
   else
     button(
-      ~ className="connect-wallet-button is-primary flex items-center gap-2"
+      ~ className="connect-wallet-button min-w-[150px] is-primary flex items-center gap-2"
       ~ type="button"
       ~ aria-label="Connect wallet"
       ~ aria-haspopup="dialog"

@@ -1,8 +1,8 @@
 import { useId } from 'octane'
 import Popover, { PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from '../../Popover.btsx'
 import Checkbox from '../../checkbox.btsx'
-import { Icon } from '../../../lib/icons/index.ts'
-import { cn } from '../../../lib/utils.ts'
+import { Icon } from '$/lib/icons/index.ts'
+import { cn } from '$/lib/utils.ts'
 
 module
   interface SelectionMenuProps {
@@ -19,7 +19,7 @@ module
 
   const TRIGGER_CLASS = cn(
     'relative h-8 md:w-auto flex items-center justify-center rounded-[4px]',
-    'select-none text-btable-foreground text-sm md:space-x-1 md:px-2 gap-1 w-9',
+    'select-none text-btable-foreground text-sm md:space-x-1 md:px-2! gap-1 w-9',
     'border-[1.25px] border-btable-border/50 dark:border-zinc-200/2 hover:border-btable-border',
     'bg-zinc-200/20 dark:bg-zinc-200/8 hover:bg-btable-muted-foreground/5 dark:hover:bg-btable-muted-foreground/5',
     'data-pressed:bg-emerald-200/40 data-pressed:border-emerald-400 dark:data-pressed:bg-zinc-900/80 dark:data-pressed:border-zinc-200/10',
@@ -64,10 +64,10 @@ Popover
     if selectedCount > 0
       span(aria-hidden={true} className={cn('min-w-5 rounded-xs px-1 font-sans font-semibold text-white text-xs', cellsActive ? 'bg-[#007AFF] dark:bg-[#419ccf]' : 'bg-emerald-400 dark:bg-emerald-500/80')}) #{selectedCount > 99 ? '99+' : selectedCount}
     else
-      Icon(name='sheet' className='size-3.5 opacity-80')
-    span(className='hidden font-mono text-xs uppercase opacity-70 md:inline') #{triggerLabel}
+      Icon(name='pointer' className='size-3.5 opacity-80')
+    span(className='hidden font-mono text-sm uppercase opacity-70 md:inline') #{triggerLabel}
     span(id={`${id}-counts`} aria-live='polite' aria-atomic={true} className='sr-only') #{showRows ? `${selectedRowCount} selected rows` : ''} #{showCells ? `${selectedCellCount} selected cells` : ''}
-  PopoverContent(align='start' sideOffset={7} className='w-60 gap-2 rounded-md p-3')
+  PopoverContent(align='start' sideOffset={7} className='w-60 gap-2 rounded-md p-3!')
     PopoverTitle(className='text-sm') Select
     PopoverDescription(className='text-xs') Choose Rows or Cells. Uncheck the active option to turn selection off.
     if showRows

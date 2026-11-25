@@ -1,7 +1,7 @@
 import { createElement, createPortal, useEffect, useRef, useState } from "octane";
 import { encodeFunctionData, erc20Abi, getAddress, type Address, type Hex } from "viem";
 import { useWallet } from "@/wallet/context.btsx";
-import { api } from "../../convex/_generated/api";
+import { api } from "@@/convex/_generated/api";
 import { convex } from "@/lib/convex/client";
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { explorerTx, useNativeBalance, useNativePrice, useStableBalance } from "@/hooks/useTopUp";

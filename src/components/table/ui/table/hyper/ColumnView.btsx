@@ -44,7 +44,7 @@ module
   // render of the trigger, of the toggle, and of every row in the menu.
   const TRIGGER_CLASS = cn(
     'relative h-8 md:w-auto flex items-center justify-center rounded-[4px]',
-    'select-none text-btable-foreground text-sm md:space-x-1 md:px-2 gap-1 w-9',
+    'select-none text-btable-foreground text-sm md:space-x-1 md:px-2! gap-1 w-9',
     'border-[1.25px] border-btable-border/50 dark:border-zinc-200/2 hover:border-orange-400',
     'bg-zinc-200/20 dark:bg-zinc-200/8 hover:bg-orange-200/20 dark:hover:bg-btable-muted-foreground/5',
     'data-pressed:bg-orange-200/40 data-pressed:border-orange-400 dark:data-pressed:bg-zinc-900/80 dark:data-pressed:border-zinc-200/10',
@@ -80,7 +80,7 @@ component ColumnViewTriggerContent
         | #{invisibleCount > 99 ? '99+' : invisibleCount}
     else
       Icon(name='rows' className='size-3.5 -rotate-90 opacity-80')
-    span(className='hidden font-mono text-xs opacity-70 md:flex uppercase') Cols
+    span(className='hidden font-mono text-sm opacity-70 md:flex uppercase') Cols
 
 component ColumnVisibilityItem
   props { column, isVisible, onToggle }: ColumnVisibilityItemProps

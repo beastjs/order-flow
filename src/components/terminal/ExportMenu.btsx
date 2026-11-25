@@ -4,7 +4,7 @@ import { TAPE_LOG_SIZE } from "@/lib/managers/marketDataManager";
 import { formatCompact, VENUE_LABEL } from "@/lib/format";
 import { Icon } from "@/lib/icons";
 import { useState, createElement } from "octane";
-import Menu, { MenuSection } from "./ui/Menu.btsx";
+import Menu, { MenuSection } from "@/components/ui/Menu.btsx";
 // ─── Export menu ─────────────────────────────────────────────────
 // CSV of the session's footprint, profile, tape and derivatives series,
 // and PNG snapshots of the charts.

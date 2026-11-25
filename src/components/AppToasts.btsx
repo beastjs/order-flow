@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "octane";
 import type { OctaneNode } from "octane";
 import type { ConvexClient } from "convex/browser";
-import Toast from "./ui/Toast.btsx";
+import Toast from "@/components/ui/Toast.btsx";
 import Icon from "@/lib/icons/Icon.btsx";
 import { useConvexAuth } from "@/hooks/useConvex";
 import { explorerTx } from "@/hooks/useTopUp";
 import { convex } from "@/lib/convex/client";
 import { depositChain } from "@/lib/deposits/config";
 import { autoExitLabels, paperStore, type PaperFill, type PaperPosition } from "@/lib/paper/paper";
-import { api } from "../../convex/_generated/api";
-import type { Doc } from "../../convex/_generated/dataModel";
+import { api } from "@@/convex/_generated/api";
+import type { Doc } from "@@/convex/_generated/dataModel";
 
 module
   export { creditToastContent }

@@ -13,7 +13,7 @@ setup
       ? asgardRoutePrefix
       : ''
 
-  const overviewPath = base.length > 0 ? base : '/'
+  const overviewPath = base === '' ? '/' : base
 
   const homeUrl = typeof window === 'undefined' ? '/' : buildAppUrl(new URL(window.location.href), '/').toString()
 

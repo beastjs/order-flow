@@ -80,7 +80,7 @@ component PositionRow
         span.pos-label(className='portrait:hidden!') PnL
         span.pos-pnl-val(className={cn('portrait:text-lg! portrait:text-right portrait:font-[600]', pnlClass)})
           span(className='portrait:block!') #{usd(pnl, true)}
-          small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100)}
+          small(className={pnlClass}) #{pnl === null ? "" : fmtPct((pnl / p.margin) * 100, 0)}
       .pos-cell.pos-follow-up-cell
         button.pos-follow-up(
           ~ className='portrait:bg-transparent! portrait:hover:bg-(--border)!'

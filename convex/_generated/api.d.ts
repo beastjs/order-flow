@@ -9,9 +9,11 @@
  */
 
 import type * as activity from "../activity.js";
+import type * as asgard from "../asgard.js";
 import type * as crons from "../crons.js";
 import type * as deposits from "../deposits.js";
 import type * as funds from "../funds.js";
+import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_chain from "../lib/chain.js";
 import type * as lib_depositMatch from "../lib/depositMatch.js";
@@ -35,9 +37,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   activity: typeof activity;
+  asgard: typeof asgard;
   crons: typeof crons;
   deposits: typeof deposits;
   funds: typeof funds;
+  http: typeof http;
   "lib/auth": typeof lib_auth;
   "lib/chain": typeof lib_chain;
   "lib/depositMatch": typeof lib_depositMatch;

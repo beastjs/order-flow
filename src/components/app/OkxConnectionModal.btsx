@@ -1,6 +1,6 @@
 import { useForm, useStore } from "@octanejs/tanstack-form";
 import { createElement, useEffect, useRef, useState } from "octane";
-import { api } from "../../convex/_generated/api";
+import { api } from "@@/convex/_generated/api";
 import { useOkxConnection } from "@/hooks/useLiveAccount";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import { convex } from "@/lib/convex/client";
@@ -105,4 +105,3 @@ dialog.wallet-modal.topup(className="m-auto! backdrop:bg-black/70 [&:not([open])
           button.sim-chip(type="button" disabled={busy} onClick={disconnect}) #{disconnecting ? "Disconnecting…" : "Disconnect"}
   if error
     p.sim-error(role="alert") #{error}
-

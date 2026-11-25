@@ -1,6 +1,6 @@
-import Menu, { MenuCheckbox, MenuSection } from "./ui/Menu.btsx";
+import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
 import { createElement } from 'octane/server';
-import {Icon} from "../lib/icons";
+import {Icon} from "@/lib/icons";
 import { useUIStore } from '@/lib/store/uiStore';
 import { PanelVisibility } from '@/lib/types/market';
 //

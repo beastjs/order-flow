@@ -5,13 +5,13 @@ import { FOREX_SYMBOLS } from "@/lib/config/venues";
 import { venueSupports } from "@/lib/adapters/capabilities";
 import { CRYPTO_ASSETS } from "@/lib/config/instruments";
 import Picker, {type PickerOption} from "@/components/ui/Picker.btsx";
-import { Wordmark } from "@/components/Logo.btsx";
+import { Wordmark } from "@/components/terminal/Logo.btsx";
 import { IconName } from "@/lib/icons";
 import { useMemo } from "octane";
-import Segmented from "./ui/Segmented.btsx";
-import WalletButton from "./WalletButton.btsx";
-import SignButton from "./SignButton.btsx";
-import BalancePill from "./BalancePill.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import WalletButton from "@/components/head/WalletButton.btsx";
+import SignButton from "@/components/head/SignButton.btsx";
+import BalancePill from "@/components/head/BalancePill.btsx";
 module
   const TIMEFRAMES: {
     value: TimeValue;

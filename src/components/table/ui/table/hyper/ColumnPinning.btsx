@@ -12,7 +12,7 @@ module
     onChange: OnChangeFn<ColumnPinningState>
   }
 
-  const TRIGGER_CLASS = 'relative flex h-8 w-9 items-center justify-center gap-1.5 rounded-[4px] border border-btable-border/50 bg-zinc-200/10 text-btable-foreground hover:border-sky-400 hover:bg-sky-200/20 focus-visible:outline-1 disabled:opacity-40 md:w-auto md:px-2'
+  const TRIGGER_CLASS = 'relative flex h-8 w-9 items-center justify-center gap-1.5 rounded-[4px] border border-btable-border/50 bg-zinc-200/10 text-btable-foreground hover:border-sky-400 hover:bg-sky-200/20 focus-visible:outline-1 disabled:opacity-40 md:w-auto md:px-2!'
   const POSITION_CLASS = 'rounded-xs px-2 py-1 text-xs text-btable-muted-foreground hover:bg-btable-border/30 focus-visible:outline-1'
   const ACTIVE_POSITION_CLASS = cn(POSITION_CLASS, 'bg-btable-foreground text-btable-background hover:bg-btable-foreground/90')
 
@@ -44,7 +44,7 @@ Popover
     else
       svg(viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth={1.75} strokeLinecap='round' strokeLinejoin='round' className='size-4 opacity-80' aria-hidden='true')
         path(d='m16 3 5 5-4 2-3 5-2-2-5 5m2-10 5-3 2-4M7 8l9 9')
-    span(className='hidden font-mono text-xs uppercase opacity-70 md:inline') Pin
+    span(className='hidden font-mono text-sm uppercase opacity-70 md:inline') Pin
   PopoverContent(align='start' sideOffset={7} className='w-80 max-w-[calc(100vw-24px)] gap-2 rounded-md p-0')
     PopoverTitle(className='px-3 pt-3 text-sm') Pin Columns
     PopoverDescription(className='px-3 text-xs') Keep columns on the left or right while scrolling.

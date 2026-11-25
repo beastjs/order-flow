@@ -1,7 +1,7 @@
 import { Popover as P } from '@octanejs/base-ui/popover'
 import { use, type ComponentProps } from 'octane'
-import { PortalContainerContext } from '../../../context/portal-container.ts'
-import { cn } from '../lib/utils.ts'
+import { PortalContainerContext } from '@/context/portal-container.ts'
+import { cn } from '$/lib/utils.ts'
 import './popup-scrollbars.css'
 
 module

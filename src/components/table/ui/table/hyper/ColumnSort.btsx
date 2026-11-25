@@ -1,6 +1,6 @@
 import { flexRender } from '@octanejs/tanstack-table'
-import { Icon, type IconName } from '../../../lib/icons/index.ts'
-import { cn } from '../../../lib/utils.ts'
+import { Icon, type IconName } from '$/lib/icons/index.ts'
+import { cn } from '$/lib/utils.ts'
 import type { HyperHeader } from './table-contract.ts'
 
 module

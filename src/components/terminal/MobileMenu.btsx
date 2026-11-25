@@ -2,17 +2,17 @@ import { createElement, createPortal, useEffect, useRef, useState } from "octane
 import { Link, useLocation } from "@octanejs/tanstack-router";
 import { Icon } from "@/lib/icons";
 import { useWallet } from "@/wallet/context.btsx";
-import WalletModal from "./WalletModal.btsx";
-import TopUpModal from "./TopUpModal.btsx";
-import OkxConnectionModal from "./OkxConnectionModal.btsx";
-import { Avatar, signInErrorMessage } from "./SignButton.btsx";
+import WalletModal from "@/components/head/WalletModal.btsx";
+import TopUpModal from "@/components/head/TopUpModal.btsx";
+import OkxConnectionModal from "@/components/app/OkxConnectionModal.btsx";
+import { Avatar, signInErrorMessage } from "@/components/head/SignButton.btsx";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
 import { getAccountLabel } from "@/lib/firebase/accounts";
 import { useAvailableBalance, useOpenPositions } from "@/hooks/usePaperAccount";
 import { usePersonalPositions } from "@/hooks/useLiveAccount";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
-import { api } from "../../convex/_generated/api";
+import { api } from "@@/convex/_generated/api";
 import { cn } from "@/lib/utils";
 // ─── Phone top-bar menu ─────────────────────────────────────────
 // On phone widths every top-bar item moves into this one popover:

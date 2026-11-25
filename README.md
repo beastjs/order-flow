@@ -76,6 +76,8 @@ The Users page requires a Firebase sign-in on the current origin and the `god` c
 
 The directory API uses Firebase Admin credentials from `.env` with `bun run dev`, `.dev.vars` with `bun run cf:dev`, or the deployed Worker bindings. Supply `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY`, or a `FIREBASE_SERVICE_ACCOUNT_KEY` JSON secret. [Cloudflare Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
 
+For Open Up and Open Down counts, configure the server with the matching Convex `CONVEX_SITE_URL` and the same randomly generated `ASGARD_POSITION_COUNTS_SECRET` on both the server and the Convex deployment. The counts include cloud paper positions and OKX positions that are open or still closing.
+
 ## Paper Total TP/SL polling
 
 Set `PAPER_TOTAL_EXIT_POLL_SECONDS` to a positive whole number of seconds. The default is `60`.

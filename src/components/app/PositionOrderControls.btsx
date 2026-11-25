@@ -1,7 +1,7 @@
 import type { PaperSide } from "@/lib/paper/math";
 import { cn } from "@/lib/utils";
 import ScrubField from "@/components/ui/scrubfield.btsx";
-import WakeSlider from "../ui/WakeSlider.btsx";
+import WakeSlider from "@/components/ui/WakeSlider.btsx";
 
 module
   interface Props {

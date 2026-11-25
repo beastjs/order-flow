@@ -2,13 +2,13 @@ module "use client";
 import { useAlertStore } from "@/lib/store/alertStore";
 import { notificationState, requestNotifications, unlockAudio, type NotificationState } from "@/lib/alerts/delivery";
 import type { AlertRuleId } from "@/lib/engine/alerts";
-import AlertCard from "@/components/AlertCard.btsx";
+import AlertCard from "@/components/terminal/AlertCard.btsx";
 import { Icon } from "@/lib/icons";
 import { useSessionStore } from "@/lib/session/sessionContext";
 import { useEffect, useState } from "octane";
 import type { OctaneNode } from "octane";
-import Segmented from "./ui/Segmented.btsx";
-import Menu, { MenuCheckbox, MenuSection } from "./ui/Menu.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import Menu, { MenuCheckbox, MenuSection } from "@/components/ui/Menu.btsx";
 import { createElement } from 'octane/server';
 module
   const RULES: {

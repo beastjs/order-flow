@@ -30,6 +30,7 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
+  readonly ASGARD_POSITION_COUNTS_SECRET: string | undefined;
   readonly OKX_USER_KEY_ENCRYPTION_KEY: string | undefined;
   readonly PAPER_TOTAL_EXIT_POLL_SECONDS: string | undefined;
 };

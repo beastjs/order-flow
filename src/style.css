@@ -1,8 +1,7 @@
 @import 'tailwindcss';
-/* ==============================================================================
-   Design tokens. Theme values are applied at runtime by lib/theme.ts;
-   these defaults match "Midnight" so the first paint is stable.
------------------------------------------------------------------------------- */
+@import './components/table/table.css';
+@import './components/table/new-data-table.css';
+
 :root {
   --bg-base: #08090b;
   --bg-surface: #0c0d10;
@@ -34,7 +33,7 @@
   --font-ui: 'OKX', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-sans: 'OKX', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'BMR', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-gstm: 'GSTM', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-gstm: 'GSTM', monospace;
   --font-news: 'Newsreader';
   --radius-card: 18px;
   --radius: 10px;
@@ -2683,8 +2682,8 @@ body.is-resizing-row,
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 6px;
   padding: 0;
   flex-shrink: 0;
@@ -2771,8 +2770,8 @@ body.is-resizing-row,
 /* The terminal topbar is denser: match the 24px wallet button. */
 .topbar .account-signin,
 .topbar .account-trigger .account-avatar {
-  width: 30px !important;
-  height: 30px !important;
+  width: 28px !important;
+  height: 28px !important;
 }
 
 /* ─── available balance pill (site nav + terminal topbar) ─── */
@@ -2791,6 +2790,7 @@ body.is-resizing-row,
   font-size: 12px;
   white-space: nowrap;
   transition: border-color 0.15s;
+  min-width: 160px;
 }
 .balance-pill:hover {
   border-color: var(--text-muted);

@@ -15,6 +15,7 @@ module
     sheet?: SheetTable | null
     name?: string
     columnOptions?: BuildColumnsOptions
+    readOnly?: boolean
     /** Passed to DataTable's footer center slot, e.g. worksheet tabs. */
     footerCenter?: OctaneNode
   }
@@ -22,7 +23,7 @@ module
   const PAGE_SIZES = [50, 100, 250]
   const PERSON_ICON = trustHTML('<circle cx="12" cy="7.5" r="3.5"/><path d="M5 21v-3a7 7 0 0 1 14 0v3Z"/>')
 
-props { data, sheet: providedSheet, name = 'Data table', columnOptions, footerCenter }: NewDataTableProps
+props { data, sheet: providedSheet, name = 'Data table', columnOptions, readOnly = false, footerCenter }: NewDataTableProps
 
 setup
   const sheet = useMemo(() => providedSheet !== undefined ? providedSheet
@@ -61,7 +62,6 @@ setup
     const isPerson = /^(name|client|consultant|agent)$/i.test(label)
     const header = Object.assign(() => @{
       <span className="reference-column-label">
-        {isPerson ? <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden={true} dangerouslySetInnerHTML={PERSON_ICON} /> : null}
         {label}
       </span>
     }, { headerText: label })
@@ -73,12 +73,12 @@ setup
 
 div(className='beast-table reference-table-page')
   div(className='reference-table-frame')
-    main(aria-label='Data workspace' className='reference-workspace')
+    section(aria-label={sheet?.name ?? name} className='reference-workspace')
       div(className='reference-data-table')
         DataTable(
           ~ columns={columns}
           ~ data={history.rows}
-          ~ cellEditing={cellEditing}
+          ~ cellEditing={readOnly ? undefined : cellEditing}
           ~ title={sheet?.name ?? 'Data table'}
           ~ showHeader={false}
           ~ filterList={SheetFilters}

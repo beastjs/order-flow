@@ -1,4 +1,4 @@
-import type { IconName } from '../../../lib/icons/icons.ts'
+import type { IconName } from '$/lib/icons/icons.ts'
 
 export type CellBadgeTone = 'neutral' | 'success' | 'warning' | 'info' | 'danger'
 
@@ -25,7 +25,10 @@ export interface ResolvedCellBadge extends CellBadgeAppearance {
 }
 
 /** The shared renderer reads metadata without recognizing domain-specific values. */
-export function getCellBadge(config: CellBadgeConfig | false | undefined, value: unknown): ResolvedCellBadge | undefined {
+export function getCellBadge(
+  config: CellBadgeConfig | false | undefined,
+  value: unknown
+): ResolvedCellBadge | undefined {
   if (!config || value === null || value === undefined) return undefined
   const text = String(value)
   if (text.trim() === '') return undefined
@@ -37,6 +40,6 @@ export function getCellBadge(config: CellBadgeConfig | false | undefined, value:
     background: appearance?.background ?? config.background,
     borderColor: appearance?.borderColor ?? config.borderColor,
     icon: appearance?.icon ?? config.icon,
-    className: appearance?.className ?? config.className,
+    className: appearance?.className ?? config.className
   }
 }

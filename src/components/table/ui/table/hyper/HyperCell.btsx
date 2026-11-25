@@ -285,11 +285,11 @@ td(
         span(
           ~ data-slot='cell-badge'
           ~ data-tone={badge.tone}
-          ~ className={cn('table-cell-badge', badge.className)}
+          ~ className={cn('table-cell-badge px-1!', badge.className)}
           ~ style={{ color: badge.color, background: badge.background, borderColor: badge.borderColor }}
           ~ title={badge.label}
           ~ )
           if badge.icon
             Icon(name={badge.icon} className='table-cell-badge-icon')
           span(className='min-w-0 overflow-hidden text-ellipsis') #{badge.label}
-      span(className={badge ? 'hidden' : undefined} aria-hidden={badge ? true : undefined}) #{renderCellContent(cell)}
+      span(className={cn('lowercase',badge ? 'hidden' : undefined)} aria-hidden={badge ? true : undefined}) #{renderCellContent(cell)}

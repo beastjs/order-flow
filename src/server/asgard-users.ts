@@ -1,12 +1,35 @@
 import { getFirebaseAdminAuth, listFirebaseUsers } from '../lib/firebase-admin/admin-core'
 import { canViewTopgFirebaseUser } from '../lib/firebase-admin/custom-claims'
 import { readFirebaseCustomClaims } from '../lib/firebase-admin/god-directory'
-import type { AsgardDirectoryPage } from '../lib/asgard/users'
-
-const pageSize = 100
+import { asgardPositionCountsPath, asgardUsersPageSize, type AsgardDirectoryPage, type AsgardOpenPositions } from '../lib/asgard/users'
 
 function json(body: AsgardDirectoryPage | { error: string }, status = 200, headers?: HeadersInit) {
   return Response.json(body, { status, headers: { 'cache-control': 'no-store', ...headers } })
+}
+
+async function loadOpenPositions(token: string, uids: string[]): Promise<Map<string, AsgardOpenPositions>> {
+  const siteUrl = process.env.CONVEX_SITE_URL?.trim()
+  const secret = process.env.ASGARD_POSITION_COUNTS_SECRET?.trim()
+  if (!siteUrl || !secret || !uids.length) return new Map()
+
+  try {
+    const response = await fetch(new URL(asgardPositionCountsPath, siteUrl), {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'x-asgard-secret': secret, 'content-type': 'application/json' },
+      body: JSON.stringify(uids),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!response.ok) {
+      console.warn('Asgard position counts request was rejected.', response.status)
+      return new Map()
+    }
+    const counts: Array<AsgardOpenPositions & { uid: string }> = await response.json()
+    return new Map(counts.map(({ uid, up, down }) => [uid, { up, down }]))
+  } catch (error) {
+    console.warn('Could not fetch Asgard position counts.', error instanceof Error ? error.name : 'Unknown error')
+    return new Map()
+  }
 }
 
 export async function handleAsgardUsers(request: Request): Promise<Response> {
@@ -33,17 +56,18 @@ export async function handleAsgardUsers(request: Request): Promise<Response> {
     if (actor.disabled || claims.god !== true) return json({ error: 'Asgard access is required.' }, 403)
 
     const pageToken = new URL(request.url).searchParams.get('pageToken') || undefined
-    const page = await listFirebaseUsers(pageSize, pageToken)
+    const page = await listFirebaseUsers(asgardUsersPageSize, pageToken)
+    const users = page.users.filter((user) => canViewTopgFirebaseUser(claims, readFirebaseCustomClaims(user.customClaims)))
+    const openPositions = await loadOpenPositions(token, users.map((user) => user.uid))
 
     return json({
-      users: page.users
-        .filter((user) => canViewTopgFirebaseUser(claims, readFirebaseCustomClaims(user.customClaims)))
-        .map(({ uid, displayName, email, disabled }) => ({
-          uid,
-          displayName: displayName ?? null,
-          email: email ?? null,
-          disabled
-        })),
+      users: users.map(({ uid, displayName, email, disabled }) => ({
+        uid,
+        displayName: displayName ?? null,
+        email: email ?? null,
+        disabled,
+        openPositions: openPositions.get(uid) ?? null
+      })),
       nextPageToken: page.pageToken ?? null
     })
   } catch {

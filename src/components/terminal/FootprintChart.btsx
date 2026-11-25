@@ -16,9 +16,9 @@ import { usePriorSessions, type PriorSessions } from "@/hooks/usePriorSessions";
 import type { BigTrade, FootprintCandle, NormalizedLiquidation, VolumeProfile, MarketType, HeatmapSettings, PanelVisibility } from "@/lib/types/market";
 import { useCallback, useEffect, useRef, createElement, useState } from "octane";
 import type { MouseEvent } from "octane";
-import Segmented from "./ui/Segmented.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
 import IndicatorsMenu from "./IndicatorsMenu.btsx";
-import Button from "./ui/button.btsx";
+import Button from "@/components/ui/button.btsx";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
 module
   type ActionProps = { mode: FootprintMode, setMode: (mode: FootprintMode) => void, showProfile: boolean, setPanelVisible: (panel: keyof PanelVisibility, visible: boolean) => void, showHeatmap: boolean, setHeatmapVisible: (mode: keyof HeatmapSettings, visible: boolean) => void, showLiquidity: boolean, resetView: VoidFunction }

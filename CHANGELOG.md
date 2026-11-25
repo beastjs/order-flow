@@ -10,3 +10,7 @@ All notable changes to `cfx` will be recorded here.
 - Added Accounts and Users pages to the Asgard sidebar.
 - Added a paginated Firebase user directory to Asgard with server-side access checks.
 - Updated Firebase Admin service-account initialization to use Google's JWT constructor.
+- Switched the Asgard user directory to the shared data table.
+- Added per-user Open Up and Open Down position counts to Asgard.
+- Added a dotted average closing price line to the asset chart.
+- Smoothed incoming price updates on the Live asset chart.

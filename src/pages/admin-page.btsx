@@ -8,12 +8,10 @@ setup
   // The console's pages are the same on both hosts: its own subdomain roots them
   // at `/`, while the main origin roots them under `/admin`, so links have
   // to be built rather than written out.
-  const base =
+  const overviewPath =
     typeof window !== 'undefined' && !isAdminSubdomainHostname(window.location.hostname)
       ? adminRoutePrefix
-      : ''
-
-  const overviewPath = base.length > 0 ? base : '/'
+      : '/'
 
   const homeUrl = typeof window === 'undefined' ? '/' : buildAppUrl(new URL(window.location.href), '/').toString()
 

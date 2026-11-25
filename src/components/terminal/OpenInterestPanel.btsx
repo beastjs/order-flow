@@ -8,10 +8,10 @@ import { formatClock, formatCompact, formatPercent, formatPriceValue, formatSign
 import type { OpenInterestPoint } from "@/lib/types/market";
 import { useCallback, useMemo, useRef, useState, createElement, type Dispatch, type SetStateAction } from "octane";
 import type { MouseEvent } from "octane";
-import Panel from "./ui/Panel.btsx";
+import Panel from "@/components/ui/Panel.btsx";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
-import Segmented from "./ui/Segmented.btsx";
-import Stat from "./ui/Stat.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import Stat from "@/components/ui/Stat.btsx";
 import { regimeTone } from "@/lib/panel/regimeTone";
 module
   // ─── Open Interest ───────────────────────────────────────────────

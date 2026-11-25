@@ -1,7 +1,7 @@
 /* The reference presentation is local to NewDataTable. */
 
 .reference-table-page {
-  --reference-canvas: light-dark(#ededed, #101012);
+  --reference-canvas: light-dark(#ededed, transparent);
   --reference-surface: light-dark(#fff, #18181b);
   --reference-workspace: light-dark(#fbfbfb, #18181b);
   --reference-border: light-dark(#e3e3e3, #303038);

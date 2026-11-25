@@ -5,14 +5,13 @@ import { resampleWithLive } from "@/lib/engine/analytics";
 import { useCanvas, withAlpha, monoFont, type Palette } from "@/hooks/useCanvas";
 import { RESOLUTIONS, STUDY_AXIS_W, STUDY_TIME_H, drawAxisTag, drawCrosshairX, drawEmpty, drawTimeAxis, drawValueAxis } from "@/lib/chartUtils";
 import { formatClock, formatCompact, formatPriceValue, formatSigned, priceDecimals } from "@/lib/format";
-import { Icon } from "@/lib/icons";
 import type { FlowBar } from "@/lib/types/market";
 import { useCallback, useMemo, useRef, useState, createElement } from "octane";
 import type { MouseEvent } from "octane";
-import Segmented from "./ui/Segmented.btsx";
-import Stat from "./ui/Stat.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import Stat from "@/components/ui/Stat.btsx";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
-import Panel from "./ui/Panel.btsx";
+import Panel from "@/components/ui/Panel.btsx";
 module
   // ─── Cumulative Volume Delta ─────────────────────────────────────
   // Running sum of (aggressive buy − aggressive sell) volume since the

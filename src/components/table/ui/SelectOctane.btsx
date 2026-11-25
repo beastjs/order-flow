@@ -44,7 +44,7 @@ module
     control: (props) => {
       const state = props as PartState
       return cn(
-        'flex min-h-12 cursor-pointer items-center gap-1 rounded-[4px] border-btable-input/50 bg-btable-border/20 px-2 text-sm text-btable-foreground transition-colors hover:bg-btable-border/10!',
+        'flex min-h-12 cursor-pointer items-center gap-1 rounded-[4px] border-btable-input/50 bg-btable-border/20 px-2! text-sm text-btable-foreground transition-colors hover:bg-btable-border/10!',
         state.isFocused && 'bg-btable-border/25! dark:bg-btable-sidebar/80!',
         state.isDisabled && 'cursor-not-allowed opacity-50'
       )

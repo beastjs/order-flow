@@ -1,6 +1,6 @@
 import { Checkbox } from '../../index.ts'
 import { TableHead, TableHeader, TableRow } from '../index.ts'
-import { cn } from '../../../lib/utils.ts'
+import { cn } from '$/lib/utils.ts'
 import type { ColumnPinningState, ColumnVisibilityState, SortingState } from '@octanejs/tanstack-table'
 import type { OctaneNode } from 'octane'
 import { useMemo } from 'octane'

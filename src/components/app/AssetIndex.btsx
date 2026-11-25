@@ -64,7 +64,7 @@ component AssetCardView
       .asset-index-price
         span.asset-index-last #{quote.last !== undefined ? fmtPrice(quote.last, item.tickSz) : "—"}
         span.asset-index-change(className={cn( up ? "is-up" : "is-down")})
-          | #{quote.change === null ? "" : `${up ? "+" : ""}${quote.change.toFixed(2)}%`}
+          | #{quote.change === null ? "" : `${up ? "+" : ""}${quote.change.toFixed(1)}%`}
       svg.asset-index-spark(viewBox={`0 0 ${sparkWidth} ${sparkHeight}`} preserveAspectRatio="none" aria-hidden)
         defs
           linearGradient(id={gradId} x1="0" x2="0" y1="0" y2="1")

@@ -3,6 +3,7 @@
 .table-popup-content * {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--btable-muted-foreground, #888) 55%, transparent) transparent;
+  padding: 4px;
 }
 
 .table-popup-content::-webkit-scrollbar,

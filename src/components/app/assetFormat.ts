@@ -70,6 +70,10 @@ export function fmtPct(value: number | null | undefined, digits = 2): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`
 }
 
+export function sparkLinePath(points: ReadonlyArray<readonly [number, number]>, precision = 1): string {
+  return points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(precision)},${y.toFixed(precision)}`).join(' ')
+}
+
 /** SVG line + area for a series of values, scaled into a w×h box. */
 export function sparkPaths(
   values: number[],
@@ -84,7 +88,7 @@ export function sparkPaths(
   const span = hi - lo || hi * 0.001 || 1
   const step = w / (pts.length - 1)
   const points = pts.map((v, i) => [i * step, h - pad - ((v - lo) / span) * (h - pad * 2)] as const)
-  const line = points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const line = sparkLinePath(points)
   return { line, area: `${line} L${w},${h} L0,${h} Z`, lo, hi, points }
 }
 

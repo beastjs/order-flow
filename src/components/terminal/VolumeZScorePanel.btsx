@@ -9,8 +9,8 @@ import Panel from "@/components/ui/Panel.btsx";
 import { useCallback, useMemo, useRef, useState, createElement } from "octane";
 import type { MouseEvent, Dispatch, SetStateAction } from "octane";
 import { hideTooltip, showTooltip } from "./GlobalTooltip.btsx";
-import Segmented from "./ui/Segmented.btsx";
-import Stat from "./ui/Stat.btsx";
+import Segmented from "@/components/ui/Segmented.btsx";
+import Stat from "@/components/ui/Stat.btsx";
 import { zTone } from "@/lib/panel/zTone";
 module
   type ActionProps = { view: View, setView: Dispatch<SetStateAction<View>>, resolution: Resolution, setResolution: Dispatch<SetStateAction<Resolution>>, setWindow: Dispatch<SetStateAction<Window>> }

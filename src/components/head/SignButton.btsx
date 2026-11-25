@@ -1,6 +1,6 @@
 import { createElement, useState } from "octane";
 import { Icon } from "@/lib/icons";
-import Menu, { MenuSection } from "./ui/Menu.btsx";
+import Menu, { MenuSection } from "@/components/ui/Menu.btsx";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithGoogle, signOutUser, useFirebaseUser, useRememberedAccounts } from "@/lib/firebase/auth";
 import { getAccountLabel } from "@/lib/firebase/accounts";
@@ -8,9 +8,9 @@ import { adminRoutePrefix, toAdminSubdomainHostname } from "@/lib/routing/admin-
 import { asgardRoutePrefix, toAsgardSubdomainHostname } from "@/lib/routing/asgard-console";
 import { supportsConsoleSubdomain } from "@/lib/routing/console-host";
 import TopUpModal from "./TopUpModal.btsx";
-import OkxConnectionModal from "./OkxConnectionModal.btsx";
+import OkxConnectionModal from "@/components/app/OkxConnectionModal.btsx";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
-import { api } from "../../convex/_generated/api";
+import { api } from "@@/convex/_generated/api";
 // ─── Sign-in button ─────────────────────────────────────────────
 // Signed out: an icon-only button that opens Google sign-in.
 // Signed in: the user's avatar, opening a menu with the account,

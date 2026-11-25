@@ -7,7 +7,7 @@ import { fmtPct, fmtPrice, fmtSize } from "./assetFormat";
 import { cn } from "@/lib/utils";
 import PositionOrderControls from "./PositionOrderControls.btsx";
 import PositionExitModal from "./PositionExitModal.btsx";
-import OkxConnectionModal from "../OkxConnectionModal.btsx";
+import OkxConnectionModal from "./OkxConnectionModal.btsx";
 import { useFirebaseUser } from "@/lib/firebase/auth";
 import {Icon} from "@/lib/icons";
 
@@ -223,7 +223,7 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
       dl.sim-rows(className='flex-1! h-full flex flex-col')
         .sim-row
           dt ROE
-          dd(className={live ? (live.roe >= 0 ? "is-up" : "is-down") : undefined}) #{fmtPct(live?.roe)}
+          dd(className={live ? (live.roe >= 0 ? "is-up" : "is-down") : undefined}) #{fmtPct(live?.roe, 1)}
         .sim-row
           dt Entry
           dd #{fmtPrice(position.entry, tickSz)}

@@ -1,6 +1,6 @@
 module "use client";
 import { useEffect, useState } from "octane";
-import Button from "./ui/button.btsx";
+import Button from "@/components/ui/button.btsx";
 module
   const DISMISSED_KEY = "oft-bug-report-dialog-dismissed";
   const ISSUE_URL = "https://github.com/zadescoxp/order-flow-screener/issues/new";

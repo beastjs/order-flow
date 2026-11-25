@@ -1,6 +1,6 @@
 import Popover, { PopoverContent, PopoverDescription, PopoverTitle, PopoverTrigger } from '../../Popover.btsx'
-import { Icon } from '../../../lib/icons/index.ts'
-import { cn } from '../../../lib/utils.ts'
+import { Icon } from '$/lib/icons/index.ts'
+import { cn } from '$/lib/utils.ts'
 import { getColumnHeaderText } from './filter-utils.ts'
 import { MAX_GROUPING_COLUMNS, moveGroupingColumn } from './column-grouping.ts'
 import type { GroupingState } from '@octanejs/tanstack-table'
@@ -15,7 +15,7 @@ module
     onCollapseAll: () => void
   }
 
-  const TRIGGER_CLASS = 'relative flex h-8 w-9 items-center justify-center md:space-x-1 gap-1.5 rounded-[4px] border border-btable-border/50 bg-zinc-200/10 hover:bg-pink-200/20 text-btable-foreground hover:border-pink-400 focus-visible:outline-1 disabled:opacity-40 md:w-auto md:px-2'
+  const TRIGGER_CLASS = 'relative flex h-8 w-9 items-center justify-center md:space-x-1 gap-1.5 rounded-[4px] border border-btable-border/50 bg-zinc-200/10 hover:bg-pink-200/20 text-btable-foreground hover:border-pink-400 focus-visible:outline-1 disabled:opacity-40 md:w-auto md:px-2!'
   const ACTION_CLASS = 'rounded px-2 py-1 text-xs hover:bg-btable-border/30 focus-visible:outline-1 disabled:opacity-40'
 
 props { columns, grouping, onChange, onExpandAll, onCollapseAll }: ColumnGroupingProps
@@ -39,7 +39,7 @@ Popover
       span(className='bg-pink-500 min-w-5 rounded-xs px-1 font-sans font-semibold text-white text-xs') #{grouping.length}
     else
       Icon(name='rows' className='size-3.5 opacity-80')
-    span(className='hidden font-mono text-xs uppercase opacity-70 md:inline') Group
+    span(className='hidden font-mono text-sm uppercase opacity-70 md:inline') Group
   PopoverContent(align='start' sideOffset={7} className='gap-2 rounded-md p-0')
     PopoverTitle(className='text-sm px-3 pt-3') Group Rows
     PopoverDescription(className='text-xs px-3') Select columns in order to create nested groups.
