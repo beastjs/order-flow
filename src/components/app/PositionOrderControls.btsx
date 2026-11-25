@@ -76,4 +76,4 @@ setup
     //   ~ )
   .sim-chips
     each step in stops key step
-      button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in hover:border-(--border)! hover:bg-(--border)! font-sans! font-[600]! text-[15px]!", {"brightness-100 bg-(--tone)! text-[#101010]! font-bold!":leverage === step, 'text-white!': side === 'down'})} disabled={disabled} onClick={() => onLeverageChange(step)}) #{step}x
+      button.sim-chip(type="button" className={cn("transition-colors duration-200 ease-in-out hover:border-(--border)! hover:bg-(--border)! hover:brightness-150! font-sans! font-[600]! text-[15px]!", {"brightness-100 bg-(--tone)! text-[#101010]! font-bold! hover:text-white!":leverage === step, 'text-white!': side === 'down'})} disabled={disabled} onClick={() => onLeverageChange(step)}) #{step}x
