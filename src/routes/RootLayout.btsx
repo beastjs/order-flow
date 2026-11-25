@@ -1,14 +1,13 @@
 import { Outlet } from "@octanejs/tanstack-router";
 import WalletProvider from "@/wallet/provider.btsx";
 import { NuqsTanstackAdapter } from "@/lib/url/nuqsTanstackAdapter";
-import CreditToasts from "@/components/CreditToasts.btsx";
+import AppToasts from "@/components/AppToasts.btsx";
 import PaperExitMonitor from "@/components/app/PaperExitMonitor.btsx";
 import { DevtoolsMount } from "@/components/devtools";
 WalletProvider
   NuqsTanstackAdapter
     Outlet
-  // App-wide: a top-up credited while you're on any page pops a toast.
-  CreditToasts
+  AppToasts
   PaperExitMonitor
   // ⌘K / Ctrl+K App Devtools — dev builds only (see devtools/index.ts).
   DevtoolsMount

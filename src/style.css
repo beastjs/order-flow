@@ -3200,7 +3200,7 @@ body.is-resizing-row,
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--st-ink) 9%, transparent);
   border-radius: var(--st-radius);
-  background: var(--muted);
+  background: var(--st-bg);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.25),
     0 12px 32px rgba(0, 0, 0, 0.35);

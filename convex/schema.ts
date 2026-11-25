@@ -165,6 +165,7 @@ export default defineSchema({
     message: v.string(),
     positionId: v.optional(v.id("positions")),
     instId: v.optional(v.string()),
+    partiallyClosed: v.optional(v.literal(true)),
     amount: v.optional(v.number()),
     balanceAfter: v.optional(v.number()),
   })

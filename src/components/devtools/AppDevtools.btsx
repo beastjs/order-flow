@@ -3,7 +3,7 @@ import type { OctaneNode } from "octane";
 import Toast from "../ui/Toast.btsx";
 import Icon from "@/lib/icons/Icon.btsx";
 import type { IconName } from "@/lib/icons/icons";
-import { creditToastContent } from "../CreditToasts.btsx";
+import { creditToastContent } from "../AppToasts.btsx";
 import { cn } from "@/lib/utils";
 // ─── App Devtools (⌘K / Ctrl+K) ──────────────────────────────────
 // A dev-only command palette for poking at app UI. RootLayout mounts it
@@ -46,7 +46,7 @@ module
       id: "credited",
       label: "Funds credited",
       // The real production toast, fed a sample deposit.
-      build: () => creditToastContent({ id: "demo", amountUsd: 50.24, token: "ETH", chainId: 42161, txHash: `0x${"ab".repeat(32)}` }),
+      build: () => creditToastContent({ amountUsd: 50.24, token: "ETH", chainId: 42161, txHash: `0x${"ab".repeat(32)}` }),
     },
     { id: "title", label: "Title only", build: () => ({ title: "Settings saved" }) },
     {

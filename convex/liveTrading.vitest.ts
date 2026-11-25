@@ -643,6 +643,8 @@ describe("close + liquidation", () => {
     okx.state.fill = { avgPx: "353.40", accFillSz: "0.41", fee: "-0.07" };
     await admin.action(api.liveTrading.close, { positionId });
     expect(await admin.query(api.liveTrading.openFor, { instId: AAPL })).toMatchObject({ status: "open", contractsSz: "1" });
+    const { page } = await admin.query(api.activity.listMine, { kind: "live_position_closed", paginationOpts: { numItems: 5, cursor: null } });
+    expect(page).toMatchObject([{ partiallyClosed: true }]);
   });
 
   it("another user cannot close someone else's position", async () => {

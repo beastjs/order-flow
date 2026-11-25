@@ -468,7 +468,8 @@ async function applyCloseFill(ctx: MutationCtx, order: Doc<"liveOrders">, filled
   }
 
   const remaining = subtractSz(p.contractsSz, filledSz);
-  if (Number(remaining) > 0) {
+  const partiallyClosed = Number(remaining) > 0;
+  if (partiallyClosed) {
     // Partial close: keep the rest open, proportionally reduced.
     await ctx.db.patch("livePositions", p._id, {
       status: "open",
@@ -493,6 +494,7 @@ async function applyCloseFill(ctx: MutationCtx, order: Doc<"liveOrders">, filled
     kind: liquidated ? "live_position_liquidated" : "live_position_closed",
     message: `${liquidated ? "Liquidated" : "Closed"} ${p.okxMode ? `My OKX ${p.okxMode}` : "LIVE"} ${p.side === "up" ? "Up" : "Down"} ${p.leverage}× ${p.base} at ${avgPx} · ${usd(realized)}`,
     instId: p.instId,
+    ...(partiallyClosed && { partiallyClosed: true as const }),
     ...(funds ? { amount: credit, balanceAfter } : {}),
   });
   await writeLog(ctx, liquidated ? "warn" : "info", "liveTrading.close", `${order.kind} filled ${p.instId}`, {

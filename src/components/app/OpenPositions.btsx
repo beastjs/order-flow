@@ -109,7 +109,7 @@ component PositionRow
       else
         button(
           ~ type="button"
-          ~ className="flex items-center justify-center hover:bg-(--border) hover:brightness-135 transition-all duration-200 ease-out active:scale-97 w-48! border border-transparent hover:border-(--text-muted)/50 rounded-[1px]"
+          ~ className="flex items-center justify-center hover:bg-(--border) hover:brightness-135 transition-all duration-200 ease-out active:scale-97 w-55.5! border border-transparent hover:border-(--text-muted)/50 rounded-[1px]"
           ~ aria-label={`Set ${row.base} stop loss and take profit`}
           ~ aria-haspopup="dialog"
           ~ disabled={disabled}

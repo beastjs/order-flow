@@ -1,0 +1,156 @@
+import { useEffect, useRef, useState } from "octane";
+import type { OctaneNode } from "octane";
+import type { ConvexClient } from "convex/browser";
+import Toast from "./ui/Toast.btsx";
+import Icon from "@/lib/icons/Icon.btsx";
+import { useConvexAuth } from "@/hooks/useConvex";
+import { explorerTx } from "@/hooks/useTopUp";
+import { convex } from "@/lib/convex/client";
+import { depositChain } from "@/lib/deposits/config";
+import { autoExitLabels, paperStore, type PaperFill, type PaperPosition } from "@/lib/paper/paper";
+import { api } from "../../convex/_generated/api";
+import type { Doc } from "../../convex/_generated/dataModel";
+
+module
+  export { creditToastContent }
+
+  interface ToastContent {
+    title: string
+    description: string
+    icon: OctaneNode
+    fuseColor: string
+    actionLabel?: string
+    onAction?: VoidFunction
+    duration?: number
+  }
+
+  interface CreditNotice {
+    amountUsd: number
+    token: string
+    chainId: number
+    txHash: string
+  }
+
+  const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+  const signedUsd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", signDisplay: "exceptZero" })
+
+  function creditToastContent(n: CreditNotice): ToastContent {
+    return {
+      title: `${usd.format(n.amountUsd)} credited!`,
+      description: `${n.token} top-up on ${depositChain(n.chainId)?.name ?? "chain"}`,
+      icon: <Icon name="circle-check" className='size-6 text-(--text-primary)' />,
+      actionLabel: "View txn",
+      onAction: () => void window.open(explorerTx(n.chainId, n.txHash), "_blank", "noopener,noreferrer"),
+      fuseColor: "#22c55e",
+      duration: 6000,
+    }
+  }
+
+  type PositionEvent = "opened" | "closed" | "liquidated"
+  const positionEvents: Partial<Record<Doc<"activity">["kind"], PositionEvent>> = {
+    position_opened: "opened",
+    position_closed: "closed",
+    position_liquidated: "liquidated",
+    live_position_opened: "opened",
+    live_position_closed: "closed",
+    live_position_liquidated: "liquidated",
+  }
+
+  function positionToastContent(event: PositionEvent, description: string): ToastContent {
+    return {
+      title: `Position ${event}`,
+      description,
+      icon: <Icon name={event === "liquidated" ? "bolt" : "circle-check"} className="size-6 text-(--text-primary)" />,
+      fuseColor: event === "liquidated" ? "#ef4444" : event === "opened" ? "#22c55e" : "#f5a524",
+    }
+  }
+
+  function practicePositionLabel({ instId, side, leverage }: Pick<PaperPosition, "instId" | "side" | "leverage">) {
+    return `${instId.split("-")[0]} ${side === "up" ? "Up" : "Down"} ${leverage}×`
+  }
+
+  function watchPractice(enqueue: (notices: ToastContent[]) => void) {
+    const fillKey = ({ instId, openedAt, closedAt }: PaperFill) => `${instId}:${openedAt}:${closedAt}`
+    let previous = paperStore.get()
+    return paperStore.subscribe(() => {
+      const next = paperStore.get()
+      const notices: ToastContent[] = []
+      if (next.history !== previous.history) {
+        const seen = new Set(previous.history.map(fillKey))
+        for (const fill of next.history.filter((fill) => !seen.has(fillKey(fill))).reverse()) {
+          const reason = fill.autoExitReason ? ` · ${autoExitLabels[fill.autoExitReason]}` : ""
+          notices.push(positionToastContent(fill.liquidated ? "liquidated" : "closed",
+            `${practicePositionLabel(fill)} · ${signedUsd.format(fill.realized)}${reason}`))
+        }
+      }
+      for (const position of Object.values(next.positions)) {
+        if (previous.positions[position.instId]?.openedAt !== position.openedAt) {
+          notices.push(positionToastContent("opened", practicePositionLabel(position)))
+        }
+      }
+      previous = next
+      enqueue(notices)
+    })
+  }
+
+  function watchCloud(client: ConvexClient, enqueue: (notices: ToastContent[]) => void) {
+    // Start from the first snapshot so visiting the app doesn't replay old activity.
+    let seenActivity: Set<string> | null = null
+    const stopActivity = client.onUpdate(api.activity.listMine, { paginationOpts: { numItems: 200, cursor: null } }, ({ page }) => {
+      const previous = seenActivity
+      if (previous && !page.length) return
+      seenActivity = new Set(page.map((entry) => entry._id))
+      if (!previous) return
+      const notices = page.slice().reverse().flatMap((entry) => {
+        const event = positionEvents[entry.kind]
+        return event && !entry.partiallyClosed && !previous.has(entry._id) ? [positionToastContent(event, entry.message)] : []
+      })
+      enqueue(notices)
+    }, () => {})
+
+    let seenCredits: Set<string> | null = null
+    const stopCredits = client.onUpdate(api.deposits.listMine, { paginationOpts: { numItems: 10, cursor: null } }, ({ page }) => {
+      const credited = page.filter((deposit) => deposit.status === "credited")
+      if (!seenCredits) {
+        seenCredits = new Set(credited.map((deposit) => deposit._id))
+        return
+      }
+      const seen = seenCredits
+      const notices = credited.reverse().flatMap((deposit) => {
+        if (seen.has(deposit._id)) return []
+        seen.add(deposit._id)
+        return [creditToastContent({
+          amountUsd: deposit.amountUsd ?? 0, token: deposit.token ?? "", chainId: deposit.chainId, txHash: deposit.txHash,
+        })]
+      })
+      enqueue(notices)
+    }, () => {})
+
+    return () => { stopActivity(); stopCredits() }
+  }
+
+setup
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const [queue, setQueue] = useState<{ id: number; content: ToastContent }[]>([]);
+  const sequence = useRef(0);
+
+  useEffect(() => {
+    setQueue([]);
+    if (isLoading) return;
+    const enqueue = (notices: ToastContent[]) => {
+      if (!notices.length) return;
+      const entries = notices.map((content) => ({ id: ++sequence.current, content }));
+      setQueue((pending) => [...pending, ...entries]);
+    };
+    return isAuthenticated && convex ? watchCloud(convex, enqueue) : watchPractice(enqueue);
+  }, [isAuthenticated, isLoading]);
+
+  const current = queue[0];
+
+if current
+  Toast(
+    ~ key={current.id}
+    ~ open={true}
+    ~ {...current.content}
+    ~ onClose={() => setQueue((pending) => pending[0]?.id === current.id ? pending.slice(1) : pending)}
+    ~ )
