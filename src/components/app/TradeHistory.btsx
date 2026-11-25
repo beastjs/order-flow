@@ -79,10 +79,10 @@ component TradeRow
     details.trade-history-disclosure
       summary
         span.trade-history-settlement
-          span(className={liquidated ? "is-down" : ""}) #{settlement}
+          span(className={cn('font-sans font-bold! capitalize italic',{'is-down': liquidated})}) #{settlement}
           if trade.closedAt !== undefined
-            time(className='font-mono text-(--text-secondary)' dateTime={new Date(trade.closedAt).toISOString()}) #{dateTime.format(trade.closedAt)}
-        span.trade-history-details-label Details
+            time(className='font-mono text-(--text-muted)' dateTime={new Date(trade.closedAt).toISOString()}) #{dateTime.format(trade.closedAt)}
+        span.trade-history-details-label
       dl.trade-history-details
         // div
         //   dt Instrument
@@ -176,8 +176,9 @@ setup
   if auth.isAuthenticated && !auth.isLoading
     .lp-toolbar
       .lp-segmented(role="group" aria-label="Trading account")
-        button.lp-seg(type="button" className={cn(venue === "paper" && "is-active")} aria-pressed={venue === "paper"} onClick={() => setVenue("paper")}) Paper · USDT
-        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")}) OKX
+        button.lp-seg(type="button" className={cn(venue === "paper" && "is-active")} aria-pressed={venue === "paper"} onClick={() => setVenue("paper")}) Paper
+        button.lp-seg(type="button" className={cn(venue === "okx" && "is-active")} aria-pressed={venue === "okx"} onClick={() => setVenue("okx")})
+          Icon(name='okx' className='size-5')
 
 section.trade-history(aria-label="Closed positions")
   if auth.isLoading

@@ -176,7 +176,7 @@ setup
         span.lp-live-dot
         | Live from #{VENUE_LABEL[venue]}
     if tab === "history"
-      h1.lp-page-title(className='mt-11!') Trade history
+      h1.lp-page-title(className='lg:mt-10!') Trade history
     elseif tab === "positions"
       h1.lp-page-title
         | #{"Your positions,  "}
