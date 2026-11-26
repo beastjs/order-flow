@@ -3,7 +3,8 @@ import { Link } from "@octanejs/tanstack-router";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import PositionExitModal from "./PositionExitModal.btsx";
 import FollowUpOrderModal from "./FollowUpOrderModal.btsx";
-import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
+import { usePaperQuotes } from "@/hooks/usePaperQuotes";
+import { paperAsset } from "@/lib/paper/instruments";
 import { useOpenPositions, type OpenPositionRow, type SimResult } from "@/hooks/usePaperAccount";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import { estimateClosePnl, liquidationPrice, priceTotalExit, unrealizedPnl } from "@/lib/paper/math";
@@ -52,13 +53,14 @@ component PositionRow
     const takeProfit = p.exitTargets?.takeProfit ?? null;
     const hasExitTargets = stopLoss !== null || takeProfit !== null;
     const editExitTargets = () => onExitTargets(row);
-    const followUpBase = p.followUpOrder?.instId.split("-")[0];
+    const asset = paperAsset(row.instId, row.base);
+    const followUpBase = p.followUpOrder && paperAsset(p.followUpOrder.instId).assetId;
   article.pos-article(className='portrait:flex-col! portrait:rounded-md! hover:border-(--text-secondary)/50! transition-[border-color] duration-300 ease-out' data-side={p.side})
     div.pos-row
-      Link.pos-asset(to="/perps/$assetId" params={{ assetId: row.base }})
-        AssetGlyph(base={row.base} size={38})
+      Link.pos-asset(to="/perps/$assetId" params={{ assetId: asset.assetId }} search={asset.search})
+        AssetGlyph(base={row.base} coin={asset.assetId} venue={asset.venue} size={38})
         span.pos-asset-name
-          strong #{row.base}
+          strong #{asset.base}
           div(className='flex items-center')
             span.pos-side(className={cn(p.side === "up" ? "is-up" : "is-down")})
               Icon(name={p.side as IconName} className='size-5')
@@ -126,8 +128,7 @@ component PositionRow
 setup
   const open = useOpenPositions();
   const instIds = open.rows.map((r) => r.instId);
-  const tickers = useOkxTickers(instIds, 500);
-  const marks = useOkxMarkPrices(instIds, 500);
+  const paperQuote = usePaperQuotes(instIds, 500);
   const [closing, setClosing, getClosing] = useState<string | null>(null);
   const [confirmMode, setConfirmMode, getConfirmMode] = useState<typeof open.mode | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -147,24 +148,22 @@ setup
   }, [confirming]);
 
   const pricedRows = open.rows.map((row) => {
-    const ticker = tickers[row.instId];
-    const mark = marks[row.instId] ?? ticker?.last;
-    const exit = (row.position.side === "up" ? ticker?.bidPx : ticker?.askPx) || ticker?.last;
+    const quote = paperQuote(row.instId);
+    const mark = quote.mark ?? quote.last;
+    const exit = (row.position.side === "up" ? quote.bid : quote.ask) || quote.last;
     const pnl = mark ? estimateClosePnl(row.position, unrealizedPnl(row.position, mark), exit) : null;
     return { row, mark, exit, pnl };
   });
 
   const totalMargin = open.rows.reduce((sum, { position }) => sum + position.margin, 0);
-  const totalExit = open.allRowsLoaded ? priceTotalExit(open.rows.map(({ position }) => position), (id) => ({
-    mark: marks[id], bid: tickers[id]?.bidPx, ask: tickers[id]?.askPx,
-  })) : null;
+  const totalExit = open.allRowsLoaded ? priceTotalExit(open.rows.map(({ position }) => position), paperQuote) : null;
   const totalPnl = totalExit?.pnl ?? null;
   const totalStopLoss = open.totalExitTargets?.stopLoss ?? null;
   const totalTakeProfit = open.totalExitTargets?.takeProfit ?? null;
 
   const getQuote = (instId: string) => {
-    const t = tickers[instId];
-    return { bid: t?.bidPx || t?.last, ask: t?.askPx || t?.last };
+    const { bid, ask, last } = paperQuote(instId);
+    return { bid: bid || last, ask: ask || last };
   };
 
   const close = async (row: OpenPositionRow) => {

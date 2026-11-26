@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { STARTING_BALANCE, TAKER_FEE, exitPriceForPnl, netPnlAtExit, type FollowUpOrder } from "../src/lib/paper/math";
+import { hlPaperId } from "../src/lib/paper/instruments";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -47,6 +48,55 @@ describe("users + funds", () => {
 });
 
 describe("positions", () => {
+  it("prices a Hyperliquid builder perpetual independently from the matching OKX asset", async () => {
+    const { t, alice, bob } = await setup();
+    const coin = "xyz:AAPL";
+    const instId = hlPaperId(coin);
+    let bid = "100";
+    let ask = "101";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).includes("www.okx.com")) {
+        const isMark = String(input).includes("mark-price");
+        return Response.json({ code: "0", data: [isMark ? { instId: AAPL.instId, markPx: "100" } : { instId: AAPL.instId, bidPx: "100", askPx: "101" }] });
+      }
+      expect(String(input)).toBe("https://api.hyperliquid.xyz/info");
+      const body = JSON.parse(String(init?.body));
+      const meta = { universe: [{ name: coin, maxLeverage: 10, szDecimals: 3 }] };
+      if (body.type === "perpCategories") return Response.json([[coin, "stocks"]]);
+      if (body.type === "meta") {
+        expect(body.dex).toBe("xyz");
+        return Response.json(meta);
+      }
+      if (body.type === "metaAndAssetCtxs") {
+        expect(body.dex).toBe("xyz");
+        return Response.json([meta, [{ markPx: bid }]]);
+      }
+      expect(body).toEqual({ type: "l2Book", coin });
+      return Response.json({ coin, levels: [[{ px: bid }], [{ px: ask }]] });
+    });
+    try {
+      const okx = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });
+      const order = { instId, side: "up" as const, leverage: 2, margin: 100 };
+      await expect(alice.action(api.positions.open, { ...order, leverage: 11 })).rejects.toThrow(/Max multiplier/);
+      const opened = await alice.action(api.positions.open, order);
+      expect(await alice.query(api.positions.openFor, { instId })).toMatchObject({ _id: opened, entry: 101, category: "stock" });
+      await expect(bob.action(api.positions.close, { positionId: opened })).rejects.toThrow(/not found/);
+      await expect(alice.action(api.positions.close, { positionId: opened })).resolves.toMatchObject({ exit: 100 });
+      const second = await alice.action(api.positions.open, { ...order, side: "down" });
+      expect(await alice.query(api.positions.openFor, { instId })).toMatchObject({ entry: 100 });
+
+      await alice.mutation(api.positions.setTotalExitTargets, { stopLoss: null, takeProfit: 10 });
+      bid = "89";
+      ask = "90";
+      await t.action(internal.positions.sweepTotalExitTargets, {});
+      const history = (await alice.query(api.positions.history, { paginationOpts: page })).page;
+      expect(history.find(({ _id }) => _id === second)).toMatchObject({ exit: 90, autoExitReason: "total_take_profit" });
+      expect(history.find(({ _id }) => _id === okx)).toMatchObject({ exit: 100, autoExitReason: "total_take_profit" });
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
   it.each(["manual", "take profit"])("opens a one-shot follow-up after a %s close", async (reason) => {
     const { t, alice, bob } = await setup();
     const source = await alice.mutation(internal.positions.openPriced, { ...AAPL, side: "up", margin: 100, leverage: 2, entry: 100 });

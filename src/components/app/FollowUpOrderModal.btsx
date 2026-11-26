@@ -2,12 +2,21 @@ import { useForm, useStore } from "@octanejs/tanstack-form";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "octane";
 import { convexErrorMessage } from "@/hooks/useConvex";
 import type { OpenPositionRow } from "@/hooks/usePaperAccount";
-import { fetchPerps, type OkxPerpInstrument } from "@/lib/okx";
+import { fetchPerps } from "@/lib/okx";
+import { fetchHlPerps } from "@/lib/hyperliquid/rest";
+import { hlPaperId, paperAsset } from "@/lib/paper/instruments";
 import { MAX_PAPER_MARGIN, followUpCriteria, validateFollowUpOrder, type FollowUpCriterion, type FollowUpOrder } from "@/lib/paper/math";
 import PositionOrderControls from "./PositionOrderControls.btsx";
 import ExitTargetField, { MAX_EXIT_TARGET } from "./ExitTargetField.btsx";
 import { cn } from '@/lib/utils';
 import {Icon} from "@/lib/icons";
+
+module
+  interface TradingMarket {
+    instId: string;
+    label: string;
+    maxLeverage: number;
+  }
 
 props { row, onSave, onClose }: { row: OpenPositionRow; onSave: (order: FollowUpOrder | null) => Promise<string | null>; onClose: () => void }
 setup
@@ -16,7 +25,7 @@ setup
   const title = useId();
   const criteriaTitle = useId();
   const criteriaHint = useId();
-  const [instruments, setInstruments] = useState<OkxPerpInstrument[]>([]);
+  const [instruments, setInstruments] = useState<TradingMarket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving, getRemoving] = useState(false);
@@ -47,7 +56,7 @@ setup
     onSubmit: async ({ value }) => {
       const instrument = instruments.find(({ instId }) => instId === value.instId);
       if (!instrument) {
-        setError("Choose a live USDT perpetual.");
+        setError("Choose a listed perpetual.");
         return;
       }
       const order: FollowUpOrder = {
@@ -91,9 +100,20 @@ setup
 
   useEffect(() => {
     let active = true;
-    void fetchPerps().then((catalog) => {
+    void Promise.allSettled([fetchPerps(), fetchHlPerps()]).then(([okx, hl]) => {
       if (!active) return;
-      const eligible = catalog.filter((market) => market.state === "live" && market.settleCcy === "USDT").sort((a, b) => a.base.localeCompare(b.base));
+      const eligible: TradingMarket[] = [];
+      if (okx.status === "fulfilled") {
+        for (const { state, settleCcy, instId, base, maxLeverage } of okx.value) {
+          if (state === "live" && settleCcy === "USDT") eligible.push({ instId, label: `${base} · OKX`, maxLeverage });
+        }
+      }
+      if (hl.status === "fulfilled") {
+        for (const { meta } of hl.value) {
+          if (!meta.isDelisted) eligible.push({ instId: hlPaperId(meta.name), label: `${meta.name} · Hyperliquid`, maxLeverage: meta.maxLeverage });
+        }
+      }
+      eligible.sort((a, b) => a.label.localeCompare(b.label));
       const { instId, multiplier } = form.state.values;
       const market = eligible.find((instrument) => instrument.instId === instId);
       if (market && multiplier > (market.maxLeverage || 1)) form.setFieldValue("multiplier", market.maxLeverage || 1);
@@ -124,9 +144,9 @@ dialog.pos-exit-dialog(ref={dialog} aria-labelledby={title} onCancel={(event) =>
         strong Asset
       select.sim-input(className="w-full min-w-0 text-(--text-primary)" value={values.instId} disabled={busy || loading} onChange={(event) => selectInstrument(event.currentTarget.value)})
         if !selected
-          option(value={values.instId}) #{values.instId.split("-")[0]}
+          option(value={values.instId}) #{paperAsset(values.instId).assetId}
         each instrument in instruments key instrument.instId
-          option(value={instrument.instId}) #{instrument.base}
+          option(value={instrument.instId}) #{instrument.label}
     PositionOrderControls(
       ~ side={values.side} amount={values.amount} amountLimit={MAX_PAPER_MARGIN} amountSuffix="USDT" amountDragStep={amountDragStep}
       ~ leverage={values.multiplier} maxLeverage={maxLeverage} disabled={busy || !selected}

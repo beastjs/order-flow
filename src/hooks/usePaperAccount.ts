@@ -5,10 +5,12 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { convex, convexAuthStore } from '@/lib/convex/client'
 import { TAKER_FEE, paperStore, type ExitTargets, type FollowUpOrder, type PaperFill, type PaperPosition, type PaperSide } from '@/lib/paper/paper'
 import { convexErrorMessage, useConvexAuth, useConvexQuery } from './useConvex'
+import { fetchHlBookQuote } from '@/lib/hyperliquid/rest'
+import { hlPaperCoin, paperAsset } from '@/lib/paper/instruments'
 
 // ─── One paper account, two backends ─────────────────────────────
 // Signed in  → Convex: balance in `funds`, positions priced by the
-//              server from OKX, liquidated by the backend sweep.
+//              server from the position's venue, liquidated by the backend sweep.
 // Signed out → this browser's local practice store, priced from the
 //              live WebSocket quote.
 
@@ -70,15 +72,18 @@ export function usePaperAccount(instId: string): PaperAccount {
       positionKey: position ? `${instId}:${position.openedAt}` : null,
       closedRemotely: false,
       async open(side, margin, leverage, quote) {
-        const entry = (side === 'up' ? quote.ask : quote.bid) ?? 0
-        return paperStore.open(instId, side, margin, leverage, entry)
+        try {
+          const market = await practiceQuote(instId, quote)
+          const entry = (side === 'up' ? market.ask : market.bid) ?? 0
+          return paperStore.open(instId, side, margin, leverage, entry)
+        } catch (e) {
+          return convexErrorMessage(e)
+        }
       },
       async close(quote) {
         const p = paperStore.get().positions[instId]
         if (!p) return { result: null, error: 'No open position.' }
-        const exit = (p.side === 'up' ? quote.bid : quote.ask) ?? 0
-        const fill = paperStore.close(instId, exit)
-        return fill ? { result: fill, error: null } : { result: null, error: 'Waiting for a price.' }
+        return await closePracticePosition(p, quote)
       },
       async reset() {
         paperStore.reset()
@@ -185,9 +190,23 @@ type BulkCloseResult = {
 
 const OPEN_PAGE = { numItems: 200, cursor: null }
 
-function closePracticePosition(position: PaperPosition, quote: CloseQuote): PaperFill | null {
-  const exit = (position.side === 'up' ? quote.bid : quote.ask) ?? 0
-  return paperStore.close(position.instId, exit)
+function practiceQuote(instId: string, quote: CloseQuote) {
+  const coin = hlPaperCoin(instId)
+  return coin ? fetchHlBookQuote(coin) : quote
+}
+
+async function closePracticePosition(position: PaperPosition, quote: CloseQuote): Promise<{ result: PaperFill | null; error: string | null }> {
+  try {
+    const market = await practiceQuote(position.instId, quote)
+    if (paperStore.get().positions[position.instId]?.openedAt !== position.openedAt) {
+      return { result: null, error: 'Position already closed.' }
+    }
+    const exit = (position.side === 'up' ? market.bid : market.ask) ?? 0
+    const fill = paperStore.close(position.instId, exit)
+    return fill ? { result: fill, error: null } : { result: null, error: 'Waiting for a price.' }
+  } catch (e) {
+    return { result: null, error: convexErrorMessage(e) }
+  }
 }
 
 export function useOpenPositions(): OpenPositions {
@@ -200,7 +219,7 @@ export function useOpenPositions(): OpenPositions {
   if (!cloud) {
     const rows = Object.values(local.positions)
       .sort((a, b) => b.openedAt - a.openedAt)
-      .map((p) => ({ key: p.instId, instId: p.instId, base: p.instId.split('-')[0], position: p }))
+      .map((p) => ({ key: p.instId, instId: p.instId, base: paperAsset(p.instId).base, position: p }))
     return {
       mode: 'local',
       loading: authState.isLoading,
@@ -218,21 +237,17 @@ export function useOpenPositions(): OpenPositions {
         return paperStore.setFollowUpOrder(row.instId, row.position.openedAt, order)
       },
       async close(row, quote) {
-        if (paperStore.get().positions[row.instId]?.openedAt !== row.position.openedAt) {
-          return { result: null, error: 'Position already closed.' }
-        }
-        const fill = closePracticePosition(row.position, quote)
-        return fill ? { result: fill, error: null } : { result: null, error: 'Waiting for a price.' }
+        return await closePracticePosition(row.position, quote)
       },
       async closeAll(getQuote) {
         const summary: BulkCloseResult = { closed: 0, realized: 0, failures: [] }
         for (const position of Object.values(paperStore.get().positions)) {
-          const fill = closePracticePosition(position, getQuote(position.instId))
-          if (fill) {
+          const { result, error } = await closePracticePosition(position, getQuote(position.instId))
+          if (result) {
             summary.closed += 1
-            summary.realized += fill.realized
+            summary.realized += result.realized
           } else {
-            summary.failures.push({ instId: position.instId, message: 'Waiting for a price.' })
+            summary.failures.push({ instId: position.instId, message: error ?? 'Waiting for a price.' })
           }
         }
         return summary

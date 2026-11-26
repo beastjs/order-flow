@@ -1,0 +1,201 @@
+import { useEffect, useState, useRef } from "octane";
+import { isAddressEqual, type Address, type WalletClient } from "viem";
+import { useWallet } from "@/wallet/context.btsx";
+import WalletModal from "@/components/head/WalletModal.btsx";
+import { authorizeHlTrading, checkHlOrder, fetchHlTradingAccount, hasHlTradingSession, hasPendingHlOrder, reviewHlOrder, submitHlOrder, type HlOrderPreview } from "@/lib/hyperliquid/trading";
+import { fmtPrice } from "./assetFormat";
+
+module
+  type Account = Awaited<ReturnType<typeof fetchHlTradingAccount>>;
+
+component ConnectedTicket
+  props { user, wallet, coin, base }: { user: Address; wallet: WalletClient; coin: string; base: string }
+  setup
+    const [account, setAccount] = useState<Account | null>(null);
+    const [readError, setReadError] = useState(false);
+    const [refresh, setRefresh] = useState(0);
+    const [authorized, setAuthorized] = useState(hasHlTradingSession(user));
+    const [pending, setPending] = useState(hasPendingHlOrder(user, coin));
+    const [buy, setBuy] = useState(true);
+    const [notional, setNotional] = useState("");
+    const [preview, setPreview] = useState<HlOrderPreview | null>(null);
+    const [busy, setBusy, getBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [receipt, setReceipt] = useState<string | null>(null);
+    const mounted = useRef(false);
+    const position = account?.position;
+    const leverage = account?.asset.leverage;
+    const validAmount = Number.isFinite(Number(notional)) && Number(notional) > 0;
+
+    useEffect(() => {
+      mounted.current = true;
+      return () => { mounted.current = false; };
+    }, []);
+
+    useEffect(() => {
+      let active = true;
+      let reading = false;
+      const read = async () => {
+        if (reading) return;
+        reading = true;
+        try {
+          const current = await fetchHlTradingAccount(user, coin);
+          if (active) {
+            setAccount(current);
+            setReadError(false);
+          }
+        } catch {
+          if (active) setReadError(true);
+        } finally {
+          reading = false;
+        }
+      };
+      void read();
+      const timer = setInterval(() => void read(), 10_000);
+      return () => {
+        active = false;
+        clearInterval(timer);
+      };
+    }, [user, coin, refresh]);
+
+    useEffect(() => {
+      if (!preview) return;
+      const timer = setTimeout(() => {
+        setPreview(null);
+        setError("The price review expired. Review a new order.");
+      }, Math.max(0, preview.expiresAfter - Date.now()));
+      return () => clearTimeout(timer);
+    }, [preview]);
+
+    const run = async (task: () => Promise<void>) => {
+      if (getBusy()) return;
+      setBusy(true);
+      setError(null);
+      setReceipt(null);
+      try {
+        await task();
+      } catch (issue) {
+        if (mounted.current) setError(issue instanceof Error ? issue.message.split("\n")[0] : "Hyperliquid request failed.");
+      } finally {
+        if (mounted.current) {
+          setPending(hasPendingHlOrder(user, coin));
+          setBusy(false);
+        }
+      }
+    };
+
+    const authorize = () => run(async () => {
+      await authorizeHlTrading(user, wallet);
+      if (mounted.current) setAuthorized(true);
+    });
+
+    const review = (close: boolean) => run(async () => {
+      const order = await reviewHlOrder(user, coin, close ? { close: true } : { buy, notional: Number(notional) });
+      if (mounted.current) setPreview(order);
+    });
+
+    const confirm = () => run(async () => {
+      if (!preview) return;
+      setPreview(null);
+      try {
+        const fill = await submitHlOrder(preview, async () => {
+          const [active] = await wallet.getAddresses();
+          return mounted.current && Boolean(active && isAddressEqual(active, user));
+        });
+        if (mounted.current) {
+          const partial = Number(fill.totalSz) < Number(preview.size);
+          setReceipt(`${partial ? "Partially filled" : "Filled"} ${fill.totalSz} ${base} at ${fmtPrice(Number(fill.avgPx))} · order #${fill.oid}`);
+        }
+      } finally {
+        if (mounted.current) setRefresh((version) => version + 1);
+      }
+    });
+
+    const checkOrder = () => run(async () => {
+      const result = await checkHlOrder(user, coin);
+      if (mounted.current) {
+        setReceipt(result);
+        setRefresh((version) => version + 1);
+      }
+    });
+
+  p.sim-mode.is-live(title={user}) #{user.slice(0, 6)}…#{user.slice(-4)} · Mainnet · real funds
+  if account && leverage
+    p.sim-mode #{leverage.value}× #{leverage.type === "cross" ? "cross" : "isolated"} margin
+  if position
+    dl.sim-rows
+      .sim-row
+        dt Position
+        dd #{Number(position.szi) > 0 ? "Long" : "Short"} · #{position.szi.replace(/^-/, "")} #{base}
+      .sim-row
+        dt Entry
+        dd #{fmtPrice(Number(position.entryPx))}
+      .sim-row
+        dt Unrealized PnL
+        dd #{fmtPrice(Number(position.unrealizedPnl))}
+      if position.liquidationPx
+        .sim-row
+          dt Liquidation
+          dd #{fmtPrice(Number(position.liquidationPx))}
+  if readError
+    fragment
+      p.sim-error(role="alert") Could not load your Hyperliquid account.
+      button.sim-chip(type="button" disabled={busy} onClick={() => setRefresh((version) => version + 1)}) Refresh account
+  if pending
+    fragment
+      p.sim-note Check the last order’s status before placing a new one.
+      button.sim-submit(type="button" disabled={busy} onClick={checkOrder}) #{busy ? "Checking order…" : "Check order status"}
+  elseif !authorized
+    fragment
+      p.sim-note Approve a Hyperliquid API wallet for this browser session.
+      button.sim-submit.is-up(type="button" disabled={busy} onClick={authorize}) #{busy ? "Check your wallet…" : "Authorize live trading"}
+  elseif preview
+    .sim-confirm
+      strong #{preview.reduceOnly ? "Close position on Hyperliquid?" : "Place live order on Hyperliquid?"}
+      p #{preview.buy ? "Buy" : "Sell"} #{preview.size} #{base} at #{preview.buy ? "no more than" : "no less than"} #{preview.limit}. Any unfilled size will be cancelled.
+      if !preview.reduceOnly
+        p #{preview.leverage.value}× #{preview.leverage.type} margin · mainnet
+      .sim-confirm-actions
+        button.sim-chip(type="button" onClick={() => setPreview(null)}) Cancel
+        button.sim-submit(className={preview.buy ? "is-up" : "is-down"} type="button" onClick={confirm}) #{preview.reduceOnly ? "Confirm close" : "Confirm live order"}
+  elseif account && !readError
+    fragment
+      if position
+        button.sim-submit.sim-close(type="button" disabled={busy} onClick={() => review(true)}) #{busy ? "Preparing order…" : "Review close"}
+      else
+        fragment
+          .sim-sides(role="radiogroup" aria-label="Direction")
+            button.sim-side.is-up(type="button" role="radio" aria-checked={buy} className={buy && "is-active"} disabled={busy} onClick={() => setBuy(true)}) Long
+            button.sim-side.is-down(type="button" role="radio" aria-checked={!buy} className={!buy && "is-active"} disabled={busy} onClick={() => setBuy(false)}) Short
+          label.sim-field
+            span.sim-field-head Target notional (USD)
+            span.sim-input
+              input(type="number" min="0" step="any" inputMode="decimal" value={notional} disabled={busy} onInput={(event) => setNotional(event.currentTarget.value)})
+          button.sim-submit(className={buy ? "is-up" : "is-down"} type="button" disabled={busy || !validAmount} onClick={() => review(false)}) #{busy ? "Preparing order…" : "Review order"}
+      button.sim-link(type="button" disabled={busy} onClick={authorize}) Renew trading authorization
+  elseif !readError
+    p.sim-loading(role="status") Loading your Hyperliquid account…
+  if error
+    p.sim-error(role="alert") #{error}
+  if receipt
+    p.sim-result(role="status") #{receipt}
+
+props { coin, base }: { coin: string; base: string }
+setup
+  const wallet = useWallet();
+  const [walletModal, setWalletModal] = useState(false);
+  const closeWalletModal = () => setWalletModal(false);
+  useEffect(() => {
+    if (wallet.isConnected) setWalletModal(false);
+  }, [wallet.isConnected]);
+
+section.sim#content(data-mode="live")
+  header.sim-head
+    h2 Live on Hyperliquid
+  if wallet.isConnected && wallet.address && wallet.accountType === "json-rpc"
+    ConnectedTicket(key={`${wallet.address}:${wallet.wallet?.id ?? ""}:${coin}`} user={wallet.address} wallet={wallet.walletClient} coin={coin} base={base})
+  else
+    fragment
+      p.sim-note Connect the wallet you use for Hyperliquid mainnet.
+      button.sim-submit.is-up(type="button" onClick={() => setWalletModal(true)}) Connect wallet
+      WalletModal(open={walletModal} onClose={closeWalletModal})

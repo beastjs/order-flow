@@ -4,6 +4,7 @@ All notable changes to `cfx` will be recorded here.
 
 ## [Unreleased]
 
+- Added paper and wallet-authorized live orders for Hyperliquid perpetuals, including builder markets.
 - Added My OKX for trading USDT perpetuals with a user's own demo or live API key.
 - Enabled the Admin and Asgard overview pages on their subdomains and at `/admin` and `/asgard` on the main app.
 - Added Account menu links to Admin and Asgard for users with the corresponding Firebase claims.

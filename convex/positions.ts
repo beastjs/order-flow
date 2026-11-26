@@ -9,10 +9,43 @@ import { currentUser, requireUser } from "./lib/auth";
 import { writeLog } from "./lib/log";
 import { assetPositionCounts, hasOpenPositions, startPositionCountBackfill, syncAssetPositionCounts } from "./lib/positionCounts";
 import { fetchAllMarks, fetchQuote, fetchSwap, fetchSwapQuotes } from "./lib/okx";
+import { fetchHlBookQuote, fetchHlMarks, fetchHlPaperMarket } from "../src/lib/hyperliquid/rest";
+import { hlPaperCoin } from "../src/lib/paper/instruments";
 import { getFunds, requireFunds } from "./funds";
 import { MAX_PAPER_MARGIN, TAKER_FEE, autoExitLabels, autoExitReason, closePosition, isLiquidated, liquidationPrice, openPosition, priceTotalExit, totalExitReason, validateExitTargets, validateFollowUpOrder, validateTotalExitTargets, type AutoExitReason, type ExitTargets, type PaperPosition } from "../src/lib/paper/math";
 
 const SWEEP_BATCH = 500;
+
+function paperMarket(instId: string) {
+  const coin = hlPaperCoin(instId);
+  return coin ? fetchHlPaperMarket(coin) : fetchSwap(instId);
+}
+
+async function paperQuote(instId: string, buy: boolean) {
+  const coin = hlPaperCoin(instId);
+  const quote = await (coin ? fetchHlBookQuote(coin) : fetchQuote(instId));
+  const price = buy ? quote.ask : quote.bid;
+  if (!Number.isFinite(price) || price <= 0) throw new Error("Waiting for an executable market quote.");
+  return price;
+}
+
+async function hyperliquidExitQuotes(instIds: readonly string[]) {
+  const markets = [...new Set(instIds)].flatMap((instId) => {
+    const coin = hlPaperCoin(instId);
+    return coin ? [{ instId, coin }] : [];
+  });
+  const marks = await fetchHlMarks(markets.map(({ coin }) => coin));
+  const quotes = new Map<string, { instId: string; bid: number; ask: number; mark: number }>();
+  for (let offset = 0; offset < markets.length; offset += 12) {
+    await Promise.all(markets.slice(offset, offset + 12).map(async ({ instId, coin }) => {
+      const mark = marks.get(coin);
+      if (mark === undefined) return;
+      const book = await fetchHlBookQuote(coin).catch(() => ({ bid: 0, ask: 0 }));
+      quotes.set(instId, { instId, mark, ...book });
+    }));
+  }
+  return quotes;
+}
 
 const toPaper = (p: Doc<"positions">): PaperPosition => ({
   instId: p.instId,
@@ -147,7 +180,7 @@ export const getOwnedOpen = internalQuery({
 
 // ─── open ────────────────────────────────────────────────────
 
-/** Open a position at the live OKX ask (up) or bid (down). Prices never come from the client. */
+/** Open a paper position using its venue's executable ask or bid. */
 export const open = action({
   args: {
     instId: v.string(),
@@ -161,18 +194,18 @@ export const open = action({
     if (!Number.isFinite(args.margin) || args.margin <= 0 || args.margin > MAX_PAPER_MARGIN) throw new Error("Invalid amount.");
     if (!Number.isInteger(args.leverage) || args.leverage < 1) throw new Error("Invalid multiplier.");
 
-    const swap = await fetchSwap(args.instId);
+    const swap = await paperMarket(args.instId);
     if (args.leverage > swap.maxLeverage) throw new Error(`Max multiplier for ${swap.base} is ${swap.maxLeverage}×.`);
-    const quote = await fetchQuote(args.instId);
+    const entry = await paperQuote(args.instId, args.side === "up");
 
     return await ctx.runMutation(internal.positions.openPriced, {
-      instId: swap.instId,
+      instId: args.instId,
       base: swap.base,
       category: swap.category,
       side: args.side,
       margin: args.margin,
       leverage: args.leverage,
-      entry: args.side === "up" ? quote.ask : quote.bid,
+      entry,
     });
   },
 });
@@ -236,15 +269,14 @@ export const openPriced = internalMutation({
 
 // ─── close ───────────────────────────────────────────────────
 
-/** Close at the live OKX bid (up) or ask (down). Returns the fill price and realized PnL net of fees. */
+/** Close at the executable bid or ask and return the paper fill. */
 export const close = action({
   args: { positionId: v.id("positions") },
   returns: v.object({ realized: v.number(), exit: v.number() }),
   handler: async (ctx, { positionId }): Promise<{ realized: number; exit: number }> => {
     const owned = await ctx.runQuery(internal.positions.getOwnedOpen, { positionId });
     if (!owned) throw new Error("Position not found or already closed.");
-    const quote = await fetchQuote(owned.instId);
-    const exit = owned.side === "up" ? quote.bid : quote.ask;
+    const exit = await paperQuote(owned.instId, owned.side === "down");
     const realized: number = await ctx.runMutation(internal.positions.settle, {
       positionId,
       exit,
@@ -379,9 +411,9 @@ export const executeFollowUp = internalAction({
 
     let quote: Infer<typeof followUpQuote>;
     try {
-      const [swap, market] = await Promise.all([fetchSwap(order.instId), fetchQuote(order.instId)]);
+      const [swap, entry] = await Promise.all([paperMarket(order.instId), paperQuote(order.instId, order.side === "up")]);
       const error = validateFollowUpOrder(order, swap.maxLeverage);
-      quote = error ? { error } : { base: swap.base, category: swap.category, entry: order.side === "up" ? market.ask : market.bid };
+      quote = error ? { error } : { base: swap.base, category: swap.category, entry };
     } catch (error) {
       quote = { error: error instanceof Error ? error.message : "Could not get a market quote." };
     }
@@ -443,13 +475,21 @@ export const setTotalExitTargets = mutation({
 
 export const totalExitTargetPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator, checkedAt: v.number() },
-  returns: paginationResultValidator(v.object({ fundsId: v.id("funds"), setAt: v.number() })),
+  returns: paginationResultValidator(v.object({ fundsId: v.id("funds"), setAt: v.number(), hlIds: v.array(v.string()) })),
   handler: async (ctx, { paginationOpts, checkedAt }) => {
     const page = await ctx.db.query("funds")
       .withIndex("by_currency_and_totalExitTargets_setAt", (q) =>
         q.eq("currency", "USDT").gt("totalExitTargets.setAt", undefined).lte("totalExitTargets.setAt", checkedAt))
       .paginate(paginationOpts);
-    return { ...page, page: page.page.map((funds) => ({ fundsId: funds._id, setAt: funds.totalExitTargets!.setAt })) };
+    const accounts = [];
+    for (const funds of page.page) {
+      const hlIds: string[] = [];
+      for await (const { instId } of openPositionsFor(ctx, funds.userId)) {
+        if (hlPaperCoin(instId)) hlIds.push(instId);
+      }
+      accounts.push({ fundsId: funds._id, setAt: funds.totalExitTargets!.setAt, hlIds });
+    }
+    return { ...page, page: accounts };
   },
 });
 
@@ -490,17 +530,22 @@ export const sweepTotalExitTargets = internalAction({
     let cursor: string | null = null;
     do {
       const page: FunctionReturnType<typeof internal.positions.totalExitTargetPage> = await ctx.runQuery(
-        internal.positions.totalExitTargetPage, { paginationOpts: { numItems: 100, cursor }, checkedAt },
+        internal.positions.totalExitTargetPage, { paginationOpts: { numItems: 20, cursor }, checkedAt },
       );
       if (page.page.length > 0) {
         if (!totalQuotes) {
-          const [market, marks] = await Promise.all([fetchSwapQuotes(), fetchAllMarks()]);
+          const [market, marks] = await Promise.all([
+            fetchSwapQuotes().catch(() => new Map<string, { bid: number; ask: number }>()),
+            fetchAllMarks().catch(() => new Map<string, number>()),
+          ]);
           totalQuotes = Array.from(marks, ([instId, mark]) => ({
             instId, mark, bid: market.get(instId)?.bid ?? 0, ask: market.get(instId)?.ask ?? 0,
           }));
         }
-        for (const account of page.page) {
-          await ctx.runMutation(internal.positions.settleTotalExitTargets, { ...account, checkedAt, quotes: totalQuotes });
+        const hyperliquid = await hyperliquidExitQuotes(page.page.flatMap(({ hlIds }) => hlIds));
+        for (const { fundsId, setAt, hlIds } of page.page) {
+          const quotes = totalQuotes.concat(hlIds.flatMap((id) => hyperliquid.get(id) ?? []));
+          await ctx.runMutation(internal.positions.settleTotalExitTargets, { fundsId, setAt, checkedAt, quotes });
         }
       }
       cursor = page.isDone ? null : page.continueCursor;
@@ -521,11 +566,16 @@ export const sweepExitTargets = internalAction({
         internal.positions.exitTargetPage, { paginationOpts: { numItems: 100, cursor }, checkedAt },
       );
       if (page.page.length > 0) {
-        const [market, marks] = snapshot ??= await Promise.all([fetchSwapQuotes(), fetchAllMarks()]);
+        const [market, marks] = snapshot ??= await Promise.all([
+          fetchSwapQuotes().catch(() => new Map<string, { bid: number; ask: number }>()),
+          fetchAllMarks().catch(() => new Map<string, number>()),
+        ]);
+        const hyperliquid = await hyperliquidExitQuotes(page.page.map(({ instId }) => instId));
         const quotes = page.page.flatMap(({ positionId, instId, side }) => {
-          const quote = market.get(instId);
+          const hl = hyperliquid.get(instId);
+          const quote = hl ?? market.get(instId);
           const exit = side === "up" ? quote?.bid : quote?.ask;
-          const mark = marks.get(instId);
+          const mark = hl?.mark ?? marks.get(instId);
           return exit !== undefined && Number.isFinite(exit) && exit > 0 && mark !== undefined
             ? [{ positionId, exit, mark }]
             : [];
@@ -540,14 +590,21 @@ export const sweepExitTargets = internalAction({
 
 // ─── liquidation sweep (cron) ────────────────────────────────
 
-/** Fetch every SWAP mark in one OKX call and liquidate open positions that crossed. */
+/** Liquidate paper positions using marks from their own venue. */
 export const sweepLiquidations = internalAction({
   args: {},
   returns: v.number(),
   handler: async (ctx): Promise<number> => {
-    const marks = await fetchAllMarks();
     const instIds: string[] = await ctx.runQuery(internal.positions.openInstruments, {});
-    const relevant = instIds.filter((id) => marks.has(id)).map((instId) => ({ instId, markPx: marks.get(instId)! }));
+    const [marks, hyperliquid] = await Promise.all([
+      instIds.some((id) => !hlPaperCoin(id)) ? fetchAllMarks().catch(() => new Map<string, number>()) : new Map<string, number>(),
+      fetchHlMarks(instIds.flatMap((id) => hlPaperCoin(id) ?? [])),
+    ]);
+    const relevant = instIds.flatMap((instId) => {
+      const coin = hlPaperCoin(instId);
+      const markPx = coin ? hyperliquid.get(coin) : marks.get(instId);
+      return markPx === undefined ? [] : [{ instId, markPx }];
+    });
     if (relevant.length === 0) return 0;
     return await ctx.runMutation(internal.positions.liquidateCrossed, { marks: relevant });
   },

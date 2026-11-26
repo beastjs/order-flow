@@ -1,12 +1,21 @@
 import { useEffect, useSyncExternalStore } from "octane";
 import { useConvexAuth } from "@/hooks/useConvex";
-import { useOkxMarkPrices, useOkxTickers } from "@/hooks/useOkx";
+import { usePaperQuotes } from "@/hooks/usePaperQuotes";
 import { fetchTicker, findPerp } from "@/lib/okx";
+import { fetchHlBookQuote, fetchHlPaperMarket } from "@/lib/hyperliquid/rest";
+import { hlPaperCoin } from "@/lib/paper/instruments";
 import { paperStore, validateFollowUpOrder, type FollowUpOrder } from "@/lib/paper/paper";
 
 module
   async function priceFollowUp(order: FollowUpOrder) {
     try {
+      const coin = hlPaperCoin(order.instId);
+      if (coin) {
+        const [instrument, quote] = await Promise.all([fetchHlPaperMarket(coin), fetchHlBookQuote(coin)]);
+        const entry = order.side === "up" ? quote.ask : quote.bid;
+        const error = validateFollowUpOrder(order, instrument.maxLeverage) ?? (entry > 0 ? null : "Waiting for an executable market quote.");
+        return error ? { error } : { entry };
+      }
       const [instrument, ticker] = await Promise.all([findPerp(order.instId), fetchTicker(order.instId)]);
       if (!instrument || instrument.state !== "live" || instrument.settleCcy !== "USDT") {
         return { error: "The selected perpetual is unavailable." } as const;
@@ -24,10 +33,9 @@ setup
   const pending = pendingFollowUps?.[0];
   const enabled = !auth.isLoading && !auth.isAuthenticated;
   const ids = enabled ? Object.values(positions)
-    .filter((position) => totalExitTargets || position.exitTargets || position.followUpOrder)
+    .filter((position) => totalExitTargets || position.exitTargets || position.followUpOrder || hlPaperCoin(position.instId))
     .map((position) => position.instId) : [];
-  const tickers = useOkxTickers(ids, 250);
-  const marks = useOkxMarkPrices(ids, 250);
+  const paperQuote = usePaperQuotes(ids, 250);
 
   useEffect(() => {
     if (!enabled || !pending) return;
@@ -44,12 +52,11 @@ setup
   useEffect(() => {
     if (!enabled) return;
     if (totalExitTargets) {
-      paperStore.checkTotalExitTargets((id) => ({ mark: marks[id], bid: tickers[id]?.bidPx, ask: tickers[id]?.askPx }));
+      paperStore.checkTotalExitTargets(paperQuote);
     }
     for (const id of ids) {
-      const mark = marks[id];
+      const { mark, bid, ask } = paperQuote(id);
       if (mark === undefined) continue;
-      const ticker = tickers[id];
-      paperStore.checkExitTargets(id, mark, { bid: ticker?.bidPx, ask: ticker?.askPx });
+      paperStore.checkExitTargets(id, mark, { bid, ask });
     }
-  }, [positions, totalExitTargets, enabled, marks, tickers]);
+  }, [positions, totalExitTargets, enabled, paperQuote]);

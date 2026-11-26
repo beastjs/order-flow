@@ -7,6 +7,8 @@ export const category = v.union(
   v.literal("crypto"),
   v.literal("stock"),
   v.literal("commodity"),
+  v.literal("fx"),
+  v.literal("index"),
   v.literal("other"),
 );
 export const positionStatus = v.union(v.literal("open"), v.literal("closed"), v.literal("liquidated"));

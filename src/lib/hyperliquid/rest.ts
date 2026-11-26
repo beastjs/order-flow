@@ -47,9 +47,48 @@ export async function fetchHlCandles(
 }
 
 type WireMetaAndCtxs = [
-  { universe: { name: string; szDecimals: number; maxLeverage: number; isDelisted?: boolean }[] },
+  { universe: WirePerp[] },
   HlWireAssetCtx[]
 ]
+
+type WirePerp = { name: string; szDecimals: number; maxLeverage: number; isDelisted?: boolean }
+
+export async function fetchHlBookQuote(coin: string) {
+  const book = await hlInfo<{ coin: string; levels: [{ px: string }[], { px: string }[]] } | null>({ type: 'l2Book', coin })
+  if (book?.coin !== coin) return { bid: 0, ask: 0 }
+  const bid = Number(book?.levels?.[0]?.[0]?.px)
+  const ask = Number(book?.levels?.[1]?.[0]?.px)
+  return { bid: Number.isFinite(bid) && bid > 0 ? bid : 0, ask: Number.isFinite(ask) && ask > 0 ? ask : 0 }
+}
+
+export async function fetchHlPaperMarket(coin: string) {
+  const { dex, base } = splitHlCoin(coin)
+  const [meta, categories] = await Promise.all([
+    hlInfo<{ universe: WirePerp[] }>({ type: 'meta', dex }),
+    dex ? hlInfo<[string, string][]>({ type: 'perpCategories' }).catch(() => []) : []
+  ])
+  const asset = meta.universe.find((item) => item.name === coin)
+  if (!asset || asset.isDelisted || !Number.isSafeInteger(asset.maxLeverage) || asset.maxLeverage < 1) {
+    throw new Error(`${coin} is not tradable.`)
+  }
+  return { base, category: hlCategory(new Map(categories).get(coin), dex), maxLeverage: asset.maxLeverage }
+}
+
+export async function fetchHlMarks(coins: readonly string[]): Promise<Map<string, number>> {
+  const dexes = [...new Set(coins.map((coin) => splitHlCoin(coin).dex))]
+  const markets = await Promise.allSettled(dexes.map((dex) => hlInfo<WireMetaAndCtxs>({ type: 'metaAndAssetCtxs', dex })))
+  const marks = new Map<string, number>()
+  for (const market of markets) {
+    if (market.status !== 'fulfilled' || !Array.isArray(market.value)) continue
+    const [meta, contexts] = market.value
+    if (!Array.isArray(meta?.universe) || !Array.isArray(contexts) || meta.universe.length !== contexts.length) continue
+    meta.universe.forEach(({ name }, index) => {
+      const mark = Number(contexts[index]?.markPx)
+      if (Number.isFinite(mark) && mark > 0) marks.set(name, mark)
+    })
+  }
+  return marks
+}
 
 /** Map Hyperliquid's `perpCategories` labels onto ours. Unlabelled main-dex coins are crypto. */
 export function hlCategory(label: string | undefined, dex: string): HlCategory {

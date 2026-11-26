@@ -4,6 +4,7 @@ import { api } from "@@/convex/_generated/api";
 import type { Doc } from "@@/convex/_generated/dataModel";
 import { useConvexAuth, useConvexQuery } from "@/hooks/useConvex";
 import { autoExitLabels, paperStore, TAKER_FEE, type PaperFill } from "@/lib/paper/paper";
+import { paperAsset } from "@/lib/paper/instruments";
 import { cn } from "@/lib/utils";
 import { AssetGlyph } from "./AssetIndex.btsx";
 import { fmtExitPrice, fmtPct, fmtPrice, fmtSize } from "./assetFormat";
@@ -28,7 +29,8 @@ component TradeRow
   setup
     const saved = "_id" in trade;
     const okx = "contractsSz" in trade;
-    const base = saved ? trade.base : trade.instId.split("-")[0];
+    const asset = paperAsset(trade.instId, saved ? trade.base : undefined);
+    const base = asset.base;
     const liquidated = saved ? trade.status === "liquidated" : trade.liquidated;
     const autoExit = "autoExitReason" in trade ? trade.autoExitReason : undefined;
     const settlement = okx && trade.closedExternally ? "Closed on OKX" : liquidated ? "Liquidated" : autoExit ? autoExitLabels[autoExit] : "Closed";
@@ -39,17 +41,17 @@ component TradeRow
     const takeProfit = targets?.takeProfit ?? null;
     const followUp = "followUpOrder" in trade ? trade.followUpOrder : undefined;
     const followUpResult = "followUpResult" in trade ? trade.followUpResult : undefined;
-    const followUpBase = followUp?.instId.split("-")[0];
+    const followUpBase = followUp && paperAsset(followUp.instId).assetId;
     const priceInputs = { side: trade.side, entry: trade.entry, size, openFee };
     const closeFee = saved ? trade.closeFee : liquidated ? 0 : size * trade.exit * TAKER_FEE;
     const pnlClass = trade.realized === undefined ? "" : trade.realized >= 0 ? "is-up" : "is-down opacity-90";
     const roe = !okx && trade.realized !== undefined ? 100 * trade.realized / trade.margin : null;
   article.asset-index.trade-history-card(className='hover:bg-(--text-secondary)/5! hover:border-(--text-secondary)/50! transition-colors! duration-300! ease-out!')
     header.trade-history-overview
-      Link.trade-history-asset(to="/perps/$assetId" params={{ assetId: base }} search={{}})
-        AssetGlyph(base={base} size={24})
+      Link.trade-history-asset(to="/perps/$assetId" params={{ assetId: asset.assetId }} search={asset.search})
+        AssetGlyph(base={base} coin={asset.assetId} venue={asset.venue} size={24})
         span.asset-index-name
-          strong #{base}
+          strong #{asset.venue === "hyperliquid" ? asset.assetId : base}
           div(className='flex items-center gap-0.5')
             span.pos-side(className={cn(trade.side === "up" ? "is-up text-(--buy)!" : "is-down text-(--sell)!")})
               Icon(name={trade.side as IconName} className='size-4')

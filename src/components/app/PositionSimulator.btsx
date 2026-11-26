@@ -19,19 +19,19 @@ module
     return `${signed && cents > 0 ? "+" : cents < 0 ? "−" : ""}$${Math.abs(cents).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
-props { instId, base, tickSz, maxLeverage, ticker, markPx, startPersonal = false }: { instId: string; base: string; tickSz?: number; maxLeverage: number; ticker: OkxTicker | null; markPx?: number; startPersonal?: boolean }
+props { instId, base, tickSz, maxLeverage, ticker, markPx, hyperliquidQuote, startPersonal = false }: { instId: string; base: string; tickSz?: number; maxLeverage: number; ticker?: OkxTicker | null; markPx?: number; hyperliquidQuote?: { bid?: number; ask?: number }; startPersonal?: boolean }
 setup
   const account = usePaperAccount(instId);
   const { user } = useFirebaseUser();
   const { data: okxStatus, error: connectionError } = useOkxConnection();
   const connection = user ? okxStatus?.connection : null;
-  const canPersonal = Boolean(user && (okxStatus?.enabled || connection));
+  const canPersonal = !hyperliquidQuote && Boolean(user && (okxStatus?.enabled || connection));
   const [venue, setVenue] = useState<"paper" | "live" | "personal">(startPersonal ? "personal" : "paper");
   const isPersonal = venue === "personal";
   const isLive = venue !== "paper";
   const liveAcct = useLiveAccount(instId, venue, connection?.revision);
   const liveCfg = liveAcct.config;
-  const canLive = Boolean(liveCfg?.canTrade);
+  const canLive = !hyperliquidQuote && Boolean(liveCfg?.canTrade);
   const tradeMode = isPersonal ? connection?.mode : liveCfg?.mode;
   const [okxUser, setOkxUser] = useState<string | null>(null);
   const manageOkx = () => setOkxUser(user?.uid ?? null);
@@ -69,7 +69,7 @@ setup
 
   const last = ticker?.last;
   const mark = markPx ?? last;
-  const quote = { bid: ticker?.bidPx || last, ask: ticker?.askPx || last };
+  const quote = hyperliquidQuote ?? { bid: ticker?.bidPx || last, ask: ticker?.askPx || last };
   // Market orders cross the spread: buy at ask, sell at bid.
   const entryFor = (s: PaperSide) => (s === "up" ? quote.ask : quote.bid);
   const exitFor = (s: PaperSide) => (s === "up" ? quote.bid : quote.ask);
@@ -157,9 +157,9 @@ setup
 
   // canvas#source(style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;")
 section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live" : account.mode})
-  header.sim-head(className="flex-wrap gap-y-2")
+  header.sim-head(className="flex-wrap gap-y-1")
     div(className='flex items-center justify-center gap-4')
-      h2 #{isPersonal ? "Trade with My OKX" : isLive ? "Trade on OKX" : "Simulation"}
+      h2 #{hyperliquidQuote ? "Paper on Hyperliquid" : isPersonal ? "Trade with My OKX" : isLive ? "Trade on OKX" : "Simulation"}
       if (canLive || canPersonal) && !isLive && account.mode === "cloud"
         button.sim-reset-inline(type="button" disabled={busy !== null} onClick={reset} title="Restore the $10,000 paper balance") Reset
     if canLive || canPersonal || isLive
@@ -179,6 +179,8 @@ section.sim#content(data-side={position?.side ?? side} data-mode={isLive ? "live
       | #{tradeMode === "demo" ? "OKX demo · simulated USDT" : "OKX live · real USDT"} · key ending in #{connection.keySuffix}
     elseif venue === "live"
       | #{liveCfg?.mode === "demo" ? "OKX demo trading · simulated funds on OKX · your USD balance" : "LIVE on OKX · real funds · your USD balance"}
+    elseif hyperliquidQuote
+      | Simulated funds · Hyperliquid order book
     // else
     //   | #{account.mode === "cloud" ? "Saved to your account · priced by the server" : account.loading ? "Checking your account…" : "Practice mode · sign in to save positions"}
 

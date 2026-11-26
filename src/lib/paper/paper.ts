@@ -162,7 +162,7 @@ export const paperStore = {
   },
   checkExitTargets(instId: string, mark: number, quote: { bid?: number; ask?: number }): void {
     const position = state.positions[instId]
-    if (!position || (!position.exitTargets && !position.followUpOrder) || !Number.isFinite(mark) || mark <= 0) return
+    if (!position || !Number.isFinite(mark) || mark <= 0) return
     if (isLiquidated(position, mark)) {
       paperStore.close(instId, liquidationPrice(position), true)
       return

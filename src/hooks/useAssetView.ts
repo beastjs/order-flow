@@ -12,7 +12,7 @@ import {
 } from '@/hooks/useOkx'
 import { useHlAssetCtx, useHlBook, useHlCandles, useHlPerps, useHlTrades } from '@/hooks/useHyperliquid'
 import { fetchPerps, toIndexId, type OkxBar, type OkxPerpInstrument, type OkxTicker } from '@/lib/okx'
-import { hlChangePct, hlTickSz, type HlInterval } from '@/lib/hyperliquid'
+import { hlChangePct, hlTickSz, toHlCoin, type HlInterval } from '@/lib/hyperliquid'
 import type { AssetCategory } from '@/components/app/assetFormat'
 
 // ─── venue-agnostic asset page data ──────────────────────────────
@@ -150,7 +150,7 @@ export function useOkxAssetView(instId: string | null, range: RangeKey): AssetVi
 
 export function useHlAssetView(coin: string | null, range: RangeKey): AssetView {
   const { perps, error } = useHlPerps(coin !== null)
-  const found = coin ? perps.find((p) => p.meta.name === coin) : undefined
+  const found = coin ? perps.find((p) => p.meta.name === coin) ?? perps.find((p) => p.meta.name === toHlCoin(coin)) : undefined
   const meta: AssetMeta | null | undefined = found
     ? {
         base: found.meta.base,
@@ -166,8 +166,9 @@ export function useHlAssetView(coin: string | null, range: RangeKey): AssetView 
       ? null
       : undefined
 
-  const live = coin && meta ? coin : null
-  const ctx = useHlAssetCtx(live, 250) ?? (found && live ? found.ctx : null)
+  const live = meta?.instId ?? null
+  const streamCtx = useHlAssetCtx(live, 250)
+  const ctx = streamCtx?.coin === live ? streamCtx : found?.ctx
   const book = useHlBook(live, 150)
   const trades = useHlTrades(live, 24)
   const r = HL_RANGES[range]
@@ -192,7 +193,7 @@ export function useHlAssetView(coin: string | null, range: RangeKey): AssetView 
     volUsd: ctx?.dayNtlVlm,
     high24h: spansDay ? Math.max(...day.map((c) => c.high)) : undefined,
     low24h: spansDay ? Math.min(...day.map((c) => c.low)) : undefined,
-    book,
+    book: book?.coin === live ? book : null,
     trades: trades.map((t) => ({ id: String(t.tid), price: t.price, size: t.size, side: t.side, ts: t.ts })),
     candles: chart.candles,
     candlesLoading: chart.loading || meta === undefined,

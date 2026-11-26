@@ -96,3 +96,9 @@ openssl rand -hex 32 | bunx convex env set OKX_USER_KEY_ENCRYPTION_KEY
 Signed-in users can connect a demo or live key under **Account → My OKX**. Use a dedicated global OKX sub-account with Futures or Multi-currency margin account mode, Long/short position mode, and an API key with Read and Trade permissions. Fund the OKX trading account with USDT and select **My OKX** on an OKX market to place isolated-margin market orders. OKX applies its own margin and liquidation rules. If a position is closed in OKX, use **Close position** in CFX to verify that it is flat and update the history.
 
 Users can replace a key for the same OKX account and environment while positions are active. Close the positions and wait for pending orders to settle before switching accounts, switching environments, or disconnecting. See the [OKX API guide](https://www.okx.com/docs-v5/en/).
+
+## Hyperliquid trading
+
+Select **Hyperliquid** in Markets and open a perpetual. **Paper** uses the CFX simulated balance and fills against the Hyperliquid order book. Paper positions appear in Positions and Trade history. Signed-out practice runs in the browser, and signed-in trading uses the shared Convex paper account.
+
+For **Live**, connect a funded Hyperliquid mainnet wallet and approve the CFX trading session in the wallet. CFX generates a trading key in browser memory, so reloading the page requires a new authorization. Live orders use your current Hyperliquid leverage and margin mode. Review the size and price limit before confirming. Orders execute immediately up to that limit and cancel any unfilled size. Closing uses a reduce-only order. [Hyperliquid exchange API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint)

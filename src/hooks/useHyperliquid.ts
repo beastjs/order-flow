@@ -87,26 +87,43 @@ export function useHlMids(dex?: string, throttleMs = 500): Record<string, number
   return mids
 }
 
-/** Asset contexts for many coins, keyed by coin. */
-export function useHlAssetCtxs(coins: readonly string[], throttleMs = 500): Record<string, HlAssetCtx> {
-  const [ctxs, setCtxs] = useState<Record<string, HlAssetCtx>>({})
+function useHlLatestByCoin<T>(subscribe: (coin: string, cb: (v: T) => void) => () => void, coins: readonly string[], throttleMs: number) {
+  const [values, setValues] = useState<Record<string, T>>({})
   const key = coins.join(',')
   useEffect(() => {
-    const latest: Record<string, HlAssetCtx> = {}
-    const t = throttled(setCtxs, throttleMs)
+    let latest: Record<string, T> = {}
+    const t = throttled(setValues, throttleMs)
+    const clear = () => {
+      t.cancel()
+      latest = {}
+      setValues({})
+    }
+    clear()
+    if (!coins.length) return
+    const offStatus = hlStream.onStatus((status) => {
+      if (status !== 'open') clear()
+    })
     const offs = coins.map((coin) =>
-      hl.assetCtx(coin, (c) => {
-        latest[coin] = c
+      subscribe(coin, (value) => {
+        latest[coin] = value
         t.push({ ...latest })
       })
     )
     return () => {
       offs.forEach((off) => off())
+      offStatus()
       t.cancel()
     }
-  }, [key, throttleMs])
-  return ctxs
+  }, [key, throttleMs, subscribe])
+  return values
 }
+
+/** Asset contexts for many coins, keyed by coin. */
+export const useHlAssetCtxs = (coins: readonly string[], throttleMs = 500) =>
+  useHlLatestByCoin(hl.assetCtx, coins, throttleMs)
+
+export const useHlBbos = (coins: readonly string[], throttleMs = 500) =>
+  useHlLatestByCoin(hl.bbo, coins, throttleMs)
 
 /** Most recent fills, newest first. */
 export function useHlTrades(coin: string | null | undefined, max = 40, throttleMs = 200): HlTrade[] {

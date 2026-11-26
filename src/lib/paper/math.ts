@@ -4,6 +4,8 @@
 // simulator (paper.ts) and the Convex backend (convex/positions.ts).
 // ============================================================
 
+import { hlPaperCoin } from './instruments'
+
 export type PaperSide = 'up' | 'down'
 export const autoExitLabels = {
   stop_loss: 'Stop loss',
@@ -149,7 +151,7 @@ export function validateExitTargets(p: PaperPosition, { stopLoss, takeProfit }: 
 }
 
 export function validateFollowUpOrder(order: FollowUpOrder, maxLeverage?: number): string | null {
-  if (!/^[A-Z0-9]{1,20}-USDT-SWAP$/.test(order.instId)) return 'Choose a supported USDT perpetual.'
+  if (!hlPaperCoin(order.instId) && !/^[A-Z0-9]{1,20}-USDT-SWAP$/.test(order.instId)) return 'Choose a supported perpetual.'
   if (!Number.isFinite(order.margin) || order.margin <= 0 || order.margin > MAX_PAPER_MARGIN) return 'Enter a valid amount.'
   if (!Number.isSafeInteger(order.leverage) || order.leverage < 1) return 'Enter a whole-number multiplier of at least 1×.'
   if (maxLeverage !== undefined && order.leverage > maxLeverage) return `The maximum multiplier is ${maxLeverage}×.`
